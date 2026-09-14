@@ -1,17 +1,17 @@
 (function(root){'use strict';
 function rng(seed){let s=seed>>>0;return ()=>{s+=0x6D2B79F5;let t=s;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296;};}
 const places=[
-{id:'h0',name:'Северный квартал',x:160,y:88,icon:'🏘',home:true},
-{id:'h1',name:'Лесной квартал',x:500,y:88,icon:'🏘',home:true},
-{id:'h2',name:'Речной квартал',x:840,y:88,icon:'🏘',home:true},
-{id:'school',name:'Школа',x:160,y:310,icon:'🏫'},
-{id:'work',name:'Мастерская',x:500,y:310,icon:'🏭'},
-{id:'market',name:'Магазин',x:840,y:310,icon:'🏪'},
-{id:'park',name:'Парк',x:330,y:505,icon:'🌳'},
-{id:'bus',name:'Автобусный узел',x:670,y:505,icon:'🚌'},
-{id:'h3',name:'Южный квартал',x:160,y:715,icon:'🏘',home:true},
-{id:'h4',name:'Солнечный квартал',x:500,y:715,icon:'🏘',home:true},
-{id:'h5',name:'Озёрный квартал',x:840,y:715,icon:'🏘',home:true}];
+{id:'h0',name:'Северный квартал',x:160,y:95,icon:'🏘',home:true},
+{id:'h1',name:'Лесной квартал',x:500,y:95,icon:'🏘',home:true},
+{id:'h2',name:'Речной квартал',x:840,y:95,icon:'🏘',home:true},
+{id:'school',name:'Школа',x:160,y:350,icon:'🏫'},
+{id:'work',name:'Мастерская',x:500,y:350,icon:'🏭'},
+{id:'market',name:'Магазин',x:840,y:350,icon:'🏪'},
+{id:'park',name:'Парк',x:330,y:610,icon:'🌳'},
+{id:'bus',name:'Автобусный узел',x:670,y:610,icon:'🚌'},
+{id:'h3',name:'Южный квартал',x:160,y:890,icon:'🏘',home:true},
+{id:'h4',name:'Солнечный квартал',x:500,y:890,icon:'🏘',home:true},
+{id:'h5',name:'Озёрный квартал',x:840,y:890,icon:'🏘',home:true}];
 const phases=['Утро · дорога','День · учёба и дела','Вечер · прогулка','Ночь · дома'];
 function destination(i,phase,day,c){const home='h'+Math.floor(i/10),far=i>=30;if(phase===3)return home;if(!c.bus&&far)return home;if(phase===0)return c.bus?'bus':home;if(phase===1){let target=i%3===0?'school':i%3===1?'work':'market';return c[target]===false?home:target;}return c.park&&(i+day)%3!==0?'park':home;}
 function simulate(options={}){const c={p:.12,duration:5,seed:1,initial:0,school:true,market:true,park:true,bus:true,...options};const random=rng(c.seed),state=Array(60).fill('S'),age=Array(60).fill(0);state[c.initial]='I';let visits=0,baseline=0;const history=[];
