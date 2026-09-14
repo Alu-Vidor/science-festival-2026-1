@@ -1,25 +1,14 @@
 (function(root){'use strict';
+const phases=['08:00 · дорога','10:00 · учёба и работа','16:00 · покупки','18:00 · отдых и спорт','22:00 · дома'];
+const places=[['h0','Северный квартал',160,120],['h1','Лесной квартал',500,120],['h2','Речной квартал',840,120],['school','Школа',160,430],['work','Офисы и мастерские',500,430],['market','Магазин',840,430],['park','Парк',160,740],['gym','Спортивный центр',500,740],['bus','Автобусный узел',840,740],['h3','Южный квартал',160,1050],['h4','Солнечный квартал',500,1050],['h5','Озёрный квартал',840,1050]].map(([id,name,x,y])=>({id,name,x,y,home:id[0]==='h'}));
+const defaults=()=>({districts:Array.from({length:6},()=>({adults:8,children:4})),rates:{school:90,work:80,market:40,park:50,gym:25,bus:60},p:.12,duration:5,seed:1,initialDistrict:0,school:true,work:true,market:true,park:true,gym:true,bus:true});
 function rng(seed){let s=seed>>>0;return ()=>{s+=0x6D2B79F5;let t=s;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296;};}
-const places=[
-{id:'h0',name:'Северный квартал',x:160,y:95,icon:'🏘',home:true},
-{id:'h1',name:'Лесной квартал',x:500,y:95,icon:'🏘',home:true},
-{id:'h2',name:'Речной квартал',x:840,y:95,icon:'🏘',home:true},
-{id:'school',name:'Школа',x:160,y:350,icon:'🏫'},
-{id:'work',name:'Мастерская',x:500,y:350,icon:'🏭'},
-{id:'market',name:'Магазин',x:840,y:350,icon:'🏪'},
-{id:'park',name:'Парк',x:330,y:610,icon:'🌳'},
-{id:'bus',name:'Автобусный узел',x:670,y:610,icon:'🚌'},
-{id:'h3',name:'Южный квартал',x:160,y:890,icon:'🏘',home:true},
-{id:'h4',name:'Солнечный квартал',x:500,y:890,icon:'🏘',home:true},
-{id:'h5',name:'Озёрный квартал',x:840,y:890,icon:'🏘',home:true}];
-const phases=['Утро · дорога','День · учёба и дела','Вечер · прогулка','Ночь · дома'];
-function destination(i,phase,day,c){const home='h'+Math.floor(i/10),far=i>=30;if(phase===3)return home;if(!c.bus&&far)return home;if(phase===0)return c.bus?'bus':home;if(phase===1){let target=i%3===0?'school':i%3===1?'work':'market';return c[target]===false?home:target;}return c.park&&(i+day)%3!==0?'park':home;}
-function simulate(options={}){const c={p:.12,duration:5,seed:1,initial:0,school:true,market:true,park:true,bus:true,...options};const random=rng(c.seed),state=Array(60).fill('S'),age=Array(60).fill(0);state[c.initial]='I';let visits=0,baseline=0;const history=[];
-function record(day,phase,loc,events){history.push({day,phase,S:state.filter(x=>x==='S').length,I:state.filter(x=>x==='I').length,R:state.filter(x=>x==='R').length,state:[...state],loc,events,activity:baseline?Math.round(visits/baseline*100):100});}
-record(0,3,Array.from({length:60},(_,i)=>'h'+Math.floor(i/10)),[]);
-for(let day=1;day<=60&&state.includes('I');day++)for(let phase=0;phase<4;phase++){const loc=state.map((_,i)=>destination(i,phase,day,c)),next=[...state],events=[];for(let i=0;i<60;i++){if(phase===1||phase===2){const normal=destination(i,phase,day,{...c,school:true,market:true,park:true,bus:true});if(!normal.startsWith('h'))baseline++;if(!loc[i].startsWith('h'))visits++;}}
-for(let a=0;a<60;a++)for(let b=a+1;b<60;b++){const u=random();if(loc[a]!==loc[b])continue;let source=state[a]==='I'&&state[b]==='S'?a:state[b]==='I'&&state[a]==='S'?b:-1;if(source<0)continue;const target=source===a?b:a;const factor=loc[a].startsWith('h')?.8:loc[a]==='park'?.12:loc[a]==='bus'?.22:.25;if(u<c.p*factor&&next[target]==='S'){next[target]='I';events.push({source,target,place:loc[a]});}}
-for(let i=0;i<60;i++){if(phase===3&&state[i]==='I'){age[i]++;if(age[i]>=c.duration)next[i]='R';}state[i]=next[i];}record(day,phase,loc,events);if(!state.includes('I'))break;}
-return {history,peak:Math.max(...history.map(h=>h.I)),total:60-history.at(-1).S,activity:history.at(-1).activity,config:c};}
-root.Epidemic={rng,places,phases,destination,simulate};if(typeof module!=='undefined')module.exports=root.Epidemic;
+function population(c){return c.districts.flatMap((d,k)=>['adults','children'].flatMap(type=>Array.from({length:d[type]},(_,n)=>({home:'h'+k,district:k,child:type==='children',key:k*100+(type==='children'?50:0)+n}))));}
+function chance(person,day,slot,seed){return rng(seed+person.key*1009+day*9176+slot*65537)()*100;}
+function destination(person,phase,day,c){const home=person.home,roll=slot=>chance(person,day,slot,c.seed);const target=person.child?'school':'work';const daytime=c[target]&&roll(1)<c.rates[target]?target:home;if(phase===0)return daytime!==home&&c.bus&&roll(2)<c.rates.bus?'bus':home;if(phase===1)return daytime;if(phase===2)return !person.child&&c.market&&roll(3)<c.rates.market?'market':home;if(phase===3){if(c.gym&&roll(4)<c.rates.gym)return 'gym';if(c.park&&roll(5)<c.rates.park)return 'park';}return home;}
+function normalize(o){const d=defaults(),c={...d,...o,rates:{...d.rates,...o.rates}};c.districts=c.districts.map(x=>({adults:Math.max(0,Math.min(20,Math.round(+x.adults)||0)),children:Math.max(0,Math.min(20,Math.round(+x.children)||0))}));if(c.districts.length!==6)throw Error('Нужно 6 кварталов');return c;}
+function simulate(options={}){const c=normalize(options),people=population(c),n=people.length,random=rng(c.seed),state=Array(n).fill('S'),until=Array(n).fill(Infinity),history=[];let initial=people.findIndex(p=>p.district===c.initialDistrict);if(initial<0)initial=0;if(n){state[initial]='I';until[initial]=c.duration*5;}function record(day,phase,loc,events){history.push({day,phase,S:state.filter(x=>x==='S').length,I:state.filter(x=>x==='I').length,R:state.filter(x=>x==='R').length,state:[...state],loc,events,outside:loc.filter(x=>!x.startsWith('h')).length});}record(0,4,people.map(p=>p.home),[]);
+for(let tick=1;tick<=300&&state.includes('I');tick++){const day=Math.floor((tick-1)/5)+1,phase=(tick-1)%5,loc=people.map(p=>destination(p,phase,day,c)),next=[...state],events=[];for(let a=0;a<n;a++)for(let b=a+1;b<n;b++){const u=random();if(loc[a]!==loc[b])continue;const source=state[a]==='I'&&state[b]==='S'?a:state[b]==='I'&&state[a]==='S'?b:-1;if(source<0)continue;const target=source===a?b:a,factor=loc[a].startsWith('h')?.35:loc[a]==='park'?.06:loc[a]==='bus'?.18:loc[a]==='gym'?.23:.15;if(u<c.p*factor&&next[target]==='S'){next[target]='I';until[target]=tick+c.duration*5;events.push({source,target,place:loc[a]});}}for(let i=0;i<n;i++){if(state[i]==='I'&&tick>=until[i])next[i]='R';state[i]=next[i];}record(day,phase,loc,events);}
+const peak=Math.max(...history.map(h=>h.I)),peakIndex=history.findIndex(h=>h.I===peak);return {history,people,population:n,peak,peakIndex,peakTime:history[peakIndex],total:n-history.at(-1).S,config:c,ended:history.at(-1).I===0};}
+root.Epidemic={rng,defaults,places,population,destination,normalize,simulate,phases};if(typeof module!=='undefined')module.exports=root.Epidemic;
 })(typeof window!=='undefined'?window:globalThis);
