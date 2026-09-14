@@ -1,0 +1,8 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');const elem=()=>({textContent:'',innerHTML:'',classList:{add(){},remove(){},toggle(){},contains(){return false}},children:[],appendChild(x){this.children.push(x)},replaceChildren(){},setAttribute(){},value:'',disabled:false});const els={energy:{...elem(),value:'60'},strategy:{...elem(),value:'short'}};const ctx={console,document:{getElementById(id){return els[id]||=elem()},createElement:elem,createDocumentFragment:elem,body:elem()},setTimeout(){},clearTimeout(){}};vm.createContext(ctx);vm.runInContext(fs.readFileSync(require('path').join(__dirname,'../index.html'),'utf8').match(/<script>([\s\S]*?)<\/script>/)[1],ctx);vm.runInContext(`
+if(grid.length!==144)throw Error('map size');
+let basic=findPath(start,targets,false); if(!basic.some(i=>danger(features(i))))throw Error('baseline should demonstrate hazard');
+model=grid.flatMap((c,i)=>c.type==='wall'?[]:[{f:features(i),y:+danger(features(i))}]);
+let pos=start,goals=new Set(targets),total=0;while(goals.size){let p=findPath(pos,goals,true);if(!p)throw Error('unreachable');for(let i of p){if(danger(features(i)))throw Error('trained path unsafe '+i);total+=({road:1,mud:3,hill:4,water:5}[grid[i].type]);}pos=p[p.length-1];goals.delete(pos);}console.log('Trained route energy',total);if(total>60)throw Error('energy');
+samples=[];selected=0;label(0);label(1);if(samples.length!==1||samples[0].y!==1)throw Error('replace duplicate');
+let before=features(0)[0];raining=true;if(features(0)[0]!==before+25)throw Error('weather');
+console.log('Model and map checks passed');`,ctx);
