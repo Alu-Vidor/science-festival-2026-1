@@ -6,3 +6,6 @@ const c=E.defaults();Object.keys(c.rates).forEach(k=>c.rates[k]=100);const child
 const empty=Array.from({length:6},()=>({adults:0,children:0}));assert.equal(E.simulate({districts:empty}).population,0);empty[4]={adults:0,children:1};const one=E.simulate({districts:empty,initialDistrict:4});assert.equal(one.population,1);assert.equal(one.total,1);assert.equal(one.people[0].home,'h4');
 const big=E.simulate({districts:Array.from({length:6},()=>({adults:20,children:20})),p:0});assert.equal(big.population,240);assert.equal(big.total,1);
 const none=E.defaults();Object.keys(none.rates).forEach(k=>none.rates[k]=0);assert(E.simulate(none).history.every(h=>h.outside===0));console.log('Population, age routes, attendance, peak timing, zero/max population passed');
+// Complete parcel bounds (including title and footer) must stay clear of streets.
+for(const p of E.places){assert(p.x-123>=0&&p.x+123<=1000);assert(p.y-91>=0&&p.y+184<=1370);for(const x of [20,340,660,980])assert(p.x+123<=x-18||p.x-123>=x+18);for(const y of [330,660,990,1320])assert(p.y+184<=y-25||p.y-91>=y+25);}
+console.log('Parcel bounds clear of roads and canvas edges');
