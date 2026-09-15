@@ -1,0 +1,11 @@
+const assert=require('assert'),M=require('../mayor.js');
+const base=M.create(),step=M.step(base,M.policy());assert.equal(base.day,0);assert.equal(step.day,1);assert.equal(step.history.length,5);assert.deepStrictEqual(step,M.step(base,M.policy()));
+assert.throws(()=>M.create({districts:M.setup().map(d=>({...d,adults:0,children:0,seniors:0}))}));assert.throws(()=>M.step(base,{school:'bad'}));
+const closed=Object.fromEntries(Object.keys(M.modes).map(k=>[k,['school','kindergarten'].includes(k)?'remote':'closed']));let g=base;for(let i=0;i<14;i++)g=M.step(g,closed);assert.equal(g.reports.at(-1).food,0);assert(g.cash<0);assert(g.trust<20);assert.equal(g.history.length,70);assert.throws(()=>M.step(g,closed));
+const open=M.step(base,M.policy()),noMall=M.step(base,{mall:'closed'});assert(noMall.reports[0].counts.market>open.reports[0].counts.market);assert.equal(noMall.reports[0].counts.mall,0);
+const remote=M.step(base,{school:'remote',kindergarten:'remote'});assert(remote.reports[0].caregivers>0);assert(remote.reports[0].workers<open.reports[0].workers);
+const noBus=M.step(base,{bus:'closed'});assert(noBus.reports[0].missed>open.reports[0].missed);assert(noBus.reports[0].districts.filter(d=>!base.districts[d.district].far).every(d=>d.missed===0));
+let delayed=M.create();delayed.states[1]='E';delayed.exposed[1]=0;delayed=M.step(delayed,M.policy());assert.equal(delayed.states[1],'E');delayed=M.step(delayed,M.policy());assert.equal(delayed.states[1],'I');
+assert.equal(M.event(7).kind,'cold');assert.equal(M.event(10).kind,'bus');assert.equal(M.event(11).kind,'normal');
+for(const profile of ['families','older']){let city=M.create({districts:M.setup(profile)});assert.equal(city.people.length,102);for(let i=0;i<14;i++){const prior=city.trust;city=M.step(city,M.policy());const r=city.reports.at(-1);assert.equal(r.trustDelta,city.trust-prior);assert.equal(r.cash,(i?city.reports[i-1].cash:300)+r.income-r.expenses);assert(r.treated<=r.beds);for(const h of city.history.slice(-5)){assert.equal(h.S+h.I+h.R,city.people.length);assert(h.loc.every(id=>require('../epidemic.js').places.some(p=>p.id===id)));}}}
+console.log('Mayor: tradeoffs, rerouting, childcare, distant districts, delayed cases, events, replay and accounting passed');
