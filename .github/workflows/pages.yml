@@ -22,6 +22,7 @@ jobs:
         run: |
           node tests/model.cjs
           node tests/epidemic.cjs
+          node tests/city-ui.cjs
       - uses: actions/configure-pages@v5
       - name: Prepare public files
         run: |
