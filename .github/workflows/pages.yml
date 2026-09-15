@@ -25,11 +25,13 @@ jobs:
           node tests/city-ui.cjs
           node tests/mayor.cjs
           node tests/mayor-ui.cjs
+          node tests/contest.cjs
+          node tests/contest-ui.cjs
       - uses: actions/configure-pages@v5
       - name: Prepare public files
         run: |
           mkdir _site
-          cp index.html epidemic.html epidemic.js mayor.js mayor-ui.js _site/
+          cp index.html epidemic.html epidemic.js mayor.js mayor-ui.js contest.js contest-ui.js _site/
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
