@@ -22,3 +22,5 @@ button,select{transition:background .16s,border-color .16s,box-shadow .16s}butto
 @media(prefers-reduced-motion:reduce){button,select,.place .district-frame{transition:none}}
 /* Shared generated material, sliced at the corners so every viewport keeps its proportions. */
 .mapscroll{padding:20px;background:#132c36;border-radius:3px}.mapscroll::after{inset:0;border:24px solid transparent;border-radius:0;background:none;border-image:url('assets/expedition-frame.webp') 10% / 24px / 0 stretch}#map{border-radius:2px}@media(max-width:600px){.mapscroll{padding:12px}.mapscroll::after{inset:0;border-image-width:16px}}
+
+.building-sprite{transition:filter .15s,opacity .15s}.place:hover .building-sprite,.place:focus-visible .building-sprite{filter:brightness(1.12) drop-shadow(0 0 3px #f3d99b99)}@media(prefers-reduced-motion:reduce){.building-sprite{transition:none}}
