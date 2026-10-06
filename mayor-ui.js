@@ -1,97 +1,131 @@
-/* Child-facing controller. The city renderer remains shared with the sandbox. */
-(function(){'use strict';
-const $=id=>document.getElementById(id),titles={school:'Школа',kindergarten:'Детский сад',work:'Работа',market:'Магазин',mall:'Торговый центр',bus:'Автобусы',park:'Парк',gym:'Спортцентр',clinic:'Больница'},options={normal:'Обычный режим',shifts:'Две смены',remote:'Дома / дистанционно',limited:'Меньше посетителей',long:'Дольше открыт',closed:'Закрыто',reduced:'Меньше рейсов',frequent:'Частые рейсы',appointments:'Приём по времени'},hints={school:'Дома: меньше контактов, но часть родителей не работает. Две смены: меньше контактов, выше ежедневные расходы.',kindergarten:'Если сад закрыт, взрослым нужно оставаться с малышами.',work:'Меньше работающих — меньше встреч и доходов.',market:'Покупатели закрытого ТЦ придут сюда. Ограничение приёма создаёт очередь.',mall:'Посетители перераспределяются между ТЦ и магазином. Долгий день уменьшает скученность и увеличивает расходы.',bus:'Редкие рейсы перевозят меньше людей. Из дальних кварталов пешком не успеть.',park:'После закрытия жители выбирают спортцентр или ТЦ.',gym:'После закрытия жители ищут другое место отдыха.',clinic:'Приём по времени уменьшает контакты. Закрытие оставляет нуждающихся без помощи.'};
-const tasks={balance:'Проживи 14 дней. Сдерживай вспышку, обеспечивай жителей продуктами и сохраняй доверие. Сравни, чем пришлось пожертвовать.',open:'Не закрывай места полностью. Попробуй изменить режимы и наблюдай за последствиями. Дистанционный режим тоже считается закрытием здания.',districts:'Сохрани опыт города с детьми, затем выбери город с пожилыми. При одинаковом номере опыта проверь тот же план. Кому он подходит лучше?',routes:'Измени режим одного места. Сравни посещаемость соседних мест и очереди с предыдущим днём. Помни: событие дня тоже влияет на результат.',delay:'После изменения мер дай городу 2–3 дня. Объясни, почему новые заболевшие могут появляться, даже когда контактов уже меньше.',defend:'Сохрани два разных плана. Выбери, какой лучше для жителей, и обоснуй выбор по нескольким показателям.'};
-let previewCity=null,selectedCitizen=0;
-let game=null,plan=Mayor.policy(),playing=false,replayTimer=null,saved=[],setupRows=Mayor.setup(),selectedTask='balance',profile='mixed';
-const shell=document.createElement('section');shell.id='mayor';shell.innerHTML=`<div class="mayor-title"><div><span class="eyebrow">ТВОЯ МИССИЯ · 14 ИГРОВЫХ ДНЕЙ</span><h1>Город должен жить</h1><p>Ты мэр. Береги жителей, но помни: им нужны продукты, работа, учёба и отдых.</p></div><button id="labToggle">Открыть свободную лабораторию</button></div><ol class="mayor-steps"><li>Заметь проблему</li><li>Выбери решение</li><li>Проживи день</li><li>Объясни результат</li></ol><details id="citySetup"><summary>Выбери задание и настрой город</summary><div class="setup-line"><label>Задание<select id="mission"><option value="balance">Город должен жить</option><option value="open">Не закрывая город</option><option value="districts">Два похожих города</option><option value="routes">Неожиданный эффект</option><option value="delay">Решение с задержкой</option><option value="defend">Защити своё решение</option></select></label><label>Население<select id="profile"><option value="mixed">Разные поколения</option><option value="families">Больше детей</option><option value="older">Больше пожилых</option></select></label><label>Номер опыта<input id="mayorSeed" type="number" value="1" min="1" max="99999"></label></div><p id="taskText"></p><details><summary>Изменить каждый квартал</summary><div class="district-editor" id="districtEditor"></div><p>Пожилые не ходят на работу. Им чаще требуется помощь при болезни. Дальние кварталы сильнее зависят от автобусов.</p></details></details><div id="mayorDashboard" class="mayor-dashboard"></div><div id="dayEvent" class="day-event"></div><div id="cityIssues" class="city-issues" aria-label="Что нужно городу"></div><div class="map-day-action"><button id="mapLiveDay" class="primary">Прожить день 1 →</button><a href="#mayorPolicies">Изменить решения ↓</a></div><div id="mayorMapSlot"></div><p id="citizenStory"></p><details id="cityPeople"><summary>Жители: посмотри на город их глазами</summary><label>Выбери жителя<select id="citizenChoice"></select></label><div id="citizenPanel"></div></details><details id="cityInvestments"><summary>Строй и улучшай город</summary><p>Улучшение строится сразу. Оно работает со следующего дня и требует монет на содержание каждый день. Каждый объект можно улучшить дважды.</p><div id="investmentCards" class="investment-grid"></div></details><details class="city-services"><summary>Вода, энергия и чистота</summary><div id="cityServices" class="services-grid"></div></details><div class="mayor-work"><div><h2>1. Твои решения на следующий день</h2><p>Меняй одно-два условия: так легче понять причину результата. Решения начнут действовать после нажатия «Прожить день».</p><div id="mayorPolicies"></div><div class="mayor-actions"><button class="primary" id="liveDay">Прожить день 1 →</button><button id="newMayor">Новый опыт</button></div><p id="mayorStatus" role="status" aria-live="polite"></p></div><div><h2>2. Что произошло</h2><div id="dayReport"><p>Проживи первый день, чтобы получить отчёт.</p></div><details><summary>По кварталам</summary><div id="districtReport"></div></details><details><summary>Куда пошли жители</summary><div id="flowsReport"></div></details></div></div><details><summary>История дней и решений</summary><div class="table-scroll"><table><thead><tr><th>День</th><th>Заразны</th><th>Продукты</th><th>Бюджет</th><th>Доверие</th><th>Решения</th></tr></thead><tbody id="mayorHistory"></tbody></table></div></details><section id="mayorCompare"><h2>3. Сравни и объясни</h2><label>Какой у тебя был план?<input id="planName" maxlength="100" placeholder="Например: сохранить транспорт и разделить смены"></label><label>Что получилось и чем пришлось пожертвовать?<textarea id="reflection" maxlength="600" rows="3" placeholder="Я изменил… В результате… Но при этом…"></textarea></label><button id="saveMayor" disabled>Сохранить результат 14 дней</button><div id="comparison"></div></section><details><summary>Как устроен наш учебный город</summary><p>Это вымышленные правила для эксперимента, а не прогноз реальной эпидемии. После заражения симптомы появляются через 2 дня. Видимый заразный период — 6 дней. Поэтому результат мер виден не сразу; карта показывает видимые состояния.</p><p>Работающий житель приносит 3 монеты в день, обслуженный покупатель — 1. Есть ежедневные расходы на город, школу, больницу и транспорт. Улучшения требуют разовой оплаты и ежедневного содержания. Вода и электросеть рассчитаны на 120 жителей, вывоз мусора — на 110; улучшение добавляет 80. Нехватка электричества снижает вместимость учёбы, работы и магазинов, воды и чистоты — ухудшает условия жизни. Минусовой бюджет означает долг, а не конец игры.</p><p>Один покупатель приносит двухдневный запас для своей семьи, если хватает семейных денег. Работа приносит семье 7 монет, пожилому жителю — 3 монеты в день. Одна порция стоит 1,5 монеты. Запасы сохраняются и расходуются каждый день. Магазин обслуживает до 22 покупателей, ТЦ — до 40; ограничение уменьшает число вдвое, длинный день увеличивает в полтора раза. Очередь остаётся местом контактов. Автобусы перевозят до 40 жителей утром, редкие рейсы — до 20.</p><p>Больница помогает до 8 нуждающимся в день; новый кабинет добавляет 4 места. Пожилые получают помощь первыми. Помощь доступна только тем, кто добрался до больницы. Нагрузка — число нуждающихся, не всех заразных. Выздоровление в этой версии не зависит от лечения. Доверие меняется из-за продуктов, отдыха, учёбы, недоступной помощи и пропущенных поездок. Долг также уменьшает доверие. При низком доверии часть жителей встречается дома у соседей вопреки ограничениям.</p><p>Дистанционная учёба даёт 60% обычной доступности занятий; один взрослый присматривает максимум за двумя детьми. Это условности модели, которые можно обсуждать. Все 14 дней рассчитываются по очереди. При одинаковом составе города, номере опыта и решениях результат повторяется.</p></details>`;
-document.body.insertBefore(shell,document.body.firstChild);const city=document.querySelector('.city'),originalMain=city.parentNode;$('mayorMapSlot').appendChild(city);
-function element(tag,text,parent){const e=document.createElement(tag);e.textContent=text;parent.appendChild(e);return e;}
-function editDistricts(){const box=$('districtEditor');box.replaceChildren();['Квартал','Взрослые','Дети','Пожилые','Далеко'].forEach(x=>element('b',x,box));setupRows.forEach((d,i)=>{element('span',Epidemic.places.find(p=>p.id==='h'+i).name.replace(' квартал',''),box);for(const k of ['adults','children','seniors']){const v=document.createElement('input');v.type='number';v.min=0;v.max=20;v.value=d[k];v.setAttribute('aria-label',`Квартал ${i+1}: ${k==='adults'?'взрослые':k==='children'?'дети':'пожилые'}`);v.onchange=()=>{d[k]=Math.max(0,Math.min(20,+v.value|0));v.value=d[k];preview();};box.appendChild(v);}const far=document.createElement('input');far.type='checkbox';far.checked=d.far;far.setAttribute('aria-label',`Дальний квартал ${i+1}`);far.onchange=()=>{d.far=far.checked;preview();};box.appendChild(far);});}
-function policyControls(){const box=$('mayorPolicies');box.replaceChildren();for(const [group,keys]of [['Учёба и работа',['school','kindergarten','work']],['Продукты и поездки',['market','mall','bus']],['Отдых и помощь',['park','gym','clinic']]]){const details=document.createElement('details');details.open=keys[0]==='school';element('summary',group,details);for(const k of keys){const label=element('label',titles[k],details),select=document.createElement('select');select.id='mayor-'+k;for(const v of Mayor.modes[k]){const o=element('option',options[v],select);o.value=v;}select.value=plan[k];select.onchange=()=>{plan[k]=select.value;$('mayorStatus').textContent='Решение записано. Оно подействует в следующем игровом дне.';};label.appendChild(select);element('p',hints[k],details).className='policy-hint';}box.appendChild(details);}}
-function preview(){if(game||!window.mayorActive)return;try{const g=Mayor.create({districts:setupRows,seed:+$('mayorSeed').value||1});previewCity=g;window.renderMayor(g,initialHistory(g),0);cityDetails(g);}catch(e){$('mayorStatus').textContent=e.message;}}
-function initialHistory(g){return [{day:0,phase:4,state:g.states.map(x=>x==='E'?'S':x),loc:g.people.map(p=>p.home),events:[],S:g.states.filter(x=>x==='S'||x==='E').length,I:g.states.filter(x=>x==='I').length,R:g.states.filter(x=>x==='R').length,outside:0}];}
-function mapGame(index){if(!game)return;const hist=initialHistory(game).concat(game.history);window.renderMayor(game,hist,index??hist.length-1);}
-function disableSetup(on){$('citySetup').querySelectorAll('input,select').forEach(e=>e.disabled=on);}
-function start(){const seed=+$('mayorSeed').value;if(!Number.isInteger(seed)||seed<1||seed>99999)throw Error('Номер опыта должен быть целым числом от 1 до 99999.');game=Mayor.create({districts:setupRows,seed,challenge:selectedTask});disableSetup(true);$('citySetup').open=false;}
-function dashboard(){
- const source=game||previewCity,r=game?.reports.at(-1),box=$('mayorDashboard');box.replaceChildren();
- for(const [name,val,note] of [
- ['Здоровье',r?`${r.infectious} заразных`:'1 заразный',r?`Помощь получили ${r.treated} из ${r.care} нуждающихся`:'Симптомы появляются через 2 дня'],
- ['Бюджет',`${source?.cash??300} монет`,r?`+${r.income} доходы −${r.expenses} расходы`:'Монеты на работу города и улучшения'],
- ['Продукты',r?`${r.food}% жителей`:'Запас на 1 день',r?`Очередь: ${r.queue} семей · учёба ${r.education}%`:'Семьи расходуют запасы каждый день'],
- ['Доверие',`${source?.trust??85}%`,r?`За день ${r.trustDelta>=0?'+':''}${r.trustDelta}`:'Влияет на соблюдение ограничений'],
- ['Настроение',r?`${r.happiness}%`:'80%',r?`Усталых жителей: ${r.tired} · отдых ${r.rest}%`:'Зависит от еды, отдыха, служб и поездок']]){
-  const c=document.createElement('div');element('span',name,c);element('strong',val,c);element('p',note,c);box.appendChild(c);
- }
- const next=(game?.day||0)+1,ev=Mayor.event(next);
- $('dayEvent').textContent=next<=14?`День ${next} из 14 · ${ev.title}. ${ev.text}`:'Две недели завершены. Сравни результаты и объясни свой выбор.';
- $('liveDay').textContent=next<=14?`Прожить день ${next} →`:'14 дней завершены';$('liveDay').disabled=playing||next>14;
- $('mapLiveDay').disabled=$('liveDay').disabled;$('mapLiveDay').textContent=$('liveDay').textContent;$('saveMayor').disabled=playing||next<=14;
- const help=$('cityTutorial');if(help)help.disabled=playing;
- if(source)cityDetails(source);
-}
-function report(){const r=game.reports.at(-1),box=$('dayReport');box.replaceChildren();element('h3',`Итоги дня ${r.day} · ${r.event.title}`,box);const list=document.createElement('ul');[
-`Новые симптомы появились у ${r.newCases} жителей. Это следствие заражений два дня назад.`,
-`Работали ${r.workers} жителей; ${r.caregivers} взрослых присматривали за детьми своей семьи.`,
-`Без продуктов: ${100-r.food}% жителей. В очередях остались ${r.queue} покупателей.`,
-`Из дальних кварталов не добрались ${r.missed} жителей. В среднем на жителя — ${r.commute} минут поездок за день.`,
-`Помощь не получили ${r.unservedCare} нуждающихся.`,
-`Настроение — ${r.happiness}%. Не хватило мест для отдыха ${r.restQueue} жителям; для занятий — ${r.schoolQueue}.`,
-`Доверие изменилось на ${r.trustDelta>=0?'+':''}${r.trustDelta}. Встреч у соседей вопреки ограничениям: ${r.informal}.`,
-r.cash<0?'Город в долгу. Сравни доходы и ежедневные расходы.':'Бюджет за день: '+(r.income-r.expenses>=0?'+':'')+(r.income-r.expenses)+' монет.'
-].forEach(x=>element('li',x,list));box.appendChild(list);element('p','Почему изменилось доверие: '+Object.entries(r.trustCauses).map(([k,v])=>({food:'продукты',rest:'отдых',education:'учёба',care:'помощь',transport:'поездки',debt:'долг',services:'городские службы'}[k])+': '+(v>=0?'+':'')+v).join('; ')+'. Доверие ограничено от 0 до 100%.',box);if(game.challenge==='open'&&Object.values(r.policy).some(v=>['closed','remote'].includes(v)))element('p','Условие задания нарушено: одно из зданий закрыто. Опыт продолжается, но это нужно учесть при сравнении.',box);
-cityDetails(game);
-const ds=$('districtReport');ds.replaceChildren();for(const d of r.districts){element('p',`${Epidemic.places.find(p=>p.id==='h'+d.district).name}: ${d.population} жителей, продукты получили ${d.food}, заразны ${d.ill}, не добрались ${d.missed}, настроение ${d.happiness}%.`,ds);}const flows=$('flowsReport');flows.replaceChildren();for(const [k,v]of Object.entries(r.counts)){const prev=game.reports.at(-2)?.counts[k];element('p',`${titles[k]}: ${v} посетителей${prev!==undefined?` (${v-prev>=0?'+':''}${v-prev} ко вчерашнему дню)`:''}`,flows);}const tr=document.createElement('tr');for(const text of [r.day,r.infectious,r.food+'%',r.cash,r.trust+'%',Object.entries(r.policy).filter(([k,v])=>v!=='normal').map(([k,v])=>titles[k]+': '+options[v]).join('; ')||'Обычный режим везде'])element('td',text,tr);$('mayorHistory').appendChild(tr);}
-$('liveDay').onclick=()=>{if(playing)return;try{if(!game)start();game=Mayor.step(game,plan);playing=true;$('mayorPolicies').querySelectorAll('select').forEach(e=>e.disabled=true);$('newMayor').disabled=true;dashboard();report();$('mayorStatus').textContent='Город проживает день. На карте меняются пять этапов.';let i=(game.day-1)*5+1;mapGame(i);function replay(){if(i<game.day*5){mapGame(++i);replayTimer=setTimeout(replay,1000);}else{playing=false;dashboard();$('mayorPolicies').querySelectorAll('select').forEach(e=>e.disabled=game.day>=14);$('newMayor').disabled=false;$('mayorStatus').textContent=game.day>=14?'Сохрани результат и напиши, почему считаешь свой план удачным.':'Прочитай отчёт. Что сохранишь, а что изменишь завтра?';}}replayTimer=setTimeout(replay,1000);}catch(e){$('mayorStatus').textContent=e.message;}};
-$('mapLiveDay').onclick=()=> $('liveDay').onclick();
-$('newMayor').onclick=()=>{clearTimeout(replayTimer);playing=false;game=null;plan=Mayor.policy();$('planName').value='';$('reflection').value='';$('mayorStatus').textContent='Новый опыт готов. Сохранённые результаты остались ниже.';disableSetup(false);$('citySetup').open=true;policyControls();$('mayorHistory').replaceChildren();$('dayReport').textContent='Новый город готов. Выбери решения и проживи первый день.';$('districtReport').replaceChildren();$('flowsReport').replaceChildren();dashboard();preview();};
-$('profile').onchange=()=>{profile=$('profile').value;setupRows=Mayor.setup(profile);editDistricts();preview();};$('mission').onchange=()=>{selectedTask=$('mission').value;$('taskText').textContent=tasks[selectedTask];};
-$('saveMayor').onclick=()=>{if(!game||game.day<14||playing)return;const last=game.reports.at(-1),summary={investments:game.investments,infrastructure:game.infrastructure,happiness:last.happiness,name:$('planName').value.trim()||`План ${saved.length+1}`,reflection:$('reflection').value.trim(),seed:game.seed,challenge:game.challenge,population:game.people.length,districts:game.districts,decisions:game.decisions,peak:Math.max(...game.reports.map(r=>r.infectious)),overload:game.reports.filter(r=>r.unservedCare>0).length,food:Math.round(game.reports.reduce((s,r)=>s+r.food,0)/14),education:Math.round(game.reports.reduce((s,r)=>s+r.education,0)/14),rest:Math.round(game.reports.reduce((s,r)=>s+r.rest,0)/14),cash:last.cash,trust:last.trust};saved.push(summary);const article=document.createElement('article');element('h3',summary.name,article);element('p',`№${summary.seed} · ${summary.population} жителей · пик ${summary.peak} · дней без помощи всем нуждающимся: ${summary.overload} · в среднем с продуктами ${summary.food}% · учёба ${summary.education}% · отдых ${summary.rest}% · бюджет ${summary.cash} · доверие ${summary.trust}%`,article);element('p',summary.reflection||'Объяснение пока не записано.',article);const detail=document.createElement('details');element('summary','Состав города и все решения',detail);element('p',summary.districts.map((d,i)=>`Квартал ${i+1}: ${d.adults} взрослых, ${d.children} детей, ${d.seniors} пожилых, ${d.far?'далеко':'близко'}`).join('; '),detail);for(const d of summary.decisions)element('p',`День ${d.day}: `+Object.entries(d.policy).map(([k,v])=>titles[k]+' — '+options[v]).join('; '),detail);for(const u of summary.investments)element('p',`Улучшение перед днём ${u.day+1}: ${Mayor.upgrades[u.id].title}, уровень ${u.level}, ${u.cost} монет.`,detail);article.appendChild(detail);$('comparison').appendChild(article);$('saveMayor').disabled=true;$('mayorStatus').textContent='Результат сохранён на этой странице. Начни новый опыт для сравнения. При перезагрузке записи исчезнут.';};
-window.mayorActive=true;window.mayorSelect=id=>{const control=$('mayor-'+id);if(control){control.closest('details').open=true;control.focus();control.scrollIntoView({behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches?'auto':'smooth',block:'center'});}else{if(id[0]==='h'){const city=game||previewCity;const person=city?.people.findIndex(p=>p.home===id);if(person>=0){window.mayorCitizenSelect(person);return;}}$('districtReport').closest('details').open=true;$('districtReport').scrollIntoView({behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches?'auto':'smooth',block:'center'});}};
-$('labToggle').onclick=()=>{if(window.location&&!playing){window.location.href='epidemic.html?mode=lab';return;}if(playing){$('mayorStatus').textContent='Дождись окончания дня.';return;}window.mayorActive=!window.mayorActive;(window.mayorActive?$('mayorMapSlot'):originalMain).appendChild(city);document.body.classList.toggle('mayor-mode',window.mayorActive);$('labToggle').textContent=window.mayorActive?'Открыть свободную лабораторию':'Вернуться к роли мэра';if(window.mayorActive){if(game)mapGame();else preview();}else window.resetMayorMap();};
-
-function investmentControls(){
- const box=$('investmentCards');box.replaceChildren();
- for(const [id,u] of Object.entries(Mayor.upgrades)){
-  const card=document.createElement('article');card.className='investment-card';element('h3',u.title,card);
-  element('p',u.effect+` · содержание ${u.upkeep} монет/день`,card);
-  const button=element('button',`Построить · ${u.cost} монет`,card);button.id='invest-'+id;
-  button.onclick=()=>{if(playing)return;try{if(!game)start();game=Mayor.invest(game,id);dashboard();mapGame();$('mayorStatus').textContent=u.title+' построено. Польза и расходы появятся в следующем дне.';}catch(e){$('mayorStatus').textContent=e.message;}};
-  box.appendChild(card);
- }
-}
-function cityDetails(city){
- const r=city.reports.at(-1),issues=$('cityIssues');issues.replaceChildren();
- const shown=r?.alerts.slice(0,3)||[];
- for(const a of shown){const card=document.createElement('article');card.className='issue-card';element('h3',a.title,card);element('p',a.text,card);issues.appendChild(card);}
- const services=r?.services||Mayor.serviceState(city),box=$('cityServices');box.replaceChildren();
- for(const [id,title] of [['water','Водоснабжение'],['power','Электросеть'],['waste','Вывоз мусора']]){
-  const card=document.createElement('article');card.className='service-card';element('h3',title,card);element('strong',services[id]+'% жителей',card);
-  const bar=document.createElement('progress');bar.max=100;bar.value=services[id];bar.setAttribute('aria-label',title);card.appendChild(bar);
-  element('p',`${services.capacity[id]} мест · население ${city.people.length}`+(id==='waste'?` · накоплено мусора: ${services.accumulatedWaste}`:''),card);box.appendChild(card);
- }
- for(const [id,u] of Object.entries(Mayor.upgrades)){const b=$('invest-'+id);if(!b)continue;const level=city.infrastructure[id];b.disabled=playing||city.day>=14||level>=2||city.cash<u.cost;b.textContent=level>=2?'Улучшено дважды ✓':`Построить · ${u.cost} монет${level?' · ещё раз':''}`;}
- const select=$('citizenChoice');if(select.children.length!==city.people.length){select.replaceChildren();city.people.forEach((person,i)=>{const o=element('option',`${person.name}, ${person.age} лет · квартал ${person.district+1}`,select);o.value=i;});}
- selectedCitizen=Math.min(selectedCitizen,city.people.length-1);select.value=selectedCitizen;
- select.onchange=()=>{selectedCitizen=+select.value;citizenDetails(game||previewCity);};
- const hungry=city.households.find(h=>h.unmetDays>0),tired=city.people.find(p=>p.energy<40);
- $('citizenStory').textContent=hungry?`${city.people[hungry.members[0]].name}: «У нашей семьи заканчиваются продукты. Проверь магазины и дорогу до них».`:tired?`${tired.name}: «Я устал от поездок и дел. Мне нужен отдых».`:r?`Жители: «Продукты, учёба, работа и отдых связаны. Посмотри на нас, прежде чем выбрать новый план».`:'Нажми на жителя или квартал: увидишь семью, потребности и маршрут.';
- citizenDetails(city);
-}
-function citizenDetails(city){
- if(!city)return;const person=city.people[selectedCitizen],house=city.households[person.household],box=$('citizenPanel');box.replaceChildren();
- const card=document.createElement('article');card.className='citizen-card';element('h3',`${person.name} · ${person.age} лет`,card);
- element('p',`${Epidemic.places.find(p=>p.id===person.home).name} · семья из ${house.members.length} человек · ${person.child?person.preschool?'дошкольник':'школьник':person.senior?'пожилой житель':person.remoteCapable?'может работать удалённо':'работает в городе'}`,card);
- const stats=element('div','',card);stats.className='citizen-stats';
- for(const t of [`Энергия ${person.energy}%`,`Настроение ${person.happiness}%`,`Продуктов на ${(house.food/house.members.length).toFixed(1)} дня`,person.child?`Учёба ${person.learning}%`:`Семейные деньги ${Math.round(house.money)} монет`])element('span',t,stats);
- const route=element('ol','',card);route.className='citizen-route';
- city.history.slice(-5).forEach((h,i)=>element('li',Epidemic.phases[i].slice(0,5)+' · '+Epidemic.places.find(p=>p.id===h.loc[selectedCitizen]).name,route));
- element('p',house.unmetDays?`Семья не получает достаточно еды ${house.unmetDays} дней подряд. Один из взрослых или пожилых должен добраться до магазина и купить продукты.`:person.energy<40?'Жителю нужен отдых. Обустройство парка помогает восстанавливать энергию.':'У этой семьи хватает еды. Следи за запасами и временем поездок.',card);
- box.appendChild(card);
-}
-window.mayorCitizenSelect=i=>{const city=game||previewCity;if(!city||!city.people[i])return;selectedCitizen=i;$('citizenChoice').value=i;$('cityPeople').open=true;citizenDetails(city);$('citizenPanel').scrollIntoView({behavior:window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches?'auto':'smooth',block:'center'});};
-window.cityTourHooks={before:()=>!playing,after:()=>{}};
-investmentControls();
-document.body.classList.add('mayor-mode');editDistricts();policyControls();$('taskText').textContent=tasks.balance;dashboard();preview();
+/* The normal city game: observe, make three choices, compare three experiments. */
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const names = { school: '🎒 Учёба и работа', bus: '🚌 Поездки', shops: '🛒 Продукты' };
+  let plan = GameScore.cityDefaults(), baseline = null, latest = null, best = null, attempts = [], playing = false, timer = null, selectedCitizen = 0;
+  const session = new URLSearchParams(location.search).get('session') || 'initial';
+  const shell = document.createElement('section');
+  shell.id = 'mayor';
+  shell.innerHTML = `<div class="mayor-title"><div><span class="eyebrow">ЗАДАНИЕ 3 · ЖИВОЙ ГОРОД</span><h1>Помоги городу жить</h1><p>Меньше заражений. Хватает еды. Можно учиться и работать.</p></div><strong id="cityLocalScore" class="city-local-score">0 / 50</strong></div>
+    <div class="city-start" id="cityStart"><p>Сначала посмотри, что происходит без твоих решений.</p><button id="observeCity" class="primary">▶ Посмотреть исходный город</button></div>
+    <div id="mayorDashboard" class="mayor-dashboard" aria-label="Результаты плана" hidden></div>
+    <div class="city-playground"><div class="city-map-area"><div id="mayorMapSlot"></div><p id="citizenStory">Нажми на жителя: узнай, куда он смог добраться.</p><div id="cityMapIssues" class="map-issues"></div></div>
+      <div id="cityDecisions" class="city-decisions"><h2>Выбери свой план</h2><p id="cityDecisionHint">Сначала проверь исходный город.</p><div id="mayorPolicies"></div><button id="tryCity" class="primary" disabled>Проверить план · 1 из 3</button><p id="mayorStatus" role="status" aria-live="polite">У тебя будет три попытки. Лучший результат останется в общем счёте.</p></div></div>
+    <section id="cityComparison" class="city-comparison" hidden><h2>Что изменилось?</h2><div id="cityEffects" class="city-effects"></div><p id="cityNeeds"></p><p id="cityBudget"></p><div id="cityAttempts" class="attempt-chips" aria-label="Твои попытки"></div></section>
+    <details id="cityPeople"><summary>Посмотри глазами жителя</summary><label>Житель<select id="citizenChoice"></select></label><div id="citizenPanel"></div></details>
+    <details class="city-rules"><summary>Правила и баллы</summary><p>Одна проверка показывает 14 игровых дней. Население, события и случайные условия одинаковы в каждой попытке. Меняй одно решение — сравнивай последствия.</p><p>До 20 баллов — за меньшее число заражений по сравнению с исходным городом. До 10 — за продукты, до 10 — за учёбу и работу, до 5 — за помощь, до 5 — за бюджет.</p><p>Если продукты доступны менее чем 80% жителей или учёба и работа — менее чем на 70%, за город можно получить не больше 25 баллов. Проценты — средние за все 14 дней.</p><p>Семьи покупают еду и расходуют запасы. Когда дети дома, часть родителей присматривает за ними. Дальним кварталам нужны автобусы. У зданий и поездок есть предел вместимости. Симптомы появляются через два дня после заражения.</p><p>Это условная модель для эксперимента. Её числа не описывают реальный город.</p></details>`;
+  document.body.insertBefore(shell, document.body.firstChild);
+  const city = document.querySelector('.city');
+  $('mayorMapSlot').appendChild(city);
+  document.body.classList.add('mayor-mode', 'short-city');
+  window.mayorActive = true;
+  function element(tag, text, parent) { const e = document.createElement(tag); e.textContent = text; parent.appendChild(e); return e; }
+  function signal(name, data) { window.GameTour?.signal(name, data); }
+  function publish() {
+    $('cityLocalScore').textContent = `${best?.score || 0} / 50`;
+    if (window !== parent) parent.postMessage({ kind: 'city-score', version: GameScore.VERSION, session, score: best?.score || 0, completed: attempts.length > 0 }, location.origin === 'null' ? '*' : location.origin);
+  }
+  function controls() {
+    const box = $('mayorPolicies'); box.replaceChildren();
+    for (const [key, options] of Object.entries(GameScore.cityChoices)) {
+      const group = element('fieldset', '', box); group.id = 'choices-' + key;
+      element('legend', names[key], group);
+      for (const [value, title, hint] of options) {
+        const button = element('button', title, group); button.id = `pick-${key}-${value}`; button.className = 'city-choice'; button.setAttribute('aria-pressed', plan[key] === value);
+        button.disabled = !baseline || playing || attempts.length >= 3;
+        button.onclick = () => { plan[key] = value; controls(); $('mayorStatus').textContent = hint; signal('city:choice', { key, value }); };
+      }
+      element('p', options.find(o => o[0] === plan[key])[2], group).className = 'choice-hint';
+    }
+    $('tryCity').disabled = !baseline || playing || attempts.length >= 3;
+    $('tryCity').textContent = attempts.length >= 3 ? 'Три проверки завершены ✓' : `Проверить план · ${attempts.length + 1} из 3`;
+    if ($('cityTutorial')) $('cityTutorial').disabled = playing;
+  }
+  function initialHistory(game) { return { day: 0, phase: 4, state: game.people.map((_, i) => i ? 'S' : 'I'), loc: game.people.map(p => p.home), events: [], S: game.people.length - 1, I: 1, R: 0, outside: 0 }; }
+  function render(result, index = result.game.history.length) {
+    window.renderMayor(result.game, [initialHistory(result.game), ...result.game.history], index);
+    if (index === result.game.history.length) {
+      const report = result.game.reports.at(-1);
+      const missed = new Set(report.missedIds);
+      for (const figure of $('map').querySelectorAll('[data-person]')) {
+        if (!missed.has(+figure.getAttribute('data-person'))) continue;
+        figure.setAttribute('aria-label', figure.getAttribute('aria-label') + ' · не смог добраться');
+        const mark = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        mark.setAttribute('x', 9); mark.setAttribute('y', -18); mark.setAttribute('fill', '#ffe49a'); mark.setAttribute('font-size', 23); mark.setAttribute('font-weight', 'bold'); mark.textContent = '!'; figure.appendChild(mark);
+      }
+    }
+  }
+  function animate(result, done) {
+    playing = true; controls(); $('observeCity').disabled = true;
+    $('mayorStatus').textContent = 'Город проживает две недели…';
+    const frames = [0, 1, 2, 3, 4, 5, 21, 46, 47, 48, 49, 50, 66, 67, 68, 69, 70];
+    let n = 0;
+    function next() {
+      render(result, frames[n++]);
+      if (n < frames.length) timer = setTimeout(next, window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 20 : 240);
+      else { playing = false; controls(); done(); }
+    }
+    next();
+  }
+  function dashboard(result) {
+    const box = $('mayorDashboard'); box.replaceChildren(); box.hidden = false;
+    for (const [name, value, note, percent] of [['Заразились', `${result.total} из 90`, 'За две недели · меньше лучше', 100 * (90 - result.total) / 90], ['Есть продукты', `${result.food}%`, 'Нужно не меньше 80%', result.food], ['Учёба и работа', `${result.activity}%`, 'Нужно не меньше 70%', result.activity]]) {
+      const item = element('div', '', box); element('span', name, item); element('strong', value, item);
+      const bar = element('progress', '', item); bar.max = 100; bar.value = percent; bar.setAttribute('aria-label', name); element('p', note, item);
+    }
+  }
+  function effects(result) {
+    $('cityComparison').hidden = false; const box = $('cityEffects'); box.replaceChildren();
+    for (const [name, before, after, unit, lower] of [['Заражения', baseline.total, result.total, 'жителей', true], ['Продукты', baseline.food, result.food, '%', false], ['Учёба и работа', baseline.activity, result.activity, '%', false], ['Не смогли добраться', baseline.missed, result.missed, 'в день', true]]) {
+      const item = element('div', '', box); element('span', name, item); element('strong', `${before} → ${after} ${unit}`, item);
+      const delta = after - before, improved = (delta < 0) === lower; element('small', !delta ? 'Без изменения' : (improved ? 'Лучше' : 'Хуже') + ` · ${delta > 0 ? '+' : ''}${delta}`, item).className = !delta ? '' : improved ? 'improved' : 'worsened';
+    }
+    const needs = result.food < 80 ? 'Семьям не хватает еды. Попробуй открыть оба магазина.' : result.activity < 70 ? result.plan.school === 'remote' ? 'Не все могут учиться и работать дома. Попробуй смены.' : 'Многие не добираются до учёбы и работы. Проверь число рейсов.' : 'Еды, учёбы и работы хватает. Теперь сравни число заражений.';
+    $('cityNeeds').textContent = needs + (result.basicNeedsMet ? '' : ' Баллы за город ограничены до 25.');
+    $('cityBudget').textContent = `Бюджет: ${result.cash} монет. Помощь оказана: ${result.treated} из ${result.care} обращений.`;
+    const issues = $('cityMapIssues'); issues.replaceChildren();
+    element('span', `🚌 Не добрались: ${result.missed} жителей в день`, issues);
+    element('span', `🛒 Очередь: ${result.queue} семей в день`, issues);
+    element('span', '! у жителя — пропущенная поездка в последний день', issues);
+    const chips = $('cityAttempts'); chips.replaceChildren();
+    attempts.forEach((r, i) => element('span', `Попытка ${i + 1}: ${r.score} / 50${r === best ? ' ★' : ''}`, chips));
+    const r = result.game.reports.at(-1), missed = r.missedIds[0];
+    $('citizenStory').textContent = missed !== undefined ? `${result.game.people[missed].name}: «Я не смог добраться. Проверь автобусы».` : result.food < 80 ? 'Жители: «В магазине очередь, а запасы дома заканчиваются».': 'Жители: «Сравни поездки, продукты и занятия — всё связано». ';
+    citizens(result);
+  }
+  function citizens(result) {
+    const select = $('citizenChoice'); select.replaceChildren();
+    result.game.people.forEach((p, i) => { const opt = element('option', `${p.name}, ${p.age} лет · квартал ${p.district + 1}`, select); opt.value = i; });
+    select.value = selectedCitizen; select.onchange = () => { selectedCitizen = +select.value; citizenDetails(result); }; citizenDetails(result);
+  }
+  function citizenDetails(result) {
+    const g = result.game, p = g.people[selectedCitizen], family = g.households[p.household], box = $('citizenPanel'); box.replaceChildren();
+    const card = element('article', '', box); card.className = 'citizen-card'; element('h3', `${p.name} · ${p.age} лет`, card);
+    element('p', `Семья из ${family.members.length} человек · ${g.districts[p.district].far ? 'дальний' : 'ближний'} квартал`, card);
+    element('p', `Продуктов на ${(family.food / family.members.length).toFixed(1)} дня · энергия ${p.energy}%`, card);
+    const list = element('ol', '', card); list.className = 'citizen-route';
+    g.history.slice(-5).forEach((h, i) => element('li', `${Epidemic.phases[i].slice(0, 5)} · ${Epidemic.places.find(place => place.id === h.loc[selectedCitizen]).name}`, list));
+    if (g.reports.at(-1).missedIds.includes(selectedCitizen)) element('p', 'Не хватило места в автобусе хотя бы для одной поездки в последний день.', card);
+  }
+  $('observeCity').onclick = () => {
+    if (playing || baseline) return;
+    const result = GameScore.cityRun(GameScore.cityDefaults());
+    animate(result, () => { baseline = latest = result; $('cityStart').hidden = true; dashboard(result); effects(result); controls(); $('cityDecisionHint').textContent = 'Меняй одно решение, чтобы заметить его эффект.'; $('mayorStatus').textContent = `В исходном городе ${result.missed} жителей в день не добрались. Начни с автобусов.`; signal('city:observed'); });
+  };
+  $('tryCity').onclick = () => {
+    if (!baseline || playing || attempts.length >= 3) return;
+    const result = GameScore.cityRun(plan);
+    animate(result, () => { latest = result; attempts.push(result); if (!best || result.score > best.score) best = result; dashboard(result); effects(result); publish(); controls(); $('mayorStatus').textContent = attempts.length === 3 ? `Готово! Лучший результат города — ${best.score} / 50. Покажи общий счёт ведущему.` : `Проверка ${attempts.length} завершена. Измени одно решение и сравни снова.`; signal('city:tested'); });
+  };
+  window.mayorSelect = id => {
+    const key = ['school', 'kindergarten', 'work'].includes(id) ? 'school' : ['market', 'mall'].includes(id) ? 'shops' : id === 'bus' ? 'bus' : null;
+    if (key) { $('choices-' + key).scrollIntoView({ block: 'center', behavior: 'smooth' }); $('pick-' + key + '-' + plan[key]).focus({ preventScroll: true }); }
+    else if (id.startsWith('h') && latest) window.mayorCitizenSelect(latest.game.people.findIndex(p => p.home === id));
+    else $('mayorStatus').textContent = 'Этот объект работает автоматически. В этом задании ты управляешь занятиями, поездками и магазинами.';
+  };
+  window.mayorCitizenSelect = index => { if (!latest || playing || !latest.game.people[index]) return; selectedCitizen = index; $('citizenChoice').value = index; $('cityPeople').open = true; citizenDetails(latest); $('citizenPanel').scrollIntoView({ block: 'center', behavior: 'smooth' }); };
+  window.cityTourHooks = { before: () => !playing, after() {} };
+  window.cityLesson = { observed: () => !!baseline, attempted: () => attempts.length > 0 };
+  const preview = GameScore.cityRun(GameScore.cityDefaults()); render(preview, 0); controls(); publish();
 })();

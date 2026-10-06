@@ -5,7 +5,7 @@
   const mode = ['mayor', 'contest', 'lab'].includes(requested) ? requested : 'mayor';
   window.cityMode = mode;
   const nav = document.createElement('nav'); nav.className = 'city-mode-nav'; nav.setAttribute('aria-label', 'Режим города');
-  for (const [id, title] of [['mayor', '🏙 Я — мэр'], ['contest', '🏁 Соревнование'], ['lab', '🔬 Лаборатория']]) {
+  for (const [id, title] of (mode === 'mayor' ? [['mayor', '🏙 Живой город']] : [['mayor', '🏙 Живой город'], ['contest', '🏁 Соревнование'], ['lab', '🔬 Лаборатория']])) {
     const link = document.createElement('a'); link.href = 'epidemic.html?mode=' + id; link.textContent = title;
     if (mode === id) link.setAttribute('aria-current', 'page'); nav.appendChild(link);
   }
@@ -18,7 +18,7 @@
   }
   if (mode === 'lab') { document.body.classList.add('lab-mode'); ready(); return; }
   const script = document.createElement('script');
-  script.src = (mode === 'mayor' ? 'mayor-ui.js' : 'contest-ui.js') + '?v=20261006-students';
+  script.src = (mode === 'mayor' ? 'mayor-ui.js' : 'contest-ui.js') + '?v=20261006-missions';
   script.onload = ready;
   script.onerror = () => { help.disabled = true; help.textContent = 'Не удалось загрузить игру — обнови страницу'; };
   document.body.appendChild(script);
