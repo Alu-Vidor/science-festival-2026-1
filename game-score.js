@@ -44,8 +44,8 @@
   }
   const danger = f => f[0] >= 70 || f[1] >= 70 || f[0] + f[2] >= 110 || f[3] <= 30;
   // These eight feature vectors do not occur on the original training map.
-  const robotChecks = [[13, 9, 12, 88], [53, 14, 44, 61], [17, 61, 32, 79], [10, 7, 24, 39],
-    [79, 4, 22, 17], [61, 15, 55, 59], [20, 73, 37, 82], [11, 8, 28, 27]];
+  const robotChecks = [[13, 9, 12, 88], [55, 7, 42, 46], [17, 61, 32, 79], [10, 7, 24, 39],
+    [79, 4, 22, 17], [61, 15, 55, 59], [22, 78, 44, 90], [11, 8, 28, 27]];
   function predict(model, f) {
     const nearest = model.map(s => ({ y: s.y, d: s.f.reduce((sum, v, j) => sum + (v - f[j]) ** 2, 0) }))
       .sort((a, b) => a.d - b.d).slice(0, 3);

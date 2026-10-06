@@ -42,7 +42,9 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.locator('.training').evaluate(el=>el.inert),true);
     assert.equal(await page.locator('#tourNext').isVisible(),false,'Learning must wait for the actual action');
     await page.screenshot({path:path.join(shots,'robot-tutorial.png')});
-    await page.locator('#run').click();
+    await page.locator('.tour-card').press('Tab');
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'run','Keyboard must reach the highlighted action');
+    await page.locator('#run').press('Enter');
     await step('Изучи сухой');
     assert.equal(await page.locator('[data-index="1"]').evaluate(el=>el.inert),true);
     await page.locator('[data-index="0"]').click();
@@ -160,6 +162,19 @@ const server = http.createServer((req, res) => {
         await page.goto(url + route);
         await page.locator(route === '/' ? '#robotView' : route.includes('contest') ? '#contest' : route.includes('lab') ? '.lab-mode' : '#mayor').waitFor();
         if (await page.locator('#gameTour').count()) await page.locator('#tourSkip').click();
+        if (route === '/') {
+          await page.locator('#robotTutorial').click(); await tourFits();
+          await page.locator('#run').click(); await step('Изучи сухой'); await tourFits();
+          await page.locator('[data-index="0"]').click(); await step('Покажи хороший'); await tourFits(); await page.locator('#safe').click();
+          await step('Найди причину'); await page.locator('[data-index="61"]').click(); await step('Покажи опасный'); await tourFits(); await page.locator('#unsafe').click();
+          await step('Обучи ИИ'); await tourFits(); await page.locator('#train').click(); await page.locator('#gameTour').waitFor({state:'detached'});
+          await page.evaluate(()=>window.scrollTo(0,0));
+        } else if (route === '/epidemic.html') {
+          await page.locator('#cityTutorial').click(); await tourFits(); await page.locator('#observeCity').click();
+          await step('Помоги добраться'); await tourFits(); await page.locator('#pick-bus-frequent').click();
+          await step('Проверь своё'); await tourFits(); await page.locator('#tryCity').click(); await page.locator('#gameTour').waitFor({state:'detached'});
+          await page.evaluate(()=>window.scrollTo(0,0));
+        }
         await noOverflow();
         const short = await page.locator('button:visible').evaluateAll(buttons => buttons.filter(b => !b.classList.contains('cell') && b.getBoundingClientRect().height < 43).map(b => b.id));
         assert.deepEqual(short, [], 'Visible action buttons must have touch-sized targets');
