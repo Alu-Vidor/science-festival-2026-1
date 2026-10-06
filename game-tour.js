@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const tours = new Map(), storageKey = 'festival-tours-v2';
-  let active = null, root, card, frame, shades, previousFocus, inertStates, openedDetails, sequence = 0;
+  let active = null, root, card, frame, shades, previousFocus, inertStates, openedDetails, previousScroll, sequence = 0;
   function completed() { try { const value=JSON.parse(localStorage.getItem(storageKey) || '[]'); return Array.isArray(value)?value:[]; } catch { return []; } }
   function remember(id) { try { localStorage.setItem(storageKey, JSON.stringify([...new Set([...completed(), id])])); } catch {} }
   function build() {
@@ -63,7 +63,7 @@
   function start(id) {
     const tour = tours.get(id); if (!tour || active) return false;
     if (tour.before?.() === false) return false;
-    previousFocus = document.activeElement; openedDetails = new Set();
+    previousFocus = document.activeElement; previousScroll = {left:window.scrollX,top:window.scrollY}; openedDetails = new Set();
     build(); inertStates = [...document.body.children].filter(el => el !== root).map(el => [el, el.inert]);
     inertStates.forEach(([el]) => { el.inert = true; });
     document.body.classList.add('tour-open');
@@ -88,7 +88,7 @@
     root.remove(); inertStates.forEach(([el, inert]) => { el.inert = inert; });
     openedDetails.forEach(el => { el.open = false; }); document.body.classList.remove('tour-open');
     if (mark) remember(tour.id);
-    tour.after?.(); previousFocus?.focus({ preventScroll: true });
+    tour.after?.(); window.scrollTo({...previousScroll,behavior:'instant'}); previousFocus?.focus({ preventScroll: true });
   }
   window.GameTour = {
     register(id, config) { tours.set(id, config); }, start, finish, isActive: () => !!active,

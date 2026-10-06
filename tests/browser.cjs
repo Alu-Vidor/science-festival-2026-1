@@ -26,6 +26,7 @@ const server = http.createServer((req, res) => {
     page.on('response', r => { if (r.status() >= 400 && !r.url().endsWith('favicon.ico')) errors.push(r.status() + ' ' + r.url()); });
     async function noOverflow() {
       const sizes = await page.evaluate(() => [document.documentElement.scrollWidth, innerWidth]);
+      if(sizes[0]>sizes[1]+1)console.log('Overflow:',page.url(),await page.locator('body *').evaluateAll(els=>els.filter(el=>{const r=el.getBoundingClientRect();return r.width&&r.right>innerWidth+1;}).slice(0,12).map(el=>({tag:el.tagName,id:el.id,classes:el.className,right:el.getBoundingClientRect().right}))));
       assert(sizes[0] <= sizes[1] + 1, 'Page must not scroll sideways: ' + sizes);
     }
     async function tourFits() {
@@ -44,6 +45,7 @@ const server = http.createServer((req, res) => {
     await page.locator('.tour-card').press('Escape');
     assert.equal(await page.locator('#gameTour').count(), 0);
     assert.equal(await page.locator('#robotView').evaluate(el => el.inert), false);
+    assert.equal(await page.evaluate(()=>window.scrollY),0,'Leaving auto-learning returns to the start');
     await page.locator('#run').click();
     await page.waitForFunction(() => document.getElementById('status').textContent.includes('застрял'), null, { timeout: 15000 });
     await page.locator('#robotEditor > summary').click();
@@ -65,6 +67,7 @@ const server = http.createServer((req, res) => {
     await page.locator('#mayor').waitFor();
     await page.locator('#gameTour').waitFor();
     await tourFits();
+    await page.screenshot({ path: path.join(shots, 'city-tutorial.png') });
     await page.locator('#tourSkip').click();
     assert.equal(await page.locator('.city-mode-nav [aria-current=page]').innerText(), '🏙 Я — мэр');
     await page.locator('#cityInvestments > summary').click();
@@ -78,6 +81,7 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.locator('#cityPeople').getAttribute('open'), '');
     assert((await page.locator('#citizenPanel').innerText()).includes('семья из'));
     assert.equal(await page.locator('#citizenPanel .citizen-route li').count(), 5);
+    await page.locator('#citizenPanel').scrollIntoViewIfNeeded();
     await page.screenshot({ path: path.join(shots, 'citizen-desktop.png') });
     await page.locator('#mayorMapSlot').scrollIntoViewIfNeeded();
     await page.screenshot({ path: path.join(shots, 'city-desktop.png') });

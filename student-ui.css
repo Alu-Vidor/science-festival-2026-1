@@ -71,6 +71,8 @@ nav button { font-size: 18px; }
 .map-caption { font-size: 15px; }.map-caption strong { font-size: 13px; letter-spacing: .5px; }
 #contestMap #route { display: block; font-size: 15px; }
 .mayor-title p { max-width: 760px; }
+#mayor .mayor-title #labToggle { display: none; }
+input[type=range] { min-height: 44px; }
 .mayor-steps { margin: 18px 0; font-size: 17px; padding: 18px 38px; gap: 12px 34px; }
 .mayor-dashboard { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
 .mayor-dashboard > div { padding: 18px; border-radius: 16px; }
@@ -137,6 +139,10 @@ body:not(.contest-mode) #contest { display: none; }
   #contest, #mayor { padding: 18px; margin: 8px; }
   .play-layout, .layout, .present .layout { display: flex; flex-direction: column; padding: 12px; }
   .play-layout { padding: 0; }.play-panel { position: static; order: 1; width: 100%; }.play-map { order: 0; width: 100%; }
+  .play-heading { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; }
+  .play-heading > div:first-child { min-width: 0; }
+  .play-heading .round-settings { grid-column: 1 / -1; max-width: 100%; }
+  .play-heading .round-clock { min-width: 86px; margin-left: 0; padding: 8px 10px; }
   .layout .builder { order: 2; width: 100%; }.layout .training { width: 100%; }
   .choice-tabs { grid-template-columns: repeat(3, 1fr); }.choice-tab { font-size: 15px; }
   .option-card { display: block; width: 100%; margin: 8px 0; font-size: 17px; }
@@ -153,11 +159,15 @@ body:not(.contest-mode) #contest { display: none; }
   #robotIntro { padding: 14px; margin: 0 12px; }.mission-heading, .mission-caption { font-size: 12px; }
 }
 @media(max-width:450px) {
+  header { flex-direction: row; align-items: center; gap: 10px; padding: 16px; }
+  header h1 { font-size: 30px; }
+  header #present { font-size: 14px; padding: 10px; }
+  nav[aria-label=Интерактивы] button { flex: 1; min-width: 0; padding: 10px 6px; font-size: 15px; }
   #contest, #mayor { margin: 4px; padding: 14px; }
   .city-issues, .investment-grid { grid-template-columns: 1fr; }
   .mayor-dashboard { gap: 8px; }.mayor-dashboard p { font-size: 14px; }.mayor-dashboard strong { font-size: 22px; }
   .mayor-work > div { padding: 14px; }.mayor-title h1 { font-size: 32px; }
-  .mayor-steps { padding: 14px 24px; font-size: 16px; }
+  .mayor-steps { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; padding: 14px 30px; font-size: 15px; }
   .district-editor { gap: 6px; grid-template-columns: 1.3fr repeat(3, 1fr) .65fr; font-size: 13px; }
   #mayor .district-editor input { padding: 6px; font-size: 16px; }
   .tour-card { padding: 18px; }.tour-card h2 { font-size: 24px; }.tour-card p { font-size: 17px; }.tour-actions button { font-size: 15px; padding: 10px 12px; }
