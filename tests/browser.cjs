@@ -33,6 +33,11 @@ const server = http.createServer((req, res) => {
       const rect = await scope.locator('.tour-card').boundingBox();
       const size = page.viewportSize();
       assert(rect && rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= size.width + 1 && rect.y + rect.height <= size.height + 1, 'Tour card must fit the visible screen, including inside an iframe: '+JSON.stringify(rect));
+      for (const selector of ['#tourTitle','#tourText']) {
+        const text=await scope.locator(selector).boundingBox();
+        if(text.y<rect.y||text.y+text.height>rect.y+rect.height-4) await page.screenshot({path:path.join(shots,'lesson-text-failure.png')});
+        assert(text.y>=rect.y&&text.y+text.height<=rect.y+rect.height-4,'The short lesson text must be readable without scrolling: '+selector+' '+JSON.stringify({card:rect,text}));
+      }
     }
     async function lit(selectors, scope=page) {
       const problems=await scope.locator('body').evaluate((_, selectors)=>{
@@ -226,7 +231,7 @@ const server = http.createServer((req, res) => {
           await page.screenshot({path:path.join(shots,`robot-moving-${width}.png`)});
           await step('Изучи сухой'); await watched(); await tourFits();
           await page.locator('[data-index="0"]').click(); await step('Покажи хороший'); await tourFits(); await lit(['#sensors','#selectedName','#safe']); await page.locator('#safe').click();
-          await step('Найди причину'); await page.locator('[data-index="61"]').click(); await step('Покажи опасный'); await tourFits(); await lit(['#sensors','#selectedName','#unsafe']); await page.locator('#unsafe').click();
+          await step('Найди причину'); await page.locator('[data-index="61"]').click(); await step('Покажи опасный'); await tourFits(); await lit(['#sensors','#selectedName','#unsafe']); await page.screenshot({path:path.join(shots,`robot-sensors-${width}.png`)}); await page.locator('#unsafe').click();
           await step('Обучи ИИ'); await tourFits(); await page.locator('#train').click(); await page.locator('.tour-watching').waitFor(); await lit(['#boardStage']); await page.locator('#gameTour').waitFor({state:'detached'});
           await page.evaluate(()=>window.scrollTo(0,0));
         } else if (route === '/epidemic.html') {
@@ -242,6 +247,18 @@ const server = http.createServer((req, res) => {
         if (width === 375 && !route.includes('lab')) await page.screenshot({ path: path.join(shots, route === '/' ? 'robot-mobile.png' : route.includes('contest') ? 'contest-mobile.png' : 'city-mobile.png') });
       }
     }
+    // Also check ordinary animation speed and the city embedded on a narrow laptop.
+    await page.setViewportSize({width:768,height:900}); await page.emulateMedia({reducedMotion:'no-preference'});
+    await page.goto(url); await page.locator('#robotTutorial').click(); await tourFits();
+    await startWatching('#boardStage','#robotSprite'); await page.locator('#run').click();
+    await page.locator('.cell.stuck').waitFor(); await tourFits(); await lit(['#boardStage','#robotSprite']);
+    await step('Изучи сухой'); await watched(); await page.locator('#tourSkip').click();
+    await page.locator('#epiTab').click();
+    if(!await cityFrame.locator('#gameTour').count())await cityFrame.locator('#cityTutorial').click();
+    await tourFits(cityFrame); await startWatching('#map','.inhabitant',cityFrame); await cityFrame.locator('#observeCity').click();
+    await cityFrame.locator('.tour-watching').waitFor(); await tourFits(cityFrame);
+    await page.screenshot({path:path.join(shots,'city-moving-iframe-768.png')});
+    await step('Помоги добраться',cityFrame); await watched(cityFrame); await cityFrame.locator('#tourSkip').click();
     await page.goto(url);
     await page.locator('#epiTab').click();
     await page.frameLocator('#epiView').locator('#mayor').waitFor();

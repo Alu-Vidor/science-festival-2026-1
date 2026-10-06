@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const tours = new Map(), storageKey = 'festival-tours-v3';
-  let active = null, root, card, frames, shades, previousFocus, inertStates, openedDetails, previousScroll, sequence = 0, advanceTimer = null, observer, resizeObserver, surfaces;
+  let active = null, root, card, frames, shades, previousFocus, inertStates, fitStates, openedDetails, previousScroll, sequence = 0, advanceTimer = null, observer, resizeObserver, surfaces;
   function completed() { try { const value = JSON.parse(localStorage.getItem(storageKey) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } }
   function remember(id) { try { localStorage.setItem(storageKey, JSON.stringify([...new Set([...completed(), id])])); } catch {} }
   function targetOf(step) { return document.querySelector(typeof step.target === 'function' ? step.target() : step.target); }
@@ -79,17 +79,8 @@
     }
     boxes(shades, dark, 'tour-shade');
   }
-  function place() {
-    if (!active) return;
-    if (active.phase) reveal(targetOf(currentStep()));
-    const step = currentStep(), view = viewport(), rectangles = highlighted(step).map(el => visibleRect(el, view)).filter(Boolean);
-    boxes(frames, rectangles, 'tour-focus');
-    if (frames.firstChild && step.event) frames.firstChild.classList.add('tour-action-focus');
-    shadeOutside(rectangles);
-    const width = view.right - view.left, height = view.bottom - view.top;
-    if (width <= 24 || height <= 24) { card.hidden = true; return; } card.hidden = false;
-    card.style.width = Math.min(360, width - 8) + 'px'; card.style.maxHeight = (height - 8) + 'px';
-    const cw = card.offsetWidth, ch = card.offsetHeight, gap = 12, r = rectangles[0] || { left: view.left, top: view.top };
+  function placement(rectangles, view, cw, ch) {
+    const gap = 8, r = rectangles[0] || { left: view.left, top: view.top };
     const clampX = x => Math.max(view.left + 4, Math.min(view.right - cw - 4, x));
     const xs = [...new Set([view.left + 4, view.right - cw - 4, ...rectangles.flatMap(r => [r.left - cw - gap, r.right + gap, r.left])].map(clampX))];
     const choices = [];
@@ -105,16 +96,62 @@
         top = Math.max(top, end);
       }
     }
-    const chosen = choices.sort((a, b) => a.cost - b.cost)[0];
+    return choices.sort((a, b) => a.cost - b.cost)[0];
+  }
+  function restoreFit() { fitStates.forEach((value, el) => { el.style.maxWidth = value; }); fitStates.clear(); }
+  function place(adjust = true) {
+    if (!active) return;
+    if (active.phase) reveal(targetOf(currentStep()));
+    const step = currentStep(), view = viewport(), rectangles = highlighted(step).map(el => visibleRect(el, view)).filter(Boolean);
+    boxes(frames, rectangles, 'tour-focus');
+    if (frames.firstChild && step.event) frames.firstChild.classList.add('tour-action-focus');
+    shadeOutside(rectangles);
+    const width = view.right - view.left, height = view.bottom - view.top;
+    if (width <= 24 || height <= 24) { card.hidden = true; return; } card.hidden = false;
+    card.style.width = Math.min(360, width - 8) + 'px'; card.style.maxHeight = (height - 8) + 'px';
+    let ch = card.offsetHeight, chosen = placement(rectangles, view, card.offsetWidth, ch);
+    // A slightly narrower card can fit beside the city without hiding its text.
+    if ((!chosen || chosen.size < ch - 1) && width > 600) {
+      const originalWidth = card.style.width;
+      for (const candidateWidth of [320, 280]) {
+        card.style.width = candidateWidth + 'px';
+        const candidateHeight = card.offsetHeight, candidate = placement(rectangles, view, card.offsetWidth, candidateHeight);
+        if (candidate && candidate.size >= candidateHeight - 1) { chosen = candidate; ch = candidateHeight; break; }
+        card.style.width = originalWidth;
+      }
+    }
+    if (adjust !== false && chosen && chosen.size < ch - 1 && rectangles.length) {
+      const top = Math.min(...rectangles.map(r => r.top)), bottom = Math.max(...rectangles.map(r => r.bottom));
+      const fit = step.fit && document.querySelector(step.fit), fitRect = fit?.getBoundingClientRect();
+      if (fitRect) {
+        const size = Math.max(250, height - ch - Math.max(0, bottom - top - fitRect.height) - 64);
+        if (fitRect.width > size + 1) {
+          if (!fitStates.has(fit)) fitStates.set(fit, fit.style.maxWidth);
+          fit.style.maxWidth = size + 'px';
+          (step.view ? document.querySelector(step.view) : targetOf(step))?.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'nearest' }); reveal(targetOf(step));
+          const nextView = viewport(), nextRects = highlighted(step).map(el => visibleRect(el, nextView)).filter(Boolean);
+          surfaces.at(-1).scrollBy({ top: Math.max(...nextRects.map(r => r.bottom)) - nextView.bottom + 12, behavior: 'instant' });
+          return place(false);
+        }
+      }
+      // Move a short scene/inspector down to leave a complete card above it.
+      if (bottom - top + ch + 40 <= height) {
+        const before = targetOf(step)?.getBoundingClientRect().top;
+        surfaces.at(-1).scrollBy({ top: bottom - view.bottom + 12, behavior: 'instant' });
+        if (Math.abs(targetOf(step)?.getBoundingClientRect().top - before) > 1) return place(false);
+      }
+    }
     if (chosen) { card.style.left = chosen.x + 'px'; card.style.top = chosen.y + 'px'; card.style.maxHeight = chosen.size + 'px'; }
     else { card.hidden = true; }
   }
   function renderStep(scroll = true) {
+    restoreFit();
     const token = sequence, step = currentStep(), target = targetOf(step), index = active.index;
     let ancestor = target;
     while (ancestor) { if (ancestor.tagName === 'DETAILS' && !ancestor.open) { openedDetails.add(ancestor); ancestor.open = true; } ancestor = ancestor.parentElement; }
     limitInteraction(target, !!step.event);
     root.classList.toggle('tour-watching', !!active.phase);
+    root.classList.toggle('tour-acting', !!step.event);
     card.setAttribute('aria-modal', step.event ? 'false' : 'true');
     root.querySelector('#tourCounter').textContent = `${index + 1} / ${active.steps.length} · ${active.name}`;
     root.querySelector('#tourTitle').textContent = step.title; root.querySelector('#tourText').textContent = step.text;
@@ -145,7 +182,7 @@
   function start(id) {
     const tour = tours.get(id); if (!tour || active || tour.before?.() === false) return false;
     const steps = typeof tour.steps === 'function' ? tour.steps() : tour.steps; if (!steps.length) return false;
-    previousFocus = document.activeElement; previousScroll = { left: scrollX, top: scrollY }; openedDetails = new Set(); inertStates = new Map();
+    previousFocus = document.activeElement; previousScroll = { left: scrollX, top: scrollY }; openedDetails = new Set(); inertStates = new Map(); fitStates = new Map();
     build(); document.body.classList.add('tour-open'); active = { ...tour, steps, id, index: 0 };
     surfaces = [window]; try { for (let win = window; win !== win.parent; win = win.parent) { void win.parent.document; surfaces.push(win.parent); } } catch {}
     surfaces.forEach(win => { win.addEventListener('resize', place); win.addEventListener('scroll', place, true); });
@@ -166,7 +203,7 @@
   function finish(mark = false) {
     if (!active) return; const tour = active; active = null; ++sequence; clearTimeout(advanceTimer);
     observer.disconnect(); resizeObserver.disconnect(); surfaces.forEach(win => { win.removeEventListener('resize', place); win.removeEventListener('scroll', place, true); }); document.removeEventListener('keydown', keys, true);
-    root.remove(); restoreInert(); openedDetails.forEach(el => { el.open = false; }); document.body.classList.remove('tour-open');
+    root.remove(); restoreInert(); restoreFit(); openedDetails.forEach(el => { el.open = false; }); document.body.classList.remove('tour-open');
     if (mark) remember(tour.id); tour.after?.(); window.scrollTo({ ...previousScroll, behavior: 'instant' }); previousFocus?.focus({ preventScroll: true });
   }
   window.GameTour = { register(id, config) { tours.set(id, config); }, start, finish, signal, isActive: () => !!active,

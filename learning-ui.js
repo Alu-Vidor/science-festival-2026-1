@@ -3,14 +3,14 @@
   const $ = id => document.getElementById(id);
   function registerRobot() {
     GameTour.register('robot', { name: 'Робот', before: () => window.robotLesson.begin(), steps: [
-      { target: '#run', context: ['#boardStage'], view: '#boardStage', title: 'Проверь короткий путь', text: 'Нажми «Испытать робота». Посмотри, где он застрянет.', event: 'robot:finished', delay: 700,
-        watch: { event: 'robot:started', target: '#boardStage', context: ['#status'], text: 'Смотри на карту: робот пробует короткий путь. Место остановки отмечается жёлтым.' } },
+      { target: '#run', context: ['#boardStage'], view: '#boardStage', fit: '#boardStage', title: 'Проверь короткий путь', text: 'Нажми «Испытать робота». Посмотри, где он застрянет.', event: 'robot:finished', delay: 700,
+        watch: { event: 'robot:started', target: '#boardStage', context: [], text: 'Смотри на карту: робот пробует короткий путь. Место остановки отмечается жёлтым.' } },
       { target: '#board [data-index="0"]', context: ['#selectedName', '#sensors'], title: 'Изучи сухой участок', text: 'Нажми на подсвеченную клетку. Датчики покажут её свойства.', event: 'robot:inspected', accept: d => d.index === 0 },
       { target: '#safe', context: ['#selectedName', '#sensors', '#sensorHint'], view: '#sensors', title: 'Покажи хороший пример', text: 'Посмотри на датчики: этот участок выдержит робота. Нажми «Безопасно».', event: 'robot:labeled', accept: d => d.index === 0 && d.label === 0 },
       { target: '#board [data-index="61"]', context: ['#robotSprite', '#selectedName', '#sensors'], title: 'Найди причину остановки', text: 'Нажми на подсвеченную грязь. Влажность и неровность вместе мешают проехать.', event: 'robot:inspected', accept: d => d.index === 61 },
       { target: '#unsafe', context: ['#selectedName', '#sensors', '#sensorHint'], view: '#sensors', title: 'Покажи опасный пример', text: 'Посмотри на влажность и неровность. Нажми «Опасно»: ИИ запомнит этот пример.', event: 'robot:labeled', accept: d => d.index === 61 && d.label === 1 },
       { target: '#train', context: ['#samples', '#model'], title: 'Обучи ИИ', text: 'Нажми «Обучить ИИ». Посмотри, как изменится прогноз на карте.', event: 'robot:trained', delay: 1400,
-        result: { target: '#boardStage', context: ['#model'], text: 'Зелёная рамка — прогноз «безопасно», красная — «опасно». Добавь ещё разные примеры и проверь доставку.' } }
+        result: { target: '#boardStage', fit: '#boardStage', context: [], text: 'Зелёная рамка — прогноз «безопасно», красная — «опасно». Добавь ещё разные примеры и проверь доставку.' } }
     ] });
     $('robotTutorial').onclick = () => GameTour.start('robot');
     if (location.hash !== '#epidemic') GameTour.maybeStart('robot');
