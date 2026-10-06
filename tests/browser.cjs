@@ -58,6 +58,8 @@ const server = http.createServer((req, res) => {
     assert((await page.locator('#samples').innerText()).includes('Примеров: 6'));
     assert(await page.locator('#board .good').count() > 0);
     assert(await page.locator('#board .bad').count() > 0);
+    assert.equal(await page.locator('#board .bad').evaluateAll(cells=>cells.every(cell=>getComputedStyle(cell).borderTopColor==='rgb(255, 135, 151)')),true,'Danger borders must remain red above terrain styles');
+    assert((await page.locator('#board .bad').first().getAttribute('aria-label')).includes('прогноз ИИ: опасно'));
     await page.locator('#robotEditor > summary').click();
     await page.locator('#boardStage').scrollIntoViewIfNeeded();
     await page.screenshot({ path: path.join(shots, 'robot-desktop.png') });

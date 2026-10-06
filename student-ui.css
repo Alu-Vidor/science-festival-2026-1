@@ -43,6 +43,8 @@ nav button { font-size: 18px; }
 .training h2 { font-size: 26px; }
 .training #labelChoices { display: grid; grid-template-columns: 1fr 1fr; }
 .training #safe { border-color: #75eaca; }.training #unsafe { border-color: #f59da7; }
+#board .cell.good { border: 3px solid #5cf2c8; }
+#board .cell.bad { border: 3px solid #ff8797; }
 .training details { margin-top: 12px; }
 #robotIntro { max-width: 1550px; margin: 0 auto; padding: 18px 24px; }
 .mission-frame { margin-top: 18px; }
