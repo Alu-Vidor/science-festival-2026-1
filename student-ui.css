@@ -1,0 +1,166 @@
+/* Readable controls for a school festival, on laptops and touch screens. */
+:root { color-scheme: dark; --student-text: #eaf5f2; --student-muted: #c0d4d5; --student-accent: #80efcc; }
+body { font-size: 18px; }
+button, select, input, textarea { font: inherit; }
+button:not(.cell), select, input:not([type=range]):not([type=checkbox]), summary { min-height: 48px; }
+button:not(.cell) { padding: 12px 18px; border-radius: 12px; }
+p, li, label, details, .small, .policy-hint, .choice-hint, .selection-note { font-size: 16px; line-height: 1.6; color: var(--student-muted); }
+summary { display: flex; align-items: center; gap: 12px; padding: 8px 0; font-weight: 700; color: var(--student-text); }
+summary::before { content: '›'; font-size: 26px; color: var(--student-accent); }
+details[open] > summary::before { transform: rotate(90deg); }
+summary::-webkit-details-marker { display: none; }
+h1 { font-size: clamp(30px, 3.3vw, 44px); } h2 { font-size: 24px; line-height: 1.3; }
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible, a:focus-visible { outline: 3px solid #ffe49a; outline-offset: 4px; }
+button:disabled { opacity: .55; }
+button.primary, #tryPlan { background: #8ef0cd; border-color: #bdffe6; color: #10392e; box-shadow: 0 3px 0 #346c5b; font-weight: 800; }
+button.primary:hover:not(:disabled), #tryPlan:hover:not(:disabled) { background: #b1ffe1; border-color: #dbfff0; }
+[hidden] { display: none !important; }
+.game-help { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.game-help p { flex: 1; margin: 0; min-width: 200px; }
+.game-help button { font-weight: 750; border-color: #8fceb6; }
+.learning-strip { display: flex; gap: 14px; flex-wrap: wrap; padding: 0; list-style: none; }
+.learning-strip li { padding: 8px 14px; background: #294752; border-radius: 10px; color: #e2f6ed; }
+.learning-strip b { color: #a2f0d2; }
+
+/* Robot: the map and teaching tools come first; editing is a separate disclosure. */
+header { padding: 24px max(20px, calc((100vw - 1550px)/2)); }
+header h1 { font-size: clamp(32px, 4vw, 46px); }
+nav { max-width: 1600px; margin: auto; }
+nav button { font-size: 18px; }
+.layout, .present .layout { grid-template-columns: minmax(0, 1fr) 350px; gap: 24px; padding: 24px; }
+.layout .builder { grid-column: 1 / -1; grid-row: 2; }
+.layout .builder > details { margin: 0; }
+.layout .training { grid-column: auto; }
+.builder #robotEditor[open] { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 24px; }
+.builder #robotEditor > summary, .builder #robotEditor > h2, .builder #robotEditor > p, .builder #tools { grid-column: 1 / -1; }
+.builder #tools { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.builder #robotEditor > details { grid-column: 1 / -1; }
+.tools button { font-size: 16px; }
+.features { font-size: 17px; }.features b { font-size: 21px; }
+.legend { font-size: 15px; line-height: 1.5; }
+.mission-heading, .mission-caption { font-size: 13px; letter-spacing: .4px; }
+.stat { font-size: 16px; }.stat strong { font-size: 30px; }
+.training h2 { font-size: 26px; }
+.training #labelChoices { display: grid; grid-template-columns: 1fr 1fr; }
+.training #safe { border-color: #75eaca; }.training #unsafe { border-color: #f59da7; }
+.training details { margin-top: 12px; }
+#robotIntro { max-width: 1550px; margin: 0 auto; padding: 18px 24px; }
+.mission-frame { margin-top: 18px; }
+#robotView .board-stage { width: 100%; max-width: 660px; margin: auto; }
+#robotView .board-stage.enlarged { width: 900px; max-width: none; min-width: 650px; }
+#robotView .mission-frame { overflow-x: auto; }
+#robotView .badge { font-size: 15px; padding: 8px 12px; }
+
+/* City: clear navigation, readable options and visible cause/effect. */
+.city-mode-nav { max-width: 1550px; margin: 12px auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 0 20px; }
+.city-mode-nav a { display: inline-flex; align-items: center; min-height: 48px; padding: 10px 18px; border: 1px solid #5c797e; border-radius: 12px; color: #dbeeea; text-decoration: none; font-size: 16px; }
+.city-mode-nav a[aria-current=page] { color: #10392e; background: #9cf0d0; border-color: #9cf0d0; font-weight: 800; }
+.city-mode-nav button { margin-left: auto; }
+#contest, #mayor { max-width: 1550px; margin: 12px auto; padding: 28px; }
+.play-heading h1, .mayor-title h1 { font-size: clamp(32px, 4vw, 44px); }
+.play-subtitle { font-size: 18px; }.round-clock span { font-size: 15px; }.round-clock b { font-size: 38px; }
+.play-layout { grid-template-columns: minmax(0, 1fr) 370px; gap: 24px; }
+.play-panel { padding: 22px !important; }
+.choice-tab { font-size: 16px; min-height: 58px; padding: 10px 6px !important; }
+.option-card { font-size: 18px; min-height: 54px; padding: 14px 16px !important; }
+.choice-hint, #contestStatus, #lockPlan, .compact-rules p, .result-strip p { font-size: 16px; }
+.points-line #pointBudget { font-size: 16px; }
+#tryPlan { font-size: 21px; min-height: 60px; }
+#contestMap .toolbar button, .city .toolbar button { font-size: 16px; padding: 10px 14px; min-height: 48px; }
+#contestMap .legend, .city .legend, .mayor-mode .legend { font-size: 15px; gap: 12px; }
+.map-caption { font-size: 15px; }.map-caption strong { font-size: 13px; letter-spacing: .5px; }
+#contestMap #route { display: block; font-size: 15px; }
+.mayor-title p { max-width: 760px; }
+.mayor-steps { margin: 18px 0; font-size: 17px; padding: 18px 38px; gap: 12px 34px; }
+.mayor-dashboard { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.mayor-dashboard > div { padding: 18px; border-radius: 16px; }
+.mayor-dashboard strong { font-size: clamp(22px, 2vw, 30px); line-height: 1.25; }
+.mayor-dashboard span { font-size: 16px; }.mayor-dashboard p { font-size: 15px; }
+.day-event { font-size: 17px; }
+#mapLiveDay, #liveDay { min-height: 58px; font-size: 21px; }
+#mayorPolicies label { grid-template-columns: minmax(100px, 1fr) minmax(200px, 1.2fr); font-size: 18px; }
+#mayor .policy-hint { font-size: 16px; margin-bottom: 20px; }
+#mayor select, #mayor input, #mayor textarea { font-size: 17px; padding: 12px; }
+.mayor-work { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+.mayor-work h2 { font-size: 25px; }
+.city-issues, .investment-grid, .services-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.issue-card, .investment-card, .service-card { padding: 18px; border: 1px solid #6b8884; border-radius: 14px; background: #203c47; }
+.issue-card { border-left: 4px solid #f3c57b; }
+.issue-card h3, .investment-card h3, .service-card h3 { margin: 0 0 8px; font-size: 19px; }
+.issue-card p, .investment-card p { margin: 6px 0 14px; font-size: 16px; }
+.investment-card button { width: 100%; }
+.service-card strong { font-size: 26px; display: block; }.service-card progress { width: 100%; accent-color: #8ceaca; }
+.city-services { margin: 20px 0; }
+.citizen-card { padding: 22px; border: 1px solid #80b6a7; border-radius: 16px; background: #1c3943; }
+.citizen-card h3 { font-size: 24px; margin: 0 0 10px; }
+.citizen-stats { display: flex; gap: 12px; flex-wrap: wrap; }
+.citizen-stats span { padding: 8px 12px; border-radius: 9px; background: #2c4f56; }
+.citizen-route { display: flex; flex-wrap: wrap; gap: 8px; padding: 0; list-style: none; }
+.citizen-route li { padding: 7px 10px; background: #28464f; border-radius: 8px; }
+#citizenStory { border-left: 4px solid #97ead0; padding: 12px 16px; background: #1d3741; border-radius: 8px; }
+.mayor-mode .inhabitant[role=button] { pointer-events: auto; cursor: pointer; }
+.inhabitant[role=button]:focus-visible { outline: none; filter: drop-shadow(0 0 6px #fff3b0); }
+.mayor-mode .city #chart { display: none; }
+#districtReport p { padding: 10px 0; border-bottom: 1px solid #56716d; }
+#attemptRows td, #mayorHistory td { font-size: 15px; }
+table { min-width: 620px; table-layout: auto; } th:first-child { width: auto; }
+body:not(.contest-mode) #contest { display: none; }
+.lab-mode main { grid-template-columns: 340px minmax(0, 1fr); }
+
+/* The four shades leave a real hole, with a focus ring around the explained control. */
+.tour-open { overflow: hidden; }
+.game-tour { position: fixed; inset: 0; z-index: 2147483000; pointer-events: auto; }
+.tour-shade { position: absolute; background: #03131deb; }
+.tour-focus { position: absolute; border: 3px solid #a8f5d6; outline: 2px solid #143e34; border-radius: 12px; box-shadow: 0 0 24px #76efc466; pointer-events: none; }
+.tour-card { position: absolute; width: min(440px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; padding: 24px; border: 1px solid #9bd9c3; border-radius: 20px; background: #173440; box-shadow: 0 18px 80px #0008; color: #edf9f4; }
+.tour-card h2 { font-size: 27px; margin: 18px 0 12px; color: #f1fff7; }
+.tour-card p { font-size: 18px; line-height: 1.6; color: #d8e9e7; margin: 12px 0; }
+.tour-card .tour-tip { font-size: 16px; border-left: 3px solid #a1e9c9; padding: 8px 12px; background: #284752; border-radius: 6px; }
+.tour-kicker { display: flex; gap: 12px; justify-content: space-between; align-items: center; }
+#tourCounter { font-size: 14px; color: #a9dfcb; }
+#tourSkip { min-height: 44px; padding: 7px 10px; font-size: 15px; border: 0; box-shadow: none; background: transparent; color: #d6e7e4; }
+.tour-progress { display: flex; gap: 5px; margin-top: 10px; }
+.tour-progress span { flex: 1; height: 4px; border-radius: 6px; background: #46616b; }
+.tour-progress span.done { background: #9eefd0; }
+.tour-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 22px; }
+.tour-actions button { min-height: 48px; font-size: 17px; }
+.tour-keyboard { display: block; margin-top: 16px; color: #aec9c9; font-size: 13px; }
+@media(min-width:1700px) { .present .layout { grid-template-columns: minmax(0, 1fr) 420px; } .present { font-size: 20px; } }
+@media(max-width:1100px) {
+  .play-layout { grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; }
+  .layout, .present .layout { grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; }
+  .mayor-dashboard { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mayor-work { grid-template-columns: 1fr; }
+}
+@media(max-width:800px) {
+  body { font-size: 17px; }
+  #contest, #mayor { padding: 18px; margin: 8px; }
+  .play-layout, .layout, .present .layout { display: flex; flex-direction: column; padding: 12px; }
+  .play-layout { padding: 0; }.play-panel { position: static; order: 1; width: 100%; }.play-map { order: 0; width: 100%; }
+  .layout .builder { order: 2; width: 100%; }.layout .training { width: 100%; }
+  .choice-tabs { grid-template-columns: repeat(3, 1fr); }.choice-tab { font-size: 15px; }
+  .option-card { display: block; width: 100%; margin: 8px 0; font-size: 17px; }
+  .mayor-dashboard { grid-template-columns: repeat(2, minmax(0, 1fr)); }.mayor-dashboard > div { padding: 14px; }
+  .city-issues, .investment-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #mayorPolicies label { grid-template-columns: 1fr; gap: 8px; }
+  .city-mode-nav { padding: 0 12px; gap: 8px; }.city-mode-nav a { padding: 10px 12px; }.city-mode-nav button { margin-left: 0; }
+  .setup-line { grid-template-columns: 1fr; }
+  .builder #robotEditor[open] { display: block; }.builder #tools { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .map-caption { flex-wrap: wrap; font-size: 14px; }.map-caption strong { font-size: 12px; }
+  #contestMap .legend, .city .legend { font-size: 14px; }
+  .services-grid { grid-template-columns: 1fr; }
+  .lab-mode main { display: flex; }.lab-mode main > aside { order: 1; }
+  #robotIntro { padding: 14px; margin: 0 12px; }.mission-heading, .mission-caption { font-size: 12px; }
+}
+@media(max-width:450px) {
+  #contest, #mayor { margin: 4px; padding: 14px; }
+  .city-issues, .investment-grid { grid-template-columns: 1fr; }
+  .mayor-dashboard { gap: 8px; }.mayor-dashboard p { font-size: 14px; }.mayor-dashboard strong { font-size: 22px; }
+  .mayor-work > div { padding: 14px; }.mayor-title h1 { font-size: 32px; }
+  .mayor-steps { padding: 14px 24px; font-size: 16px; }
+  .district-editor { gap: 6px; grid-template-columns: 1.3fr repeat(3, 1fr) .65fr; font-size: 13px; }
+  #mayor .district-editor input { padding: 6px; font-size: 16px; }
+  .tour-card { padding: 18px; }.tour-card h2 { font-size: 24px; }.tour-card p { font-size: 17px; }.tour-actions button { font-size: 15px; padding: 10px 12px; }
+  .tour-kicker { flex-wrap: wrap; gap: 0; }
+}
+@media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior: auto !important; } .tour-focus { box-shadow: none; } }
