@@ -4,7 +4,7 @@
   const clamp = (x, min = 0, max = 100) => Math.max(min, Math.min(max, x));
   const modes = {
     school: ['normal', 'shifts', 'remote'], kindergarten: ['normal', 'shifts', 'remote'],
-    work: ['normal', 'limited', 'remote', 'closed'], market: ['normal', 'limited', 'long', 'closed'],
+    work: ['normal', 'shifts', 'limited', 'remote', 'closed'], market: ['normal', 'limited', 'long', 'closed'],
     mall: ['normal', 'limited', 'long', 'closed'], bus: ['normal', 'frequent', 'reduced', 'closed'],
     park: ['normal', 'closed'], gym: ['normal', 'limited', 'closed'], clinic: ['normal', 'appointments', 'closed']
   };
@@ -38,7 +38,8 @@
     }));
   }
   function create({ districts = setup(), seed = 1, challenge = 'balance', maxDays = 14,
-    initialDistrict = 0, eventful = true, contactScale = 1, healthcareBeds = 8 } = {}) {
+    initialDistrict = 0, eventful = true, contactScale = 1, healthcareBeds = 8,
+    shopSeats = { market: 22, mall: 40 } } = {}) {
     const ds = districts.map(d => ({
       adults: clamp(+d.adults | 0, 0, 20), children: clamp(+d.children | 0, 0, 20),
       seniors: clamp(+d.seniors | 0, 0, 20), far: !!d.far
@@ -71,7 +72,7 @@
     let initial = people.findIndex(x => x.district === initialDistrict);
     if (initial < 0) initial = 0;
     return { version: 2, people, households, districts: ds, seed: +seed || 1, challenge, maxDays, eventful,
-      contactScale, healthcareBeds, day: 0, cash: 300, trust: 85, waste: 0,
+      contactScale, healthcareBeds, shopSeats: { market: Math.max(1, +shopSeats.market || 22), mall: Math.max(1, +shopSeats.mall || 40) }, day: 0, cash: 300, trust: 85, waste: 0,
       infrastructure: Object.fromEntries(Object.keys(upgrades).map(k => [k, 0])), investments: [],
       states: people.map((_, i) => i === initial ? 'I' : 'S'),
       infected: people.map((_, i) => i === initial ? 0 : null), exposed: people.map(() => null),
@@ -180,7 +181,7 @@
     const served = new Set(), shopCapacity = {}, spending = Array(g.households.length).fill(0);
     let queue = 0;
     for (const place of ['market', 'mall']) {
-      const cap = p[place] === 'closed' ? 0 : Math.floor((place === 'market' ? 22 + g.infrastructure.market * 12 : 40) *
+      const cap = p[place] === 'closed' ? 0 : Math.floor(((g.shopSeats?.[place] ?? (place === 'market' ? 22 : 40)) + (place === 'market' ? g.infrastructure.market * 12 : 0)) *
         (p[place] === 'limited' ? .5 : p[place] === 'long' ? 1.5 : 1) *
         (place === 'market' && ev.kind === 'delivery' ? .5 : 1) * powerFactor);
       shopCapacity[place] = cap;
@@ -289,7 +290,7 @@
     const expenses = 30 + (p.clinic === 'closed' ? 0 : p.clinic === 'appointments' ? 22 : 18) +
       (p.bus === 'closed' ? 0 : p.bus === 'reduced' ? 6 : p.bus === 'frequent' ? 18 : 12) +
       ['school', 'kindergarten'].reduce((sum, k) => sum + (p[k] === 'remote' ? 3 : p[k] === 'shifts' ? 14 : 8), 0) +
-      ['market', 'mall'].filter(k => p[k] === 'long').length * 8 + upkeep;
+      ['market', 'mall'].filter(k => p[k] === 'long').length * 8 + (p.work === 'shifts' ? 12 : 0) + upkeep;
     g.cash += income - expenses;
     const unservedCare = care.length - treated, trustCauses = {
       food: Math.round((food - 85) / 22), rest: Math.round((rest - 40) / 20), education: Math.round((education - 85) / 35),
@@ -311,7 +312,7 @@
       cash: g.cash, income, expenses, upkeep, trust: g.trust, trustDelta: g.trust - oldTrust, trustCauses,
       food: Math.round(food), rest: Math.round(rest), education: Math.round(education), queue, schoolQueue, restQueue,
       workers, participation: Math.round(100 * (workers + districtReports.reduce((sum, d) => sum + d.education, 0)) / Math.max(1, g.people.filter(person => !person.senior).length)),
-      caregivers: caregivers.size, missed: missedSet.size, informal, happiness, services, alerts,
+      caregivers: caregivers.size, missed: missedSet.size, missedIds: [...missedSet], informal, happiness, services, alerts,
       districts: districtReports, policy: { ...p }, transport: travelByPhase, shopCapacity,
       commute: Math.round(travelMinutes.reduce((a, b) => a + b, 0) / n),
       tired: g.people.filter(person => person.energy < 40).length,
