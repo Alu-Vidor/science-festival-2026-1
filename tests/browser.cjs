@@ -29,10 +29,53 @@ const server = http.createServer((req, res) => {
       if(sizes[0]>sizes[1]+1)console.log('Overflow:',page.url(),await page.locator('body *').evaluateAll(els=>els.filter(el=>{const r=el.getBoundingClientRect();return r.width&&r.right>innerWidth+1;}).slice(0,12).map(el=>({tag:el.tagName,id:el.id,classes:el.className,right:el.getBoundingClientRect().right}))));
       assert(sizes[0] <= sizes[1] + 1, 'Page must not scroll sideways: ' + sizes);
     }
-    async function tourFits() {
-      const rect = await page.locator('.tour-card').boundingBox();
+    async function tourFits(scope=page) {
+      const rect = await scope.locator('.tour-card').boundingBox();
       const size = page.viewportSize();
-      assert(rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= size.width + 1 && rect.y + rect.height <= size.height + 1, 'Tour card must fit the viewport');
+      assert(rect && rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= size.width + 1 && rect.y + rect.height <= size.height + 1, 'Tour card must fit the visible screen, including inside an iframe: '+JSON.stringify(rect));
+    }
+    async function lit(selectors, scope=page) {
+      const problems=await scope.locator('body').evaluate((_, selectors)=>{
+        const card=document.querySelector('.tour-card').getBoundingClientRect(), dark=[...document.querySelectorAll('.tour-shade')].map(el=>el.getBoundingClientRect());
+        const overlap=(a,b)=>Math.min(a.right,b.right)-Math.max(a.left,b.left)>1 && Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1;
+        return selectors.flatMap(selector=>{
+          const r=document.querySelector(selector).getBoundingClientRect();
+          const visible=r.width&&r.height&&r.bottom>0&&r.top<innerHeight;
+          return !visible?[selector+' is not visible']:dark.some(s=>overlap(r,s))?[selector+' is shaded']:overlap(r,card)?[selector+' is covered by the lesson card']:[];
+        });
+      },selectors);
+      if(problems.length) await page.screenshot({path:path.join(shots,'spotlight-failure.png')});
+      assert.deepEqual(problems,[],'Explained objects must stay lit and uncovered');
+    }
+    async function startWatching(scene, actors, scope=page) {
+      await scope.locator('body').evaluate((_, {scene,actors})=>{
+        const report=window.lessonWatch={frames:0,positions:new Set(),problems:[],seen:false};
+        const overlap=(a,b)=>Math.min(a.right,b.right)-Math.max(a.left,b.left)>1 && Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1;
+        function check() {
+          const tour=document.getElementById('gameTour');
+          if(tour?.classList.contains('tour-watching')) {
+            report.seen=true; report.frames++;
+            const r=document.querySelector(scene).getBoundingClientRect(), card=tour.querySelector('.tour-card').getBoundingClientRect();
+            let top=0,bottom=innerHeight;
+            if(window.frameElement) { const host=window.frameElement.getBoundingClientRect();top=-host.top;bottom=parent.innerHeight-host.top;
+              const bar=parent.document.getElementById('missionBar')?.getBoundingClientRect();if(bar&&bar.top<=1)top=Math.max(top,bar.bottom-host.top);
+            } else { const bar=document.getElementById('missionBar')?.getBoundingClientRect();if(bar&&bar.top<=1)top=bar.bottom; }
+            if(r.top<top-1||r.bottom>bottom+1)report.problems.push('Animation scene leaves the visible screen');
+            if([...tour.querySelectorAll('.tour-shade')].some(s=>overlap(r,s.getBoundingClientRect())))report.problems.push('Animation scene is shaded');
+            if(overlap(r,card))report.problems.push('Animation scene is covered by the card');
+            report.positions.add([...document.querySelectorAll(actors)].map(el=>getComputedStyle(el).transform).join('|'));
+            report.problems=report.problems.slice(0,5);
+          } else if(report.seen) return;
+          requestAnimationFrame(check);
+        }
+        requestAnimationFrame(check);
+      },{scene,actors});
+    }
+    async function watched(scope=page) {
+      const result=await scope.locator('body').evaluate(()=>({frames:window.lessonWatch.frames,moved:window.lessonWatch.positions.size,problems:window.lessonWatch.problems}));
+      if(result.problems.length)await page.screenshot({path:path.join(shots,'animation-failure.png')});
+      assert(result.frames>2&&result.moved>1,'The lesson must show actual movement over multiple rendered frames: '+JSON.stringify(result));
+      assert.deepEqual(result.problems,[],'The entire animated scene must stay lit, on screen and clear of the tooltip');
     }
     async function step(title, scope=page) { await scope.locator('#tourTitle').filter({hasText:title}).waitFor(); }
     await page.goto(url);
@@ -41,17 +84,26 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.locator('#robotView').evaluate(el=>el.inert),false);
     assert.equal(await page.locator('.training').evaluate(el=>el.inert),true);
     assert.equal(await page.locator('#tourNext').isVisible(),false,'Learning must wait for the actual action');
+    await lit(['#run','#boardStage']);
+    assert(await page.locator('#boardStage').evaluate(el=>!!el.closest('[inert]')),'Lighting the map must not allow unrelated actions');
     await page.screenshot({path:path.join(shots,'robot-tutorial.png')});
     await page.locator('.tour-card').press('Tab');
     assert.equal(await page.evaluate(()=>document.activeElement.id),'run','Keyboard must reach the highlighted action');
+    await startWatching('#boardStage','#robotSprite');
     await page.locator('#run').press('Enter');
+    await page.locator('.cell.stuck').waitFor(); await tourFits(); await lit(['#boardStage','#robotSprite']);
+    await page.screenshot({path:path.join(shots,'robot-moving-tutorial.png')});
     await step('Изучи сухой');
+    await watched();
     assert.equal(await page.locator('[data-index="1"]').evaluate(el=>el.inert),true);
     await page.locator('[data-index="0"]').click();
-    await step('Покажи хороший'); await page.locator('#safe').click();
+    await step('Покажи хороший'); await lit(['#sensors','#selectedName','#safe']); await page.locator('#safe').click();
     await step('Найди причину'); await page.locator('[data-index="61"]').click();
-    await step('Покажи опасный'); await page.locator('#unsafe').click();
+    await step('Покажи опасный'); await lit(['#sensors','#selectedName','#unsafe']); await page.screenshot({path:path.join(shots,'robot-sensors-tutorial.png')}); await page.locator('#unsafe').click();
     await step('Обучи ИИ'); await page.locator('#train').click();
+    await page.locator('.tour-watching').waitFor(); await lit(['#boardStage']);
+    assert(await page.locator('#board .bad').count()>0,'Predictions must be visible before the lesson closes');
+    await page.screenshot({path:path.join(shots,'robot-predictions-tutorial.png')});
     await page.locator('#gameTour').waitFor({state:'detached'});
     assert.equal(await page.locator('.training').evaluate(el=>el.inert),false);
     assert.equal(await page.locator('#overallScore').innerText(),'0','The two guided examples alone are not the independent task');
@@ -85,11 +137,16 @@ const server = http.createServer((req, res) => {
     await page.locator('#epiTab').click();
     const cityFrame=page.frameLocator('#epiView');
     await cityFrame.locator('#mayor').waitFor(); await cityFrame.locator('#gameTour').waitFor();
+    await tourFits(cityFrame); await startWatching('#map','.inhabitant',cityFrame);
     await cityFrame.locator('#observeCity').click();
+    await cityFrame.locator('.tour-watching').waitFor(); await tourFits(cityFrame);
+    await page.screenshot({path:path.join(shots,'city-moving-iframe-tutorial.png')});
     await step('Помоги добраться',cityFrame);
+    await watched(cityFrame);
     await cityFrame.locator('#pick-bus-frequent').click();
-    await step('Проверь своё',cityFrame); await cityFrame.locator('#tryCity').click();
+    await step('Проверь своё',cityFrame); await startWatching('#map','.inhabitant',cityFrame); await cityFrame.locator('#tryCity').click();
     await cityFrame.locator('#gameTour').waitFor({state:'detached'});
+    await watched(cityFrame);
     assert.equal(await cityFrame.locator('#cityAttempts span').count(),1);
     const firstCity=parseInt(await cityFrame.locator('#cityLocalScore').innerText());
     await page.waitForFunction(value=>+document.getElementById('overallScore').textContent===value,training+30+firstCity);
@@ -164,15 +221,19 @@ const server = http.createServer((req, res) => {
         if (await page.locator('#gameTour').count()) await page.locator('#tourSkip').click();
         if (route === '/') {
           await page.locator('#robotTutorial').click(); await tourFits();
-          await page.locator('#run').click(); await step('Изучи сухой'); await tourFits();
-          await page.locator('[data-index="0"]').click(); await step('Покажи хороший'); await tourFits(); await page.locator('#safe').click();
-          await step('Найди причину'); await page.locator('[data-index="61"]').click(); await step('Покажи опасный'); await tourFits(); await page.locator('#unsafe').click();
-          await step('Обучи ИИ'); await tourFits(); await page.locator('#train').click(); await page.locator('#gameTour').waitFor({state:'detached'});
+          await startWatching('#boardStage','#robotSprite'); await page.locator('#run').click();
+          await page.locator('.cell.stuck').waitFor(); await tourFits();
+          await page.screenshot({path:path.join(shots,`robot-moving-${width}.png`)});
+          await step('Изучи сухой'); await watched(); await tourFits();
+          await page.locator('[data-index="0"]').click(); await step('Покажи хороший'); await tourFits(); await lit(['#sensors','#selectedName','#safe']); await page.locator('#safe').click();
+          await step('Найди причину'); await page.locator('[data-index="61"]').click(); await step('Покажи опасный'); await tourFits(); await lit(['#sensors','#selectedName','#unsafe']); await page.locator('#unsafe').click();
+          await step('Обучи ИИ'); await tourFits(); await page.locator('#train').click(); await page.locator('.tour-watching').waitFor(); await lit(['#boardStage']); await page.locator('#gameTour').waitFor({state:'detached'});
           await page.evaluate(()=>window.scrollTo(0,0));
         } else if (route === '/epidemic.html') {
-          await page.locator('#cityTutorial').click(); await tourFits(); await page.locator('#observeCity').click();
-          await step('Помоги добраться'); await tourFits(); await page.locator('#pick-bus-frequent').click();
-          await step('Проверь своё'); await tourFits(); await page.locator('#tryCity').click(); await page.locator('#gameTour').waitFor({state:'detached'});
+          await page.locator('#cityTutorial').click(); await tourFits(); await startWatching('#map','.inhabitant'); await page.locator('#observeCity').click();
+          await page.locator('.tour-watching').waitFor(); await tourFits(); await page.screenshot({path:path.join(shots,`city-moving-${width}.png`)});
+          await step('Помоги добраться'); await watched(); await tourFits(); await page.locator('#pick-bus-frequent').click();
+          await step('Проверь своё'); await tourFits(); await startWatching('#map','.inhabitant'); await page.locator('#tryCity').click(); await page.locator('#gameTour').waitFor({state:'detached'}); await watched();
           await page.evaluate(()=>window.scrollTo(0,0));
         }
         await noOverflow();
@@ -187,6 +248,6 @@ const server = http.createServer((req, res) => {
     await page.locator('#robotTab').click();
     assert.equal(await page.locator('#robotView').isVisible(), true);
     assert.deepEqual(errors, [], 'No JS errors or missing game assets');
-    console.log('Browser: action lessons, robot delivery/score/conditions, three city attempts, comparison, parent score/reset, citizens, legacy modes and 375/768/1280 layouts passed');
+    console.log('Browser: unobscured robot/city animation, sensors and predictions, iframe tooltip placement, action lessons, scores/reset, citizens, legacy modes and 375/768/1280 layouts passed');
   } finally { await browser.close(); server.close(); }
 })().catch(error => { console.error(error); server.close(); process.exitCode = 1; });
