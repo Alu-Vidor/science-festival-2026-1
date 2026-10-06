@@ -102,9 +102,9 @@ const server = http.createServer((req, res) => {
     await watched();
     assert.equal(await page.locator('[data-index="1"]').evaluate(el=>el.inert),true);
     await page.locator('[data-index="0"]').click();
-    await step('Покажи хороший'); await lit(['#sensors','#selectedName','#safe']); await page.locator('#safe').click();
+    await step('Безопасный пример'); await lit(['#sensors','#selectedName','#safe']); await page.locator('#safe').click();
     await step('Найди причину'); await page.locator('[data-index="61"]').click();
-    await step('Покажи опасный'); await lit(['#sensors','#selectedName','#unsafe']); await page.screenshot({path:path.join(shots,'robot-sensors-tutorial.png')}); await page.locator('#unsafe').click();
+    await step('Опасный пример'); await lit(['#sensors','#selectedName','#unsafe']); await page.screenshot({path:path.join(shots,'robot-sensors-tutorial.png')}); await page.locator('#unsafe').click();
     await step('Обучи ИИ'); await page.locator('#train').click();
     await page.locator('.tour-watching').waitFor(); await lit(['#boardStage']);
     assert(await page.locator('#board .bad').count()>0,'Predictions must be visible before the lesson closes');
@@ -230,8 +230,8 @@ const server = http.createServer((req, res) => {
           await page.locator('.cell.stuck').waitFor(); await tourFits();
           await page.screenshot({path:path.join(shots,`robot-moving-${width}.png`)});
           await step('Изучи сухой'); await watched(); await tourFits();
-          await page.locator('[data-index="0"]').click(); await step('Покажи хороший'); await tourFits(); await lit(['#sensors','#selectedName','#safe']); await page.locator('#safe').click();
-          await step('Найди причину'); await page.locator('[data-index="61"]').click(); await step('Покажи опасный'); await tourFits(); await lit(['#sensors','#selectedName','#unsafe']); await page.screenshot({path:path.join(shots,`robot-sensors-${width}.png`)}); await page.locator('#unsafe').click();
+          await page.locator('[data-index="0"]').click(); await step('Безопасный пример'); await tourFits(); await lit(['#sensors','#selectedName','#safe']); await page.locator('#safe').click();
+          await step('Найди причину'); await page.locator('[data-index="61"]').click(); await step('Опасный пример'); await tourFits(); await lit(['#sensors','#selectedName','#unsafe']); await page.screenshot({path:path.join(shots,`robot-sensors-${width}.png`)}); await page.locator('#unsafe').click();
           await step('Обучи ИИ'); await tourFits(); await page.locator('#train').click(); await page.locator('.tour-watching').waitFor(); await lit(['#boardStage']); await page.locator('#gameTour').waitFor({state:'detached'});
           await page.evaluate(()=>window.scrollTo(0,0));
         } else if (route === '/epidemic.html') {
