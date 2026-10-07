@@ -35,7 +35,7 @@ const server = http.createServer((req, res) => {
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
-      await fits(page,['#board .cell','#run','#stop','#predict','#safe','#unsafe','#train','#clear','#sensors','#model','.training > details','#robotEditor > summary','#status','#deliveryTries','#overallScore']);
+      await fits(page,['#board .cell','#run','#stop','#predict','#safe','#unsafe','#train','#clear','#sensors','#model','.training > details','#robotEditor > summary','#status','#deliveryTries','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress']);
       await page.mouse.wheel(0,700); await fits(page,['#boardStage','#model']);
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-monitor-${width}x${height}.png`)});
       async function lit(scope, selectors) {
@@ -61,6 +61,11 @@ const server = http.createServer((req, res) => {
       await page.locator('#train').click();
       for(let i=0;i<3;i++) {await page.locator('#run').click();await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Доставлено 3'));await fits(page,['#boardStage','#model','#status','#deliveryTries','#robotEditor > summary']);}
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-result-monitor-${width}x${height}.png`)});
+      await page.locator('#robotEditor > summary').click(); await page.locator('.monitor-dialog[open]').waitFor();
+      await fits(page,['.monitor-dialog','#tools button','#multi','#energy','#strategy','#applyStrength','#rain','#reset']);
+      if(width===1366 && height===680) await page.screenshot({path:path.join(root,'test-artifacts','robot-editor-monitor.png')});
+      await page.locator('#tools [data-tool=inspect]').click(); await page.locator('.monitor-dialog[open]').waitFor({state:'detached'});
+      await fits(page,['#boardStage','#status']);
       await page.locator('#epiTab').click();
       const city = page.frameLocator('#epiView');
       await city.locator('#mayor').waitFor();
@@ -79,7 +84,7 @@ const server = http.createServer((req, res) => {
       await fits(frame,['#map','.city-choice','#tryCity','#mayorStatus','#cityEffects','#cityNeeds']);
       for(const option of ['#pick-school-shifts','#pick-shops-one']) {await city.locator(option).click();await city.locator('#tryCity').click();await city.locator('#cityAttempts span').nth(option.includes('school')?1:2).waitFor({state:'attached'});await fits(frame,['#map','#tryCity','#cityEffects','#cityNeeds','#mayorStatus']);}
       await page.screenshot({path:path.join(root,'test-artifacts',`city-monitor-${width}x${height}.png`)});
-      await fits(page,['#epiView','#overallScore']);
+      await fits(page,['#epiView','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress']);
       await city.locator('.inhabitant[data-person="0"]').press('Enter'); await city.locator('.monitor-dialog[open]').waitFor();
       await fits(frame,['.monitor-dialog','#citizenChoice','#citizenPanel']);
       await city.locator('.monitor-dialog > button').click(); await fits(frame,['#map','#cityEffects']);

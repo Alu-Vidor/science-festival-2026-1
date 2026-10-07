@@ -104,6 +104,18 @@
 .monitor-layout .tour-card p { font-size:16px; line-height:1.4; margin:6px 0; }
 .monitor-layout .tour-acting .tour-progress,.monitor-layout .tour-acting .tour-actions,.monitor-layout .tour-acting .tour-keyboard { display:none; }
 .monitor-layout .monitor-dialog #cityBudget { display:block; }
+.monitor-layout .mission-tags { gap:4px; }.monitor-layout .mission-tags span { font-size:14px; padding:4px 8px; }
+.monitor-layout .stat strong { white-space:nowrap; font-size:20px; }
+.monitor-layout .monitor-dialog #robotEditor[open] { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 16px; }
+.monitor-dialog #robotEditor > h2,.monitor-dialog #robotEditor > p:first-of-type,.monitor-dialog #robotEditor > #tools { grid-column:1/-1; }
+.monitor-dialog #robotEditor > .selection-note { grid-column:2/-1; }
+.monitor-dialog #robotEditor p,.monitor-dialog #robotEditor label { font-size:14px; margin:0; line-height:1.3; }
+.monitor-dialog #robotEditor button,.monitor-dialog #robotEditor select { margin:0; padding:8px; font-size:14px; }
+.monitor-dialog #robotEditor .selection-note { align-self:center; }
+.monitor-dialog #robotEditor > h2 { padding-right:150px; }
+.monitor-dialog:has(#robotEditor) > button { position:absolute; top:12px; right:16px; }
+.monitor-layout .monitor-dialog #robotEditor { clear:none; }
+.monitor-dialog details details > summary { display:flex; }
 
 .monitor-layout #robotIntro,.monitor-layout.city-active > nav #robotTutorial { display:none; }
 @media(max-height:540px) { .monitor-layout.short-city .mayor-title p { display:none; }.monitor-layout .city-decisions fieldset { margin:3px 0 4px; } }

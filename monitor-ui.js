@@ -55,6 +55,12 @@
         const row = document.createElement('div'); row.className = 'monitor-training-actions'; training.insertBefore(row, $('train'));
         move($('train'), row); move($('clear'), row);
         for (const detail of document.querySelectorAll('#robotEditor, .training > details, #leaderTools')) tools(detail);
+        if (!wired.has($('tools'))) {
+          wired.add($('tools'));
+          $('robotEditor').addEventListener('click', e => {
+            if (active && e.target.closest('#tools button, #multi, #applySelection, #clearSelection, #applyStrength, #rain, #reset')) dialog.close();
+          });
+        }
         observer = new ResizeObserver(sizeBoard); observer.observe(scene.querySelector('.mission-frame')); sizeBoard();
       } else {
         const decisions = $('cityDecisions');

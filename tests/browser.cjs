@@ -130,8 +130,10 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Доставлено 3'));
     assert.equal(+(await page.locator('#overallScore').innerText()),training+30,'Changed conditions must not award delivery points');
     assert((await page.locator('#deliveryTries').innerText()).includes('1 / 3'));
+    const monitor = await page.locator('body').evaluate(el=>el.classList.contains('monitor-layout'));
+    if(monitor) await page.locator('#robotEditor > summary').click();
     await page.locator('#energy').evaluate(el=>{el.value='60';el.dispatchEvent(new Event('input'));});
-    await page.locator('#robotEditor > summary').click();
+    if(monitor) await page.locator('.monitor-dialog > button').click(); else await page.locator('#robotEditor > summary').click();
     for(let attempt=2;attempt<=3;attempt++){await page.locator('#run').click();await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Доставлено 3'));}
     await page.locator('#run').click(); assert((await page.locator('#status').innerText()).includes('Три доставки'));
     await page.locator('#boardStage').scrollIntoViewIfNeeded(); await page.screenshot({path:path.join(shots,'robot-desktop.png')}); await noOverflow();
