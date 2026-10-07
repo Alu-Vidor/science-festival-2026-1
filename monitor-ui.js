@@ -47,6 +47,9 @@
         const title = document.createElement('h2'); title.textContent = 'Испытание'; controls.append(title); layout.prepend(controls);
         move($('run').parentElement, controls); move(scene.querySelector('.stats'), controls);
         move($('deliveryTries'), controls); move($('status'), controls); move($('robotEditor'), controls);
+        const editorGrid = document.createElement('div'); editorGrid.className = 'monitor-editor-grid';
+        for (const node of [...$('robotEditor').children]) if (node.tagName !== 'SUMMARY') move(node, editorGrid);
+        $('robotEditor').append(editorGrid);
         const training = layout.querySelector('.training');
         const rules = document.createElement('details'), summary = document.createElement('summary');
         rules.className = 'monitor-rules'; summary.textContent = 'Правила и баллы'; rules.append(summary); training.append(rules);
@@ -76,6 +79,7 @@
       if (dialog.open) dialog.close(); active = false; observer?.disconnect();
       for (const [node, marker] of moves.splice(0).reverse()) marker.replaceWith(node);
       $('robotControls')?.remove(); document.querySelector('.monitor-training-actions')?.remove(); document.querySelector('.monitor-rules')?.remove();
+      document.querySelector('.monitor-editor-grid')?.remove();
       if ($('boardStage')) $('boardStage').style.width = '';
       document.body.classList.remove('monitor-layout', 'monitor-embedded');
     }

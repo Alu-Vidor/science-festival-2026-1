@@ -106,13 +106,14 @@
 .monitor-layout .monitor-dialog #cityBudget { display:block; }
 .monitor-layout .mission-tags { gap:4px; }.monitor-layout .mission-tags span { font-size:14px; padding:4px 8px; }
 .monitor-layout .stat strong { white-space:nowrap; font-size:20px; }
-.monitor-layout .monitor-dialog #robotEditor[open] { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 16px; }
-.monitor-dialog #robotEditor > h2,.monitor-dialog #robotEditor > p:first-of-type,.monitor-dialog #robotEditor > #tools { grid-column:1/-1; }
-.monitor-dialog #robotEditor > .selection-note { grid-column:2/-1; }
+.monitor-layout .monitor-dialog #robotEditor[open] { display:block; }
+.monitor-editor-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 16px; }
+.monitor-editor-grid > h2,.monitor-editor-grid > p:first-of-type,.monitor-editor-grid > #tools { grid-column:1/-1; }
+.monitor-editor-grid > .selection-note { grid-column:2/-1; }
 .monitor-dialog #robotEditor p,.monitor-dialog #robotEditor label { font-size:14px; margin:0; line-height:1.3; }
 .monitor-dialog #robotEditor button,.monitor-dialog #robotEditor select { margin:0; padding:8px; font-size:14px; }
 .monitor-dialog #robotEditor .selection-note { align-self:center; }
-.monitor-dialog #robotEditor > h2 { padding-right:150px; }
+.monitor-dialog #robotEditor h2 { padding-right:150px; }
 .monitor-dialog:has(#robotEditor) > button { position:absolute; top:12px; right:16px; }
 .monitor-layout .monitor-dialog #robotEditor { clear:none; }
 .monitor-dialog details details > summary { display:flex; }
