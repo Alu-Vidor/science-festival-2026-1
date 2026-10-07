@@ -59,6 +59,7 @@
   function animate(result, done) {
     playing = true; controls(); $('observeCity').disabled = true;
     $('mayorStatus').textContent = 'Город проживает две недели…';
+    signal('city:started');
     const frames = [0, 1, 2, 3, 4, 5, 21, 46, 47, 48, 49, 50, 66, 67, 68, 69, 70];
     let n = 0;
     function next() {
