@@ -93,3 +93,8 @@
 
 .monitor-layout summary { line-height:1.3; padding:6px 0; }
 .monitor-layout summary::before { font-size:22px; line-height:1; }
+
+.monitor-layout .city-comparison > h2 { display:none; }
+.monitor-layout .city-effects strong { font-size:17px; line-height:1.15; }
+.monitor-layout .city-choice { min-height:44px; line-height:1.2; padding:4px 3px !important; }
+.monitor-layout .mayor-title p { line-height:1.25; }

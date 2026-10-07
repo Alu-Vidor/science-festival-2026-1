@@ -38,17 +38,51 @@ const server = http.createServer((req, res) => {
       await fits(page,['#board .cell','#run','#stop','#predict','#safe','#unsafe','#train','#clear','#sensors','#model','.training > details','#robotEditor > summary','#status','#deliveryTries','#overallScore']);
       await page.mouse.wheel(0,700); await fits(page,['#boardStage','#model']);
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-monitor-${width}x${height}.png`)});
+      async function lit(scope, selectors) {
+        const problems=await scope.evaluate(selectors=>{
+          const card=document.querySelector('.tour-card').getBoundingClientRect();
+          const dark=[...document.querySelectorAll('.tour-shade')].map(e=>e.getBoundingClientRect());
+          const overlaps=(a,b)=>Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1;
+          return selectors.filter(s=>{const r=document.querySelector(s).getBoundingClientRect();return overlaps(r,card)||dark.some(d=>overlaps(r,d));});
+        },selectors);
+        assert.deepEqual(problems,[],'Lesson must leave the described objects visible');
+      }
+      await page.locator('#robotTutorial').click();
+      await fits(page,['.tour-card','#tourTitle','#tourText','#run','#boardStage']);
+      await page.locator('#run').click(); await page.locator('.tour-watching').waitFor();
+      await lit(page,['#boardStage','#robotSprite']); await fits(page,['.tour-card','#boardStage']);
+      await page.screenshot({path:path.join(root,'test-artifacts',`robot-lesson-monitor-${width}x${height}.png`)});
+      for(const [title,selector] of [['Изучи сухой','[data-index="0"]'],['Безопасный пример','#safe'],['Найди причину','[data-index="61"]'],['Опасный пример','#unsafe'],['Обучи ИИ','#train']]) {
+        await page.locator('#tourTitle').filter({hasText:title}).waitFor(); await fits(page,['.tour-card','#tourTitle','#tourText',selector]); await page.locator(selector).click();
+      }
+      await page.locator('#gameTour').waitFor({state:'detached'});
+      await fits(page,['#model','#train','#status','.training > details']);
+      for(const [indices,label] of [[[1,2],'safe'],[[67,68],'unsafe']]) for(const i of indices) {await page.locator(`[data-index="${i}"]`).click();await page.locator('#'+label).click();}
+      await page.locator('#train').click();
+      for(let i=0;i<3;i++) {await page.locator('#run').click();await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Доставлено 3'));await fits(page,['#boardStage','#model','#status','#deliveryTries','#robotEditor > summary']);}
+      await page.screenshot({path:path.join(root,'test-artifacts',`robot-result-monitor-${width}x${height}.png`)});
       await page.locator('#epiTab').click();
       const city = page.frameLocator('#epiView');
       await city.locator('#mayor').waitFor();
       const frame=page.frames().find(f=>f.url().includes('epidemic.html'));
       if(await city.locator('.tour-card').count()) await city.locator('.tour-card').press('Escape');
       await fits(frame,['#map','#observeCity','.city-choice','#tryCity','#mayorStatus','#cityLocalScore']);
+      await city.locator('#cityTutorial').click(); await fits(frame,['.tour-card','#tourTitle','#tourText','#observeCity']);
       await city.locator('#observeCity').click(); await city.locator('#tryCity').waitFor({state:'visible'});
+      await city.locator('.tour-watching').waitFor(); await lit(frame,['#map']);
+      await page.screenshot({path:path.join(root,'test-artifacts',`city-lesson-monitor-${width}x${height}.png`)});
       await city.locator('#tryCity').evaluate(el => new Promise(resolve => { const timer=setInterval(()=>{if(!el.disabled){clearInterval(timer);resolve();}},20); }));
+      await city.locator('#tourTitle').filter({hasText:'Помоги добраться'}).waitFor(); await fits(frame,['.tour-card','#tourText']);
+      await city.locator('#pick-bus-frequent').click(); await city.locator('#tourTitle').filter({hasText:'Проверь своё'}).waitFor();
+      await fits(frame,['.tour-card','#tourText']); await city.locator('#tryCity').click();
+      await city.locator('#gameTour').waitFor({state:'detached'});
       await fits(frame,['#map','.city-choice','#tryCity','#mayorStatus','#cityEffects','#cityNeeds']);
+      for(const option of ['#pick-school-shifts','#pick-shops-one']) {await city.locator(option).click();await city.locator('#tryCity').click();await city.locator('#cityAttempts span').nth(option.includes('school')?1:2).waitFor();await fits(frame,['#map','#tryCity','#cityEffects','#cityNeeds','#mayorStatus','#cityAttempts']);}
       await page.screenshot({path:path.join(root,'test-artifacts',`city-monitor-${width}x${height}.png`)});
       await fits(page,['#epiView','#overallScore']);
+      await city.locator('.inhabitant[data-person="0"]').press('Enter'); await city.locator('.monitor-dialog[open]').waitFor();
+      await fits(frame,['.monitor-dialog','#citizenChoice','#citizenPanel']);
+      await city.locator('.monitor-dialog > button').click(); await fits(frame,['#map','#cityEffects']);
       await context.close(); console.log('Monitor fits:',width,height);
     }
     assert.deepEqual(failures,[]);

@@ -78,7 +78,7 @@
   }
   function effects(result) {
     $('cityComparison').hidden = false; const box = $('cityEffects'); box.replaceChildren();
-    for (const [name, before, after, unit, lower] of [['Заражения', baseline.total, result.total, 'жителей', true], ['Продукты', baseline.food, result.food, '%', false], ['Учёба и работа', baseline.activity, result.activity, '%', false], ['Не смогли добраться', baseline.missed, result.missed, 'в день', true]]) {
+    for (const [name, before, after, unit, lower] of [['Заражения', baseline.total, result.total, 'чел.', true], ['Продукты', baseline.food, result.food, '%', false], ['Учёба и работа', baseline.activity, result.activity, '%', false], ['Пропущены поездки', baseline.missed, result.missed, '/ день', true]]) {
       const item = element('div', '', box); element('span', name, item); element('strong', `${before} → ${after} ${unit}`, item);
       const delta = after - before, improved = (delta < 0) === lower; element('small', !delta ? 'Без изменения' : (improved ? 'Лучше' : 'Хуже') + ` · ${delta > 0 ? '+' : ''}${delta}`, item).className = !delta ? '' : improved ? 'improved' : 'worsened';
     }
