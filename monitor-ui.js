@@ -41,6 +41,8 @@
         });
       }
       if (robot) {
+        $('boardStage').classList.remove('enlarged');
+        $('robotZoom').setAttribute('aria-pressed', 'false'); $('robotZoom').textContent = '＋ Крупнее клетки';
         const layout = robot.querySelector('.layout'), scene = layout.querySelector('section.card');
         scene.id = 'robotScene'; move($('robotTutorial'), document.querySelector('body > nav'));
         const controls = document.createElement('aside'); controls.id = 'robotControls'; controls.className = 'card';

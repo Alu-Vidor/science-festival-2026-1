@@ -94,7 +94,9 @@ const server = http.createServer((req, res) => {
         await page.waitForFunction(()=>!document.body.classList.contains('monitor-layout'));
         assert.equal(await page.locator('.monitor-editor-grid').count(),0);
         assert.equal(await page.locator('#robotIntro #robotTutorial').count(),1);
-        await page.setViewportSize({width,height}); await page.waitForFunction(()=>document.body.classList.contains('monitor-layout')); await fits(page,['#boardStage','#run','#model','#status']);
+        await page.locator('#robotZoom').click();
+        await page.setViewportSize({width,height}); await page.waitForFunction(()=>document.body.classList.contains('monitor-layout')); await fits(page,['#board .cell','#boardStage','#run','#model','#status']);
+        assert.equal(await page.locator('#robotZoom').getAttribute('aria-pressed'),'false');
         await page.locator('#epiTab').click(); await fits(frame,['#map','#cityEffects','#cityNeeds']);
       }
       await context.close(); console.log('Monitor fits:',width,height);
