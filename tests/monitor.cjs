@@ -71,7 +71,8 @@ const server = http.createServer((req, res) => {
       await city.locator('#mayor').waitFor();
       const frame=page.frames().find(f=>f.url().includes('epidemic.html'));
       if(await city.locator('.tour-card').count()) await city.locator('.tour-card').press('Escape');
-      await fits(frame,['#map','#observeCity','.city-choice','#tryCity','#mayorStatus','#cityLocalScore']);
+      await fits(frame,['#map','#map .building-sprite','#observeCity','.city-choice','#tryCity','#mayorStatus','#cityLocalScore']);
+      assert.equal(await city.locator('#map').getAttribute('viewBox'),'0 0 1750 1080','Every building stays in the full city view');
       await city.locator('#cityTutorial').click(); await fits(frame,['.tour-card','#tourTitle','#tourText','#observeCity']);
       await city.locator('#observeCity').click(); await city.locator('#tryCity').waitFor({state:'visible'});
       await city.locator('.tour-watching').waitFor(); await lit(frame,['#map']);
@@ -88,6 +89,13 @@ const server = http.createServer((req, res) => {
       await city.locator('.inhabitant[data-person="0"]').press('Enter'); await city.locator('.monitor-dialog[open]').waitFor();
       await fits(frame,['.monitor-dialog','#citizenChoice','#citizenPanel']);
       await city.locator('.monitor-dialog > button').click(); await fits(frame,['#map','#cityEffects']);
+      if(width===1366 && height===680) {
+        await page.setViewportSize({width:768,height:900}); await page.locator('#robotTab').click();
+        assert.equal(await page.locator('.monitor-editor-grid').count(),0);
+        assert.equal(await page.locator('#robotIntro #robotTutorial').count(),1);
+        await page.setViewportSize({width,height}); await fits(page,['#boardStage','#run','#model','#status']);
+        await page.locator('#epiTab').click(); await fits(frame,['#map','#cityEffects','#cityNeeds']);
+      }
       await context.close(); console.log('Monitor fits:',width,height);
     }
     assert.deepEqual(failures,[]);

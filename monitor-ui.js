@@ -50,6 +50,10 @@
         const editorGrid = document.createElement('div'); editorGrid.className = 'monitor-editor-grid';
         for (const node of [...$('robotEditor').children]) if (node.tagName !== 'SUMMARY') move(node, editorGrid);
         $('robotEditor').append(editorGrid);
+        for (const id of ['energy', 'strategy']) {
+          const label = editorGrid.querySelector(`label[for="${id}"]`), field = document.createElement('div');
+          field.className = 'monitor-editor-field'; label.before(field); move(label, field); move($(id), field);
+        }
         const training = layout.querySelector('.training');
         const rules = document.createElement('details'), summary = document.createElement('summary');
         rules.className = 'monitor-rules'; summary.textContent = 'Правила и баллы'; rules.append(summary); training.append(rules);
