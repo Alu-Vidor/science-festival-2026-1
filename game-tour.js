@@ -46,6 +46,7 @@
     return right > left && bottom > top ? { left, top, right, bottom, width: right - left, height: bottom - top } : null;
   }
   function reveal(target) {
+    if (document.body.classList.contains('monitor-layout')) return;
     const r = target?.getBoundingClientRect(), view = viewport();
     if (!r || r.height > view.bottom - view.top - 24) return;
     const delta = r.top < view.top + 12 ? r.top - view.top - 12 : r.bottom > view.bottom - 12 ? r.bottom - view.bottom + 12 : 0;
@@ -120,7 +121,7 @@
         card.style.width = originalWidth;
       }
     }
-    if (adjust !== false && chosen && chosen.size < ch - 1 && rectangles.length) {
+    if (!document.body.classList.contains('monitor-layout') && adjust !== false && chosen && chosen.size < ch - 1 && rectangles.length) {
       const top = Math.min(...rectangles.map(r => r.top)), bottom = Math.max(...rectangles.map(r => r.bottom));
       const fit = step.fit && document.querySelector(step.fit), fitRect = fit?.getBoundingClientRect();
       if (fitRect) {
@@ -159,7 +160,7 @@
     root.querySelector('#tourBack').hidden = index === 0 || !!active.phase;
     const next = root.querySelector('#tourNext'); next.hidden = !!step.event; next.textContent = index + 1 === active.steps.length ? 'Готово ✓' : 'Далее →';
     root.querySelector('.tour-progress').replaceChildren(...active.steps.map((_, i) => { const dot = document.createElement('span'); dot.className = i <= index ? 'done' : ''; return dot; }));
-    if (scroll) {
+    if (scroll && !document.body.classList.contains('monitor-layout')) {
       (step.view ? document.querySelector(step.view) : target)?.scrollIntoView({ behavior: 'instant', block: 'center', inline: 'nearest' });
       reveal(target);
     }

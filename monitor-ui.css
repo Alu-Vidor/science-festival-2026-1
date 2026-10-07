@@ -1,0 +1,129 @@
+.monitor-layout { height:100dvh; overflow:hidden; display:flex; flex-direction:column; font-size:16px; }
+.monitor-layout > header { position:absolute; top:0; left:0; width:180px; height:64px; padding:8px 16px; z-index:31; border:0; }
+.monitor-layout > header h1 { font-size:24px; }.monitor-layout > header .eyebrow { font-size:10px; }
+.monitor-layout #present,.monitor-layout > footer { display:none; }
+.monitor-layout .mission-bar { flex:none; width:100%; height:64px; padding:6px 16px 6px 190px; gap:16px; margin:0; }
+.monitor-layout .overall-result b { font-size:30px; }.monitor-layout .overall-result > span { font-size:14px; }
+.monitor-layout > nav { flex:none; padding:4px 16px !important; gap:8px; }
+.monitor-layout button,.monitor-layout summary { min-height:44px; font-size:16px; }
+.monitor-layout #robotView { flex:1; min-height:0; display:flex; flex-direction:column; }
+.monitor-layout #robotIntro { flex:none; margin:0 12px; padding:4px 12px; }
+.monitor-layout #robotIntro p { margin:0; font-size:14px; line-height:1.3; }
+.monitor-layout #robotIntro button { padding:6px 12px; }
+.monitor-layout .layout { flex:1; min-height:0; width:100%; max-width:1800px; grid-template-columns:210px minmax(0,1fr) 330px; grid-template-rows:minmax(0,1fr); gap:12px; padding:10px 12px; }
+.monitor-layout .layout > .builder { display:none; }.monitor-layout .training { grid-column:3; grid-row:1; }
+.monitor-layout .card { min-height:0; padding:14px; }.monitor-layout h2 { font-size:22px; margin:0 0 8px; }
+.monitor-layout #robotScene { display:flex; flex-direction:column; gap:8px; }
+.monitor-layout .mission-frame { flex:1; min-height:0; margin:0; padding:16px; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+.monitor-layout .mission-frame::after { border-image-width:12px; }
+.monitor-layout .mission-heading { flex:none; font-size:13px; margin-bottom:8px; }.monitor-layout .mission-caption { display:none; }
+.monitor-layout #boardStage { flex:none; max-width:100%; }.monitor-layout #board { margin:0; }.monitor-layout #board .cell { min-height:0; font-size:clamp(12px,1.8vw,24px); }
+.monitor-layout #robotScene .legend { flex:none; gap:8px; font-size:13px; }
+.monitor-layout #robotControls > .row { margin:0 0 12px !important; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.monitor-layout #run { grid-column:1/-1; }.monitor-layout #robotZoom { display:none; }
+.monitor-layout #robotControls .stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }.monitor-layout .stat { padding:6px 2px; display:flex; flex-direction:column; align-items:center; font-size:12px; }
+.monitor-layout .stat strong { font-size:22px; }.monitor-layout #deliveryTries { font-size:14px; line-height:1.4; margin:10px 0; }
+.monitor-layout #status { font-size:14px; line-height:1.4; margin:8px 0; padding:10px; min-height:0; }
+.monitor-layout #robotEditor { margin-top:12px; }.monitor-layout #robotEditor summary { font-size:14px; }
+.monitor-layout .training > p { font-size:14px; line-height:1.4; margin:8px 0; }
+.monitor-layout .training > p.small { display:none; }.monitor-layout .training .features { gap:6px 10px; margin:10px 0; font-size:15px; }
+.monitor-layout .features b { font-size:19px; }.monitor-layout #sensorHint { min-height:40px; }
+.monitor-layout #labelChoices { flex-wrap:nowrap; }.monitor-layout #labelChoices button { flex:1; padding:8px 4px; font-size:15px; }
+.monitor-layout #samples { font-size:14px; }.monitor-training-actions { display:flex; gap:8px; }
+.monitor-layout .monitor-training-actions .wide { margin:0; flex:1; padding:8px 4px; font-size:14px; }
+.monitor-layout .training details { margin-top:6px; }.monitor-layout .training summary { font-size:14px; }
+.monitor-layout #epiView { flex:1; min-height:0; height:0 !important; width:100%; }
+.monitor-layout.short-city #mayor { flex:1; min-height:0; max-width:none; width:100%; padding:8px 12px; margin:0; display:flex; flex-direction:column; gap:8px; }
+.monitor-layout .mayor-title { flex:none; display:flex; align-items:center; gap:12px; margin:0; }
+.monitor-layout .mayor-title > div { flex:1; }.monitor-layout .mayor-title .eyebrow { display:none; }
+.monitor-layout .mayor-title h1 { font-size:25px; margin:0; }.monitor-layout .mayor-title p { font-size:14px; margin:2px 0; }
+.monitor-layout .city-local-score { font-size:23px; padding:6px 10px; }
+.monitor-layout .mayor-title details { margin:0; }.monitor-layout .mayor-title summary { font-size:14px; max-width:135px; }
+.monitor-layout.monitor-embedded .city-mode-nav > a { display:none; }.monitor-layout.monitor-embedded .city-mode-nav { display:none; }
+.monitor-layout .city-playground { flex:1; min-height:0; grid-template-columns:minmax(0,1fr) 350px; gap:12px; align-items:stretch; }
+.monitor-layout .city-map-area { display:flex; flex-direction:column; min-height:0; }
+.monitor-layout #mayorMapSlot { flex:1; min-height:0; }.monitor-layout #mayorMapSlot .city { height:100%; display:flex; flex-direction:column; padding:0; }
+.monitor-layout .city .toolbar,.monitor-layout .city .map-caption { display:none; }
+.monitor-layout .city .legend { flex:none; margin:0 0 6px; font-size:13px; }
+.monitor-layout .mapscroll { flex:1; min-height:0; overflow:hidden; padding:12px; }
+.monitor-layout .mapscroll::after { border-image-width:12px; }
+.monitor-layout #map { width:100%; height:100%; min-width:0; max-width:100%; display:block; }
+.monitor-layout #citizenStory { font-size:14px; line-height:1.3; margin:6px 0; }
+.monitor-layout .map-issues { gap:4px; }.monitor-layout .map-issues span { padding:3px 6px; font-size:12px; }
+.monitor-layout #mayorDashboard { display:none; }
+.monitor-layout .city-decisions { min-height:0; padding:12px; }
+.monitor-layout .city-decisions > h2,.monitor-layout #cityDecisionHint,.monitor-layout .choice-hint { display:none; }
+.monitor-layout .city-start { margin:0 0 8px; padding:8px; gap:6px; }.monitor-layout .city-start p { font-size:14px; line-height:1.3; }
+.monitor-layout .city-start button { width:100%; font-size:16px; }
+.monitor-layout .city-decisions fieldset { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin:4px 0 6px; }
+.monitor-layout .city-decisions legend { grid-column:1/-1; font-size:17px; margin-bottom:4px; }
+.monitor-layout .city-choice { width:100%; text-align:center; min-height:48px; padding:6px 3px !important; margin:0; font-size:14px; }
+.monitor-layout .city-decisions #tryCity { font-size:17px; }
+.monitor-layout .city-decisions #mayorStatus { font-size:14px; line-height:1.35; margin:8px 0; }
+.monitor-layout .city-comparison { margin:0; padding:8px !important; }
+.monitor-layout .city-comparison h2 { font-size:18px; margin:0 0 6px; }
+.monitor-layout .city-effects { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }.monitor-layout .city-effects > div { padding:6px; }
+.monitor-layout .city-effects span,.monitor-layout .city-effects small { font-size:12px; line-height:1.3; }.monitor-layout .city-effects strong { font-size:18px; margin:3px 0; }
+.monitor-layout #cityNeeds { font-size:13px; line-height:1.3; margin:6px 0 0; }
+.monitor-layout #cityBudget { display:none; }.monitor-layout #cityAttempts { margin-top:6px; gap:4px; }.monitor-layout #cityAttempts span { padding:3px 6px; font-size:12px; }
+.monitor-dialog { width:min(900px,90vw); max-height:90dvh; padding:20px; border:1px solid #83bea9; border-radius:16px; background:#172f3b; color:#efffff; }
+.monitor-dialog::backdrop { background:#041018bb; }.monitor-dialog > button { float:right; margin:0 0 12px 12px; }
+.monitor-layout .monitor-dialog details { clear:both; display:block; margin:0; }.monitor-dialog details > summary { display:none; }
+.monitor-layout #robotView .badge { padding:4px 8px; font-size:14px; }
+.monitor-layout .training > p { margin:6px 0; line-height:1.3; }
+.monitor-layout .training .features { padding:4px 0; gap:3px 8px; margin:6px 0; }
+.monitor-layout .features > span { display:flex; align-items:center; gap:8px; white-space:nowrap; }
+.monitor-layout .features meter { flex:1; width:50px; height:10px; margin:0; }
+.monitor-layout .features b { padding:2px 0; }
+.monitor-layout #sensorHint { min-height:36px; }
+.monitor-layout .training > .monitor-rules > details { display:none; }
+.monitor-layout .monitor-dialog .monitor-rules > details { display:block; }
+.monitor-layout .monitor-dialog .monitor-rules details summary { display:flex; }
+.monitor-layout .monitor-dialog #leaderTools > div { position:static; width:auto; box-shadow:none; }
+.monitor-layout .city #route { display:none; }
+.monitor-layout #map { cursor:default; }
+.monitor-dialog #tools { grid-template-columns:repeat(5,1fr); }.monitor-dialog p { font-size:16px; }
+@media(min-width:1500px) { .monitor-layout .layout { grid-template-columns:240px minmax(0,1fr) 330px; }.monitor-layout .city-playground { grid-template-columns:minmax(0,1fr) 390px; } }
+
+.monitor-layout #citizenStory { display:none; }
+.monitor-layout #mayorStatus { flex:none; margin:6px 0; padding:6px 10px; font-size:14px; line-height:1.3; background:#213f49; border-radius:8px; }
+.monitor-layout .city-comparison h2 { font-size:16px; margin:4px 0; }
+.monitor-layout .city-effects > div { padding:4px 6px; }
+.monitor-layout .city-effects strong { margin:1px 0; }
+
+.monitor-layout summary { line-height:1.3; padding:6px 0; }
+.monitor-layout summary::before { font-size:22px; line-height:1; }
+
+.monitor-layout .city-comparison > h2 { display:none; }
+.monitor-layout .city-effects strong { font-size:17px; line-height:1.15; }
+.monitor-layout .city-choice { min-height:44px; line-height:1.2; padding:4px 3px !important; }
+.monitor-layout .mayor-title p { line-height:1.25; }
+.monitor-layout #robotView .mission-frame,.monitor-layout #boardStage { overflow:clip; }
+.monitor-layout .tour-card { padding:14px; }
+.monitor-layout .tour-card h2 { font-size:22px; margin:8px 0 6px; }
+.monitor-layout .tour-card p { font-size:16px; line-height:1.4; margin:6px 0; }
+.monitor-layout .tour-acting .tour-progress,.monitor-layout .tour-acting .tour-actions,.monitor-layout .tour-acting .tour-keyboard { display:none; }
+.monitor-layout .monitor-dialog #cityBudget { display:block; }
+.monitor-layout .mission-tags { gap:4px; }.monitor-layout .mission-tags span { font-size:14px; padding:4px 8px; }
+.monitor-layout .stat strong { white-space:nowrap; font-size:20px; }
+.monitor-layout .monitor-dialog #robotEditor[open] { display:block; }
+.monitor-editor-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px 16px; }
+.monitor-editor-field { display:flex; flex-direction:column; gap:2px; }
+.monitor-dialog #robotEditor select { min-height:44px; }
+.monitor-editor-grid > h2,.monitor-editor-grid > p:first-of-type,.monitor-editor-grid > #tools { grid-column:1/-1; }
+.monitor-editor-grid > .selection-note { grid-column:2/-1; }
+.monitor-dialog #robotEditor p,.monitor-dialog #robotEditor label { font-size:14px; margin:0; line-height:1.3; }
+.monitor-dialog #robotEditor button,.monitor-dialog #robotEditor select { margin:0; padding:8px; font-size:14px; }
+.monitor-dialog #robotEditor .selection-note { align-self:center; }
+.monitor-dialog #robotEditor h2 { padding-right:150px; }
+.monitor-dialog:has(#robotEditor) > button { position:absolute; top:12px; right:16px; }
+.monitor-layout .monitor-dialog #robotEditor { clear:none; }
+.monitor-dialog details details > summary { display:flex; }
+
+.monitor-layout #robotIntro,.monitor-layout.city-active > nav #robotTutorial { display:none; }
+@media(max-height:540px) { .monitor-layout.short-city .mayor-title p { display:none; }.monitor-layout .city-decisions fieldset { margin:3px 0 4px; } }
+@media(max-height:540px) {
+  .monitor-layout .city-decisions fieldset { margin:2px 0 3px; }
+  .monitor-layout .city-decisions legend { font-size:15px; line-height:1.1; margin-bottom:1px; }
+  .monitor-layout .city-comparison { padding:6px !important; }
+}
