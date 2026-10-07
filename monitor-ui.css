@@ -104,3 +104,6 @@
 .monitor-layout .tour-card p { font-size:16px; line-height:1.4; margin:6px 0; }
 .monitor-layout .tour-acting .tour-progress,.monitor-layout .tour-acting .tour-actions,.monitor-layout .tour-acting .tour-keyboard { display:none; }
 .monitor-layout .monitor-dialog #cityBudget { display:block; }
+
+.monitor-layout #robotIntro,.monitor-layout.city-active > nav #robotTutorial { display:none; }
+@media(max-height:540px) { .monitor-layout.short-city .mayor-title p { display:none; }.monitor-layout .city-decisions fieldset { margin:3px 0 4px; } }

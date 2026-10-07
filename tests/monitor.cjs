@@ -12,7 +12,7 @@ const server = http.createServer((req, res) => {
   const browser = await chromium.launch();
   const failures=[];
   try {
-    for (const [width,height] of [[1024,768],[1280,720],[1366,680],[1366,768],[1440,900],[1920,1080]]) {
+    for (const [width,height] of [[1024,768],[1280,640],[1280,720],[1366,680],[1366,768],[1440,900],[1920,1080]]) {
       const context = await browser.newContext({viewport:{width,height},reducedMotion:'reduce'});
       await context.addInitScript(() => localStorage.setItem('festival-tours-v3', JSON.stringify(['robot','city-mayor'])));
       const page = await context.newPage();

@@ -42,7 +42,7 @@
       }
       if (robot) {
         const layout = robot.querySelector('.layout'), scene = layout.querySelector('section.card');
-        scene.id = 'robotScene';
+        scene.id = 'robotScene'; move($('robotTutorial'), document.querySelector('body > nav'));
         const controls = document.createElement('aside'); controls.id = 'robotControls'; controls.className = 'card';
         const title = document.createElement('h2'); title.textContent = 'Испытание'; controls.append(title); layout.prepend(controls);
         move($('run').parentElement, controls); move(scene.querySelector('.stats'), controls);
