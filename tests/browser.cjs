@@ -158,10 +158,10 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(value=>+document.getElementById('overallScore').textContent===value,training+30+firstCity);
     assert((await page.locator('#missionProgress').innerText()).includes('3 / 3'));
     await cityFrame.locator('#pick-school-shifts').click(); await cityFrame.locator('#tryCity').click();
-    await cityFrame.locator('#cityAttempts span').nth(1).waitFor();
+    await cityFrame.locator('#cityAttempts span').nth(1).waitFor({state:'attached'});
     const bestCity=parseInt(await cityFrame.locator('#cityLocalScore').innerText()); assert(bestCity>firstCity);
     await cityFrame.locator('#pick-shops-one').click(); await cityFrame.locator('#tryCity').click();
-    await cityFrame.locator('#cityAttempts span').nth(2).waitFor();
+    await cityFrame.locator('#cityAttempts span').nth(2).waitFor({state:'attached'});
     assert.equal(parseInt(await cityFrame.locator('#cityLocalScore').innerText()),bestCity);
     assert.equal(await cityFrame.locator('#tryCity').isEnabled(),false);
     assert((await cityFrame.locator('#cityNeeds').innerText()).includes('не хватает еды'));
@@ -186,10 +186,11 @@ const server = http.createServer((req, res) => {
     await page.locator('#cityTutorial').click(); await tourFits(); await page.screenshot({path:path.join(shots,'city-tutorial.png')}); await page.locator('#tourSkip').click();
     await page.locator('#observeCity').click(); await page.waitForFunction(()=>!document.getElementById('tryCity').disabled);
     await page.locator('#pick-school-shifts').click(); await page.locator('#pick-bus-frequent').click(); await page.locator('#tryCity').click();
-    await page.locator('#cityAttempts span').waitFor();
+    await page.locator('#cityAttempts span').waitFor({state:'attached'});
     await page.locator('#cityComparison').scrollIntoViewIfNeeded(); await page.screenshot({path:path.join(shots,'city-comparison.png')});
     await page.locator('#cityTutorial').click(); for(let i=0;i<3;i++){await tourFits();await page.locator('#tourNext').click();} assert.equal(await page.locator('#gameTour').count(),0);
     await page.locator('.inhabitant[data-person="0"]').press('Enter'); await page.locator('#citizenPanel').scrollIntoViewIfNeeded(); await page.screenshot({path:path.join(shots,'citizen-desktop.png')});
+    if(await page.locator('.monitor-dialog[open]').count()) await page.locator('.monitor-dialog > button').click();
     await page.locator('#mayorMapSlot').scrollIntoViewIfNeeded(); await page.screenshot({path:path.join(shots,'city-desktop.png')}); await noOverflow();
 
     await page.goto(url + '/epidemic.html?mode=contest');

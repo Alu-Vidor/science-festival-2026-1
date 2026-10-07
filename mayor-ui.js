@@ -121,11 +121,11 @@
   };
   window.mayorSelect = id => {
     const key = ['school', 'kindergarten', 'work'].includes(id) ? 'school' : ['market', 'mall'].includes(id) ? 'shops' : id === 'bus' ? 'bus' : null;
-    if (key) { $('choices-' + key).scrollIntoView({ block: 'center', behavior: 'smooth' }); $('pick-' + key + '-' + plan[key]).focus({ preventScroll: true }); }
+    if (key) { if (!document.body.classList.contains('monitor-layout')) $('choices-' + key).scrollIntoView({ block: 'center', behavior: 'smooth' }); $('pick-' + key + '-' + plan[key]).focus({ preventScroll: true }); }
     else if (id.startsWith('h') && latest) window.mayorCitizenSelect(latest.game.people.findIndex(p => p.home === id));
     else $('mayorStatus').textContent = 'Этот объект работает автоматически. В этом задании ты управляешь занятиями, поездками и магазинами.';
   };
-  window.mayorCitizenSelect = index => { if (!latest || playing || !latest.game.people[index]) return; selectedCitizen = index; $('citizenChoice').value = index; $('cityPeople').open = true; citizenDetails(latest); $('citizenPanel').scrollIntoView({ block: 'center', behavior: 'smooth' }); };
+  window.mayorCitizenSelect = index => { if (!latest || playing || !latest.game.people[index]) return; selectedCitizen = index; $('citizenChoice').value = index; $('cityPeople').open = true; citizenDetails(latest); if (!document.body.classList.contains('monitor-layout')) $('citizenPanel').scrollIntoView({ block: 'center', behavior: 'smooth' }); };
   window.cityTourHooks = { before: () => !playing, after() {} };
   window.cityLesson = { observed: () => !!baseline, attempted: () => attempts.length > 0 };
   const preview = GameScore.cityRun(GameScore.cityDefaults()); render(preview, 0); controls(); publish();

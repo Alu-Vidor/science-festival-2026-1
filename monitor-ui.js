@@ -12,6 +12,7 @@
   function tools(details) {
     if (wired.has(details)) return; wired.add(details);
     details.addEventListener('toggle', () => {
+      if (opened === details && !details.open) { dialog.close(); return; }
       if (!active || !details.open || opened === details) return;
       if (opened) dialog.close();
       const marker = document.createComment('dialog position'); details.before(marker);
@@ -60,6 +61,7 @@
         move($('cityStart'), decisions, true); move($('cityComparison'), decisions); move($('mayorStatus'), city.querySelector('.city-map-area'));
         move($('cityPeople'), city.querySelector('.mayor-title')); move(city.querySelector('.city-rules'), city.querySelector('.mayor-title'));
         move($('cityTutorial'), city.querySelector('.mayor-title'));
+        move($('cityAttempts'), city.querySelector('.city-rules')); move($('cityBudget'), city.querySelector('.city-rules'));
         $('fit').click();
         if (!wired.has($('map'))) { wired.add($('map')); $('map').addEventListener('pointerdown', e => { if (active) e.stopImmediatePropagation(); }, true); }
         for (const detail of city.querySelectorAll('details')) tools(detail);

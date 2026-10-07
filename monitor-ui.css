@@ -98,3 +98,9 @@
 .monitor-layout .city-effects strong { font-size:17px; line-height:1.15; }
 .monitor-layout .city-choice { min-height:44px; line-height:1.2; padding:4px 3px !important; }
 .monitor-layout .mayor-title p { line-height:1.25; }
+.monitor-layout #robotView .mission-frame,.monitor-layout #boardStage { overflow:clip; }
+.monitor-layout .tour-card { padding:14px; }
+.monitor-layout .tour-card h2 { font-size:22px; margin:8px 0 6px; }
+.monitor-layout .tour-card p { font-size:16px; line-height:1.4; margin:6px 0; }
+.monitor-layout .tour-acting .tour-progress,.monitor-layout .tour-acting .tour-actions,.monitor-layout .tour-acting .tour-keyboard { display:none; }
+.monitor-layout .monitor-dialog #cityBudget { display:block; }

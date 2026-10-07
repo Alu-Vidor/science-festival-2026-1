@@ -77,7 +77,7 @@ const server = http.createServer((req, res) => {
       await fits(frame,['.tour-card','#tourText']); await city.locator('#tryCity').click();
       await city.locator('#gameTour').waitFor({state:'detached'});
       await fits(frame,['#map','.city-choice','#tryCity','#mayorStatus','#cityEffects','#cityNeeds']);
-      for(const option of ['#pick-school-shifts','#pick-shops-one']) {await city.locator(option).click();await city.locator('#tryCity').click();await city.locator('#cityAttempts span').nth(option.includes('school')?1:2).waitFor();await fits(frame,['#map','#tryCity','#cityEffects','#cityNeeds','#mayorStatus','#cityAttempts']);}
+      for(const option of ['#pick-school-shifts','#pick-shops-one']) {await city.locator(option).click();await city.locator('#tryCity').click();await city.locator('#cityAttempts span').nth(option.includes('school')?1:2).waitFor({state:'attached'});await fits(frame,['#map','#tryCity','#cityEffects','#cityNeeds','#mayorStatus']);}
       await page.screenshot({path:path.join(root,'test-artifacts',`city-monitor-${width}x${height}.png`)});
       await fits(page,['#epiView','#overallScore']);
       await city.locator('.inhabitant[data-person="0"]').press('Enter'); await city.locator('.monitor-dialog[open]').waitFor();
