@@ -10,6 +10,7 @@ const server = http.createServer((req, res) => {
 (async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const browser = await chromium.launch();
+  const failures=[];
   try {
     for (const [width,height] of [[1024,768],[1280,720],[1366,680],[1366,768],[1440,900],[1920,1080]]) {
       const context = await browser.newContext({viewport:{width,height},reducedMotion:'reduce'});
@@ -30,7 +31,7 @@ const server = http.createServer((req, res) => {
           }
           return issues;
         },selectors);
-        assert.deepEqual(problems,[],width+'×'+height+' '+scope.url());
+        if(problems.length) failures.push(width+'×'+height+' '+scope.url()+': '+JSON.stringify([...new Set(problems)]));
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
@@ -50,5 +51,6 @@ const server = http.createServer((req, res) => {
       await fits(page,['#epiView','#overallScore']);
       await context.close(); console.log('Monitor fits:',width,height);
     }
+    assert.deepEqual(failures,[]);
   } finally {await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;server.close();});

@@ -53,7 +53,7 @@
         observer = new ResizeObserver(sizeBoard); observer.observe(scene.querySelector('.mission-frame')); sizeBoard();
       } else {
         const decisions = $('cityDecisions');
-        move($('cityStart'), decisions, true); move($('cityComparison'), decisions);
+        move($('cityStart'), decisions, true); move($('cityComparison'), city.querySelector('.city-map-area'));
         move($('cityPeople'), city.querySelector('.mayor-title')); move(city.querySelector('.city-rules'), city.querySelector('.mayor-title'));
         move($('cityTutorial'), city.querySelector('.mayor-title'));
         for (const detail of city.querySelectorAll('details')) tools(detail);
