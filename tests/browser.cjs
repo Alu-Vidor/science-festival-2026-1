@@ -125,6 +125,7 @@ const server = http.createServer((req, res) => {
     assert.equal(+(await page.locator('#overallScore').innerText()),training+30);
     await page.locator('#robotEditor > summary').click();
     await page.locator('#energy').evaluate(el=>{el.value='80';el.dispatchEvent(new Event('input'));});
+    if(await page.locator('.monitor-dialog[open]').count()) await page.locator('.monitor-dialog > button').click();
     await page.locator('#run').click();
     await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Доставлено 3'));
     assert.equal(+(await page.locator('#overallScore').innerText()),training+30,'Changed conditions must not award delivery points');
