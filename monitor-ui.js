@@ -43,10 +43,14 @@
         const layout = robot.querySelector('.layout'), scene = layout.querySelector('section.card');
         scene.id = 'robotScene';
         const controls = document.createElement('aside'); controls.id = 'robotControls'; controls.className = 'card';
-        const title = document.createElement('h2'); title.textContent = 'Испытай робота'; controls.append(title); layout.prepend(controls);
+        const title = document.createElement('h2'); title.textContent = 'Испытание'; controls.append(title); layout.prepend(controls);
         move($('run').parentElement, controls); move(scene.querySelector('.stats'), controls);
         move($('deliveryTries'), controls); move($('status'), controls); move($('robotEditor'), controls);
         const training = layout.querySelector('.training');
+        const rules = document.createElement('details'), summary = document.createElement('summary');
+        rules.className = 'monitor-rules'; summary.textContent = 'Правила и баллы'; rules.append(summary); training.append(rules);
+        for (const detail of [...training.querySelectorAll('details')]) if (detail !== rules) move(detail, rules);
+        move(training.querySelector('p.small'), rules);
         const row = document.createElement('div'); row.className = 'monitor-training-actions'; training.insertBefore(row, $('train'));
         move($('train'), row); move($('clear'), row);
         for (const detail of document.querySelectorAll('#robotEditor, .training details, #leaderTools')) tools(detail);
@@ -56,12 +60,14 @@
         move($('cityStart'), decisions, true); move($('cityComparison'), city.querySelector('.city-map-area'));
         move($('cityPeople'), city.querySelector('.mayor-title')); move(city.querySelector('.city-rules'), city.querySelector('.mayor-title'));
         move($('cityTutorial'), city.querySelector('.mayor-title'));
+        $('fit').click();
+        if (!wired.has($('map'))) { wired.add($('map')); $('map').addEventListener('pointerdown', e => { if (active) e.stopImmediatePropagation(); }, true); }
         for (const detail of city.querySelectorAll('details')) tools(detail);
       }
     } else if (!desktop.matches && active) {
       if (dialog.open) dialog.close(); active = false; observer?.disconnect();
       for (const [node, marker] of moves.splice(0).reverse()) marker.replaceWith(node);
-      $('robotControls')?.remove(); document.querySelector('.monitor-training-actions')?.remove();
+      $('robotControls')?.remove(); document.querySelector('.monitor-training-actions')?.remove(); document.querySelector('.monitor-rules')?.remove();
       if ($('boardStage')) $('boardStage').style.width = '';
       document.body.classList.remove('monitor-layout', 'monitor-embedded');
     }

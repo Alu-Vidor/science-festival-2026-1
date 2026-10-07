@@ -69,5 +69,18 @@
 .monitor-dialog { width:min(900px,90vw); max-height:90dvh; padding:20px; border:1px solid #83bea9; border-radius:16px; background:#172f3b; color:#efffff; }
 .monitor-dialog::backdrop { background:#041018bb; }.monitor-dialog > button { float:right; margin:0 0 12px 12px; }
 .monitor-layout .monitor-dialog details { clear:both; display:block; margin:0; }.monitor-dialog details > summary { display:none; }
+.monitor-layout #robotView .badge { padding:4px 8px; font-size:14px; }
+.monitor-layout .training > p { margin:6px 0; line-height:1.3; }
+.monitor-layout .training .features { padding:4px 0; gap:3px 8px; margin:6px 0; }
+.monitor-layout .features > span { display:flex; align-items:center; gap:8px; white-space:nowrap; }
+.monitor-layout .features meter { flex:1; width:50px; height:10px; margin:0; }
+.monitor-layout .features b { padding:2px 0; }
+.monitor-layout #sensorHint { min-height:36px; }
+.monitor-layout .training > .monitor-rules > details { display:none; }
+.monitor-layout .monitor-dialog .monitor-rules > details { display:block; }
+.monitor-layout .monitor-dialog .monitor-rules details summary { display:flex; }
+.monitor-layout .monitor-dialog #leaderTools > div { position:static; width:auto; box-shadow:none; }
+.monitor-layout .city #route { display:none; }
+.monitor-layout #map { cursor:default; }
 .monitor-dialog #tools { grid-template-columns:repeat(5,1fr); }.monitor-dialog p { font-size:16px; }
 @media(min-width:1500px) { .monitor-layout .layout { grid-template-columns:240px minmax(0,1fr) 330px; }.monitor-layout .city-playground { grid-template-columns:minmax(0,1fr) 390px; } }
