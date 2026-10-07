@@ -107,7 +107,9 @@
 .monitor-layout .mission-tags { gap:4px; }.monitor-layout .mission-tags span { font-size:14px; padding:4px 8px; }
 .monitor-layout .stat strong { white-space:nowrap; font-size:20px; }
 .monitor-layout .monitor-dialog #robotEditor[open] { display:block; }
-.monitor-editor-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px 16px; }
+.monitor-editor-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px 16px; }
+.monitor-editor-field { display:flex; flex-direction:column; gap:2px; }
+.monitor-dialog #robotEditor select { min-height:44px; }
 .monitor-editor-grid > h2,.monitor-editor-grid > p:first-of-type,.monitor-editor-grid > #tools { grid-column:1/-1; }
 .monitor-editor-grid > .selection-note { grid-column:2/-1; }
 .monitor-dialog #robotEditor p,.monitor-dialog #robotEditor label { font-size:14px; margin:0; line-height:1.3; }

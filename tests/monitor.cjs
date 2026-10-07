@@ -91,9 +91,10 @@ const server = http.createServer((req, res) => {
       await city.locator('.monitor-dialog > button').click(); await fits(frame,['#map','#cityEffects']);
       if(width===1366 && height===680) {
         await page.setViewportSize({width:768,height:900}); await page.locator('#robotTab').click();
+        await page.waitForFunction(()=>!document.body.classList.contains('monitor-layout'));
         assert.equal(await page.locator('.monitor-editor-grid').count(),0);
         assert.equal(await page.locator('#robotIntro #robotTutorial').count(),1);
-        await page.setViewportSize({width,height}); await fits(page,['#boardStage','#run','#model','#status']);
+        await page.setViewportSize({width,height}); await page.waitForFunction(()=>document.body.classList.contains('monitor-layout')); await fits(page,['#boardStage','#run','#model','#status']);
         await page.locator('#epiTab').click(); await fits(frame,['#map','#cityEffects','#cityNeeds']);
       }
       await context.close(); console.log('Monitor fits:',width,height);
