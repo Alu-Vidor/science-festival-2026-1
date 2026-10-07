@@ -82,8 +82,8 @@
       const item = element('div', '', box); element('span', name, item); element('strong', `${before} → ${after} ${unit}`, item);
       const delta = after - before, improved = (delta < 0) === lower; element('small', !delta ? 'Без изменения' : (improved ? 'Лучше' : 'Хуже') + ` · ${delta > 0 ? '+' : ''}${delta}`, item).className = !delta ? '' : improved ? 'improved' : 'worsened';
     }
-    const needs = result.food < 80 ? 'Семьям не хватает еды. Попробуй открыть оба магазина.' : result.activity < 70 ? result.plan.school === 'remote' ? 'Не все могут учиться и работать дома. Попробуй смены.' : 'Многие не добираются до учёбы и работы. Проверь число рейсов.' : 'Еды, учёбы и работы хватает. Теперь сравни число заражений.';
-    $('cityNeeds').textContent = needs + (result.basicNeedsMet ? '' : ' Баллы за город ограничены до 25.');
+    const needs = result.food < 80 ? 'Семьям не хватает еды. Открой оба магазина.' : result.activity < 70 ? result.plan.school === 'remote' ? 'Не все могут учиться и работать дома. Попробуй смены.' : 'Многие не добираются до учёбы и работы. Проверь число рейсов.' : 'Еды, учёбы и работы хватает. Теперь сравни число заражений.';
+    $('cityNeeds').textContent = needs + (result.basicNeedsMet ? '' : ' За город — не больше 25 баллов.');
     $('cityBudget').textContent = `Бюджет: ${result.cash} монет. Помощь оказана: ${result.treated} из ${result.care} обращений.`;
     const issues = $('cityMapIssues'); issues.replaceChildren();
     element('span', `🚌 Не добрались: ${result.missed} жителей в день`, issues);

@@ -119,3 +119,8 @@
 
 .monitor-layout #robotIntro,.monitor-layout.city-active > nav #robotTutorial { display:none; }
 @media(max-height:540px) { .monitor-layout.short-city .mayor-title p { display:none; }.monitor-layout .city-decisions fieldset { margin:3px 0 4px; } }
+@media(max-height:540px) {
+  .monitor-layout .city-decisions fieldset { margin:2px 0 3px; }
+  .monitor-layout .city-decisions legend { font-size:15px; line-height:1.1; margin-bottom:1px; }
+  .monitor-layout .city-comparison { padding:6px !important; }
+}

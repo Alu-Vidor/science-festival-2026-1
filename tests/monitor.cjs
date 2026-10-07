@@ -19,7 +19,7 @@ const server = http.createServer((req, res) => {
       async function fits(scope, selectors) {
         const problems = await scope.evaluate(selectors => {
           const issues = [];
-          if(document.documentElement.scrollHeight > innerHeight+1 || document.documentElement.scrollWidth > innerWidth+1 || scrollY || scrollX) issues.push('document scroll');
+          if(document.documentElement.scrollHeight > innerHeight+1 || document.documentElement.scrollWidth > innerWidth+1 || scrollY || scrollX) issues.push('document scroll '+JSON.stringify({height:document.documentElement.scrollHeight,viewport:innerHeight,y:scrollY,width:document.documentElement.scrollWidth,x:scrollX}));
           for(const selector of selectors) for(const el of document.querySelectorAll(selector)) {
             const r=el.getBoundingClientRect();
             if(!r.width || !r.height || r.left<0 || r.top<0 || r.right>innerWidth+1 || r.bottom>innerHeight+1) issues.push(selector+': '+JSON.stringify({x:r.x,y:r.y,w:r.width,h:r.height}));
