@@ -25,6 +25,11 @@ async function complete(page,check=async()=>{}){
   if(round<2)await page.locator('#nextRound').click();
  }
  assert.equal(await page.locator('#stars').innerText(),'★ 17');assert.equal(await page.locator('#overallScore').innerText(),'50');assert((await page.locator('#missionProgress').innerText()).includes('2 / 3'));
- await page.locator('#notebookButton').click();assert.equal(await page.locator('.trip-entry').count(),9);await page.locator('.trip-entry summary').first().click();assert(await page.locator('.trip-entry table').first().isVisible());await page.locator('#robotDialog').press('Escape');await check('complete');
+ await page.locator('#notebookButton').click();assert.equal(await page.locator('.trip-entry').count(),9);
+ const histories=page.locator('.trip-entry > p:first-of-type');
+ assert.equal(await histories.nth(6).innerText(),'База → Лесники → А → Б → Связисты → Б → А → База','The first delivery retains its original recipients after reaching the third district');
+ assert.equal(await histories.nth(3).innerText(),'База → Смотрители → Спасатели → Смотрители → А → База','The second delivery keeps the second district recipients');
+ assert.equal(await histories.nth(8).innerText(),'База → А → Ж → З → Б → В','Laboratory records keep junction names instead of adopting delivery recipients');
+ await page.locator('.trip-entry summary').first().click();assert(await page.locator('.trip-entry table').first().isVisible());await page.locator('#robotDialog').press('Escape');await check('complete');
 }
 module.exports={routes,schedule,campaign,draw,run,teach,orders,complete};

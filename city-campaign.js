@@ -119,8 +119,8 @@
     const days = c.game.reports.slice(index * 4, index * 4 + 4), stats = measure(c, index);
     if (!stats) return [];
     const sum = key => days.reduce((total, day) => total + day[key], 0);
-    const missed = days.map(day => day.missed).join(' / '), queue = sum('queue');
-    const travel = 'Не добрались по дням: ' + missed + ' жителей. Учёба и работа: ' + stats.activity.toFixed(1) + '%.';
+    const missed = days.map(day => day.flows.activity.requested.length-day.flows.activity.arrived.length).join(' / '), queue = sum('queue');
+    const travel = 'На очные занятия и работу не добрались по дням: ' + missed + ' жителей. Учёба и работа с учётом удалённого режима: ' + stats.activity.toFixed(1) + '%.';
     const supply = 'Еда: ' + stats.food.toFixed(1) + '%. ' + (queue ? 'Не обслужены в очередях магазинов: ' + queue + ' посещений.' : 'Очередей с отказом в магазинах не было.');
     const care = stats.careRequests ? 'Помощь получили ' + stats.careServed + ' из ' + stats.careRequests + ' обращений.' : 'Обращений за помощью пока не было.';
     const expense = 'Работа города: ' + stats.expense + ' монет за ' + days.length + ' дня; содержание улучшений: ' + sum('upkeep') + '.';

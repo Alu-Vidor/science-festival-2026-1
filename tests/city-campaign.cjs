@@ -28,6 +28,9 @@ for(let i=0;i<3;i++){
 }
 assert.equal(c.score,9);assert.equal(C.cityScore(c),50);assert(C.succeeded(c));assert.deepEqual(initial,copy);assert.throws(()=>C.round(c,base));independentChecks(c);
 assert.deepEqual(c.results.map(r=>r.expense),[304,320,328]);
+assert(c.game.reports.slice(0,4).some(r=>r.missed>0),'The first round still contains service or rest trip refusals');
+assert(c.game.reports.slice(0,4).every(r=>r.flows.activity.requested.length===r.flows.activity.arrived.length));
+assert(C.insights(c,0)[0].includes('На очные занятия и работу не добрались по дням: 0 / 0 / 0 / 0'), 'Morning feedback cannot count missed service or rest trips as missed work and school');
 // Every service chain is built from real people and conserves counts.
 for(const r of c.game.reports){
  for(const [kind,f]of Object.entries(r.flows)){
