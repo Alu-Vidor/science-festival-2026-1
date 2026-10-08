@@ -6,14 +6,15 @@
   let session = window.FestivalSession?.id || 'initial';
   const saved = window.FestivalSession?.read('score');
   if (saved?.rules===GameScore.VERSION && ['robot','city'].every(key=>Number.isInteger(saved[key])&&saved[key]>=0&&saved[key]<=50) && ['trainingDone','deliveryDone','cityDone'].every(key=>typeof saved[key]==='boolean')) for(const key of Object.keys(state))state[key]=saved[key];
+  if (saved?.robotRules !== RobotEngine.VERSION) { state.robot = 0; state.trainingDone = false; state.deliveryDone = false; }
   if (session !== 'initial') $('epiView').src = 'epidemic.html?session=' + encodeURIComponent(session);
   function draw() {
-    window.FestivalSession?.save('score',{...state,rules:GameScore.VERSION},session);
+    window.FestivalSession?.save('score',{...state,rules:GameScore.VERSION,robotRules:RobotEngine.VERSION},session);
     $('overallScore').textContent = GameScore.total(state);
     const done = [state.trainingDone, state.deliveryDone, state.cityDone].filter(Boolean).length;
     $('missionProgress').textContent = `Задания: ${done} / 3`;
     $('missionBar').classList.toggle('all-done', done === 3);
-    for (const [id, name, flag] of [['trainingMission', '1. Обучи робота', state.trainingDone], ['deliveryMission', '2. Три экспедиции', state.deliveryDone], ['cityMission', '3. Помоги городу', state.cityDone]]) {
+    for (const [id, name, flag] of [['trainingMission', '1. Точный прогноз', state.trainingDone], ['deliveryMission', '2. Две доставки', state.deliveryDone], ['cityMission', '3. Помоги городу', state.cityDone]]) {
       $(id).textContent = `${flag ? '✓ ' : ''}${name}`; $(id).classList.toggle('done', flag);
     }
   }
@@ -26,10 +27,10 @@
     state.city = Math.max(state.city, e.data.score); state.cityDone ||= e.data.completed; draw();
   });
   $('newParticipant').onclick = () => {
-    GameTour.finish(false); session = window.FestivalSession?.reset() || String(Date.now()); window.resetRobotMission();
+    window.GameTour?.finish(false); session = window.FestivalSession?.reset() || String(Date.now()); window.resetRobotMission();
     for (const key of Object.keys(state)) state[key] = typeof state[key] === 'boolean' ? false : 0;
     $('epiView').src = 'epidemic.html?session=' + session;
-    $('robotTab').click(); draw(); GameTour.start('robot');
+    $('robotTab').click(); draw();
   };
   window.robotExpedition?.publish(); draw();
 })();

@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
 const { chromium } = require('playwright');
-const {lesson,teachMap,teachTraining,adaptGorge,adaptRain,deliver,optimalDelivery}=require('./robot-browser-helpers.cjs');
+const Robot=require('./robot-browser-helpers.cjs');
 const City=require('./city-browser-helpers.cjs');
 const root = path.resolve(__dirname, '..');
 const server = http.createServer((req, res) => {
@@ -48,9 +48,15 @@ const server = http.createServer((req, res) => {
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
-      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#terrainLimits','#sensors .sensor-number','#model','.training > details:not([hidden])','#status','#deliveryTries','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#sessionPace','#terrainLegend','#robotRules','#cargoPanel','#campStatus','#routeLayer','.terrain-note','.selection-key','.wall-key']);
-      await page.mouse.wheel(0,700); await fits(page,['#boardStage','#model']);
-      await page.screenshot({path:path.join(root,'test-artifacts',`robot-monitor-${width}x${height}.png`)});
+      const selectors=['#run','#stop','#train','#status','#forecastEnergy','#forecastOutcome','#forecastConfidence','#qualitySummary','#qualityChange','#deliveryBest','#routeMap','#terrainLegend','#routeText','#nextStageHint','#scoreRules','#newParticipant','.panel > *'];
+      async function robotFits(){await fits(page,selectors);}
+      await robotFits();
+      await page.screenshot({path:path.join(root,'test-artifacts',`robot-routes-${width}.png`)});
+      await Robot.complete(page,async phase=>{await robotFits();if(phase==='audit')await fits(page,['#robotDialog','#dialogBody']);else await page.screenshot({path:path.join(root,'test-artifacts',`robot-${phase}-${width}.png`)});});
+      for(const font of ['Arial, sans-serif','DejaVu Sans, sans-serif','Noto Sans, sans-serif']){await page.locator('body').evaluate((el,font)=>el.style.fontFamily=font,font);await robotFits();}
+      await page.locator('body').evaluate(el=>el.style.fontFamily='');
+      await page.locator('#robotTutorial').click();await fits(page,['#robotDialog','#dialogBody']);await page.locator('#dialogClose').click();
+      const tiny=await page.locator('.road-label text').evaluateAll(els=>els.filter(e=>parseFloat(getComputedStyle(e).fontSize)*e.getScreenCTM().a<14).map(e=>e.textContent));assert.deepEqual(tiny,[],'Road labels must be readable on the actual monitor');
       async function lit(scope, selectors) {
         const problems=await scope.evaluate(selectors=>{
           const card=document.querySelector('.tour-card').getBoundingClientRect();
@@ -60,52 +66,6 @@ const server = http.createServer((req, res) => {
         },selectors);
         assert.deepEqual(problems,[],'Lesson must leave the described objects visible');
       }
-      await page.locator('#robotTutorial').click();
-      await fits(page,['.tour-card','#tourTitle','#tourText','#boardStage']);
-      assert.equal(await page.locator('.tour-shade').count(),0);
-      await page.screenshot({path:path.join(root,'test-artifacts',`robot-glow-${width}x${height}.png`)});
-      await lesson(page,async()=>fits(page,['.tour-card','#tourTitle','#tourText']));
-      await teachTraining(page);
-      await fits(page,['#bearing','#wet','#slope','#rough','#sensorHint']);
-      await fits(page,['#model','#train','#status','#nextMission','#expeditionNav']);
-      for(let stage=1;stage<=3;stage++){
-        await page.locator('#nextMission').click();
-        if(stage===1){
-          await page.locator('[data-index="100"]').click();await page.locator('#safe').click();await page.locator('#probe').click();
-          const right=['#sensors','#terrainLimits','#sensorHint','#transferForecast','#safe','#unsafe','#probe','#train','#model','.training > details:not([hidden])'];
-          async function wrongLabelFits(){
-            await fits(page,right);
-            for(const font of ['Arial, sans-serif','DejaVu Sans, sans-serif','Noto Sans, sans-serif']){
-              await page.locator('.training').evaluate((el,font)=>el.style.fontFamily=font,font);await fits(page,right);
-            }
-            await page.locator('.training').evaluate(el=>el.style.fontFamily='');
-          }
-          await wrongLabelFits();await page.screenshot({path:path.join(root,'test-artifacts',`robot-wrong-label-${width}x${height}.png`)});
-          await page.locator('#train').click();await wrongLabelFits();
-          await page.locator('#run').click();await page.waitForFunction(()=>!running);assert.equal(await page.evaluate(()=>stuckCell),100);
-          await wrongLabelFits();await fits(page,['#status']);await page.screenshot({path:path.join(root,'test-artifacts',`robot-stalled-${width}x${height}.png`)});
-          await page.locator('#unsafe').click();await page.locator('#probe').click();await page.locator('#train').click();
-        }
-        if(stage===2)await adaptGorge(page);
-        if(stage===3)await adaptRain(page);
-        await optimalDelivery(page);
-        await fits(page,['#boardStage','#model','#status','#deliveryTries','#autoRoute','#predict','#newParticipant','#transferForecast','#terrainLimits','#sensors .sensor-number','#robotResearch','#robotRules','.training > details:not([hidden])']);
-        if(stage<3)await fits(page,['#nextMission']);
-        await page.screenshot({path:path.join(root,'test-artifacts',`robot-mission-${stage}-${width}x${height}.png`)});
-      }
-      // System-font metrics vary between festival PCs and Linux CI.
-      // Check ordinary fallbacks without replacing the default-font checks above.
-      for(const font of ['Arial, sans-serif','DejaVu Sans, sans-serif']){
-        await page.locator('.training').evaluate((el,font)=>el.style.fontFamily=font,font);
-        await fits(page,['#sensors','#terrainLimits','#sensors .sensor-number','#sensorHint','#transferForecast','#safe','#unsafe','#probe','#train','#model','.training > details:not([hidden])']);
-      }
-      await page.locator('.training').evaluate(el=>el.style.fontFamily='');
-      await page.locator('#robotRules > summary').click();await page.locator('.monitor-dialog[open]').waitFor();
-      await fits(page,['.monitor-dialog','#robotBenchmark']);
-      await page.locator('.monitor-dialog > button').click();
-      await page.locator('#learningNotebook > summary').click();await page.locator('.monitor-dialog[open]').waitFor();
-      await fits(page,['.monitor-dialog','#coverage']);
-      await page.locator('.monitor-dialog > button').click();
       await page.locator('#epiTab').click();
       const city = page.frameLocator('#epiView');
       await city.locator('#mayor').waitFor();
