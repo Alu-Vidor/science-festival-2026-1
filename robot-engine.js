@@ -44,9 +44,9 @@
   }
   function permutations(a) { return a.length ? a.flatMap((v, i) => permutations(a.filter((_, j) => i !== j)).map(p => [v, ...p])) : [[]]; }
   // Positive additive energy costs: minimizing over all goal orders and shortest safe
-  // segments is exact, including paths which collect another parcel on the way.
+  // segments is exact, including paths which supply another camp on the way.
   function plan(mission, model, options = {}) {
-    const goals = mission.grid.flatMap((c, i) => c.object === 'parcel' ? [i] : []); let best = null;
+    const goals = mission.grid.flatMap((c, i) => c.object === 'camp' ? [i] : []); let best = null;
     for (const order of permutations(goals)) {
       let pos = mission.start, path = [], valid = true; const remaining = new Set(goals);
       for (const goal of order) {
@@ -62,10 +62,10 @@
   }
   function optimum(mission) { return plan(mission, [], { oracle: true }); }
   const descriptions = {
-    training: { title: 'Учебный полигон', brief: 'Учебная доставка аптечек A, B и C. Ошибки бесплатны.', max: 0 },
-    forest: { title: 'Лесные развилки', brief: 'Спасателям нужны три аптечки за лесными проходами. Доставь A, B и C: робот сам выберет порядок и экономный путь.', max: 10 },
-    gorge: { title: 'Каменный лабиринт', brief: 'Доставь три аптечки через каменный лабиринт. Короткий путь по склону может быть опасным: проверь решение робота.', max: 15 },
-    rain: { title: 'Мокрая долина', brief: 'Дождь изменил грунт. Доставь три аптечки, добавив примеры мокрых участков: старого опыта может не хватить.', max: 25 }
+    training: { title: 'Первый рейс', brief: 'Три учебных лагеря ждут помощь. Довези по одной аптечке в A, B и C — тогда обучение завершено.', max: 0 },
+    forest: { title: 'Лесные развилки', brief: 'Три лагеря спасателей за лесными проходами ждут аптечки. Здесь новый грунт: опыт первого рейса может не подойти.', max: 10 },
+    gorge: { title: 'Каменный лабиринт', brief: 'Довези аптечки в три лагеря через каменный лабиринт. Короткий проход по склону может привести к застреванию.', max: 15 },
+    rain: { title: 'Мокрая долина', brief: 'Лагеря ждут помощь после дождя. Грунт стал мокрее: проверь свои предположения и научи робота новым условиям.', max: 25 }
   };
   function create(id) {
     if (!descriptions[id]) throw Error('Unknown expedition: '+id);
@@ -89,7 +89,10 @@
       if(boundary||wall)grid[i]=tile('wall',i);
       else set(i,types[(x*7+y*11+seed)%types.length]);
     }
-    const goals=id==='training'?[45,93,141]:id==='forest'?[22,82,130]:id==='gorge'?[21,118,121]:[14,46,130];
+    // A first successful trip needs just the two introductory examples.
+    // The other material zones stay available for the learner's own experiments.
+    if(id==='training')for(let y=0;y<12;y++)grid[y*12+1]=tile('road',y*12+1);
+    const goals=id==='training'?[37,85,133]:id==='forest'?[22,82,130]:id==='gorge'?[21,118,121]:[14,46,130];
     const guaranteed=new Set([start,...goals]);
     // Add traps only while the safe landscape still connects every usable cell.
     // Keep traps sparse enough to preserve useful bypasses, not just a connected tree.
@@ -101,16 +104,16 @@
       for(let k=0;k<queue.length;k++)for(const j of neighbors(queue[k],grid))if(!seen.has(j)&&!danger(features(grid[j],rain))){seen.add(j);queue.push(j);}
       if(grid.some((c,j)=>c.type!=='wall'&&!danger(features(c,rain))&&!seen.has(j)))grid[i]=before;
     }
-    // Parcels preserve the local material instead of advertising a safe road.
-    goals.forEach((i,n)=>{ if(grid[i].type==='wall')set(i,'gravel'); if(danger(features(grid[i],rain)))set(i,grid[i].type); grid[i].object='parcel';grid[i].parcel=String.fromCharCode(65+n); });
+    // Expedition camps preserve the local material: reaching people still requires safe ground.
+    goals.forEach((i,n)=>{ if(grid[i].type==='wall')set(i,'gravel'); if(danger(features(grid[i],rain)))set(i,grid[i].type); grid[i].object='camp';grid[i].camp=String.fromCharCode(65+n); });
     if(grid[start].type==='wall')set(start,'road');
-    return { id, grid, start, rain, budget: 240, ...descriptions[id] };
+    return { id, grid, start, rain, budget: 240, cargo: goals.length, ...descriptions[id] };
   }
   function examples() { return Object.entries(profiles).flatMap(([type,pair])=>pair.map((f,y)=>({f:[...f],y,type}))); }
-  function score({ max, delivered, parcels, energy, optimal, complete }) {
-    if (!max || !parcels) return 0;
-    const delivery = Math.floor(max * .6 * Math.min(delivered, parcels) / parcels);
-    if (!complete || delivered !== parcels || !Number.isFinite(optimal) || energy < optimal) return delivery;
+  function score({ max, delivered, camps, energy, optimal, complete }) {
+    if (!max || !camps) return 0;
+    const delivery = Math.floor(max * .6 * Math.min(delivered, camps) / camps);
+    if (!complete || delivered !== camps || !Number.isFinite(optimal) || energy < optimal) return delivery;
     if (energy === optimal) return max;
     // Every nonoptimal complete path scores strictly below the maximum.
     return Math.min(max - 1, Math.max(delivery, Math.floor(max * (.6 + .4 * optimal / energy))));

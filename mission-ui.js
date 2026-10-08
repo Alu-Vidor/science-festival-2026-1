@@ -14,7 +14,7 @@
     }
   }
   window.SessionScore = {
-    robot(score, done, learned) { state.robot = Math.max(state.robot, score); state.trainingDone ||= learned; state.deliveryDone ||= done; draw(); }
+    robot(score, done, trialComplete) { state.robot = Math.max(state.robot, score); state.trainingDone ||= trialComplete; state.deliveryDone ||= done; draw(); }
   };
   window.addEventListener('message', e => {
     if (e.source !== $('epiView').contentWindow || e.origin !== location.origin || e.data?.kind !== 'city-score' || e.data.version !== GameScore.VERSION || e.data.session !== session) return;
