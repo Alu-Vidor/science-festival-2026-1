@@ -2,23 +2,16 @@
   'use strict';
   const $ = id => document.getElementById(id);
   function registerRobot() {
-    GameTour.register('robot', { name: 'Робот', before: () => window.robotLesson.begin(), steps: [
-      { target: '#run', context: ['#boardStage'], view: '#boardStage', fit: '#boardStage', title: 'Проверь короткий путь', text: 'Нажми «Запустить».', event: 'robot:finished', delay: 700,
-        watch: { event: 'robot:started', target: '#boardStage', context: [], text: 'Смотри на карту. Жёлтая клетка — место остановки.' } },
-      { target: '#board [data-index="0"]', context: ['#selectedName', '#sensors'], title: 'Изучи сухой участок', text: 'Нажми на подсвеченную клетку. Датчики покажут её свойства.', event: 'robot:inspected', accept: d => d.index === 0 },
-      { target: '#safe', context: ['#selectedName', '#sensors', '#sensorHint'], view: '#sensors', title: 'Безопасный пример', text: 'Грунт выдержит робота. Нажми «Безопасно».', event: 'robot:labeled', accept: d => d.index === 0 && d.label === 0 },
-      { target: '#board [data-index="61"]', context: ['#robotSprite', '#selectedName', '#sensors'], title: 'Найди причину остановки', text: 'Нажми на подсвеченную грязь. Влажность и неровность вместе мешают проехать.', event: 'robot:inspected', accept: d => d.index === 61 },
-      { target: '#unsafe', context: ['#selectedName', '#sensors', '#sensorHint'], view: '#sensors', title: 'Опасный пример', text: 'Влажность + неровность мешают. Нажми «Опасно».', event: 'robot:labeled', accept: d => d.index === 61 && d.label === 1 },
-      { target: '#board [data-index="20"]', context: ['#selectedName', '#sensors'], title: 'Пологий склон', text: 'Изучи подсвеченный холм. Не каждый склон опасен.', event: 'robot:inspected', accept: d => d.index === 20 },
-      { target: '#safe', context: ['#sensors', '#sensorHint'], title: 'Можно проехать по склону', text: 'Этот уклон безопасен. Добавь его как безопасный пример.', event: 'robot:labeled', accept: d => d.index === 20 && d.label === 0 },
-      { target: '#board [data-index="19"]', context: ['#selectedName', '#sensors'], title: 'Крутой склон', text: 'Изучи соседний холм и сравни уклон.', event: 'robot:inspected', accept: d => d.index === 19 },
-      { target: '#unsafe', context: ['#sensors', '#sensorHint'], title: 'Крутой склон опасен', text: 'Здесь робот застрянет. Добавь опасный пример.', event: 'robot:labeled', accept: d => d.index === 19 && d.label === 1 },
-      { target: '#board [data-index="15"]', context: ['#selectedName', '#sensors'], title: 'Прочный песок', text: 'Изучи песок. Проверь прочность, а не только цвет клетки.', event: 'robot:inspected', accept: d => d.index === 15 },
-      { target: '#safe', context: ['#sensors', '#sensorHint'], title: 'Песок выдержит робота', text: 'Добавь безопасный пример прочного песка.', event: 'robot:labeled', accept: d => d.index === 15 && d.label === 0 },
-      { target: '#board [data-index="14"]', context: ['#selectedName', '#sensors'], title: 'Слабый песок', text: 'Изучи соседний песок. Его прочность ниже.', event: 'robot:inspected', accept: d => d.index === 14 },
-      { target: '#unsafe', context: ['#sensors', '#sensorHint'], title: 'Слабый грунт опасен', text: 'Добавь опасный пример: сухой участок тоже может быть опасным.', event: 'robot:labeled', accept: d => d.index === 14 && d.label === 1 },
-      { target: '#train', context: ['#samples', '#model'], title: 'Обучи ИИ', text: 'Нажми «Обучить ИИ». Посмотри, как изменится прогноз на карте.', event: 'robot:trained', delay: 1400,
-        result: { target: '#boardStage', fit: '#boardStage', context: [], text: 'Рамки показывают прогноз ИИ. Начни лесную доставку. После ошибки добавляй примеры и обучай снова.' } }
+    GameTour.register('robot', { name: 'Школа робота', before: () => window.robotLesson.begin(), steps: [
+      { target: '#board [data-index="0"]', context: ['#sensors'], title: '1. Выбери участок', text: 'Нажми на светящуюся клетку. Одинаковые покрытия могут иметь разные свойства.', event: 'robot:inspected', accept: d => d.index === 0 },
+      { target: '#probe', context: ['#sensors', '#sensorHint'], title: '2. Проверь грунт', text: 'Нажми «Проверить»: датчики покажут, выдержит ли грунт робота. ИИ этот ответ ещё не получил.', event: 'robot:probed' },
+      { target: '#safe', context: ['#sensorHint'], title: '3. Дай пример роботу', text: 'Проверка разрешила проезд. Нажми «Можно», чтобы добавить учебный пример.', event: 'robot:labeled', accept: d => d.label === 0 },
+      { target: '#board [data-index="10"]', context: ['#sensors'], title: '4. Найди опасный пример', text: 'Изучи светящуюся грязь. Один безопасный пример не научит отличать опасность.', event: 'robot:inspected', accept: d => d.index === 10 },
+      { target: '#probe', context: ['#sensors', '#sensorHint'], title: '5. Проверь причину', text: 'Нажми «Проверить». Влажность и неровность здесь вместе мешают проехать.', event: 'robot:probed' },
+      { target: '#unsafe', context: ['#sensorHint'], title: '6. Добавь запрет', text: 'Нажми «Нельзя». ИИ будет сравнивать новые участки с твоими примерами.', event: 'robot:labeled', accept: d => d.label === 1 },
+      { target: '#train', context: ['#samples', '#model'], title: '7. Обучи модель', text: 'Два примера появятся в модели. Посмотри, какие участки она уже узнаёт.', event: 'robot:trained', delay: 1200,
+        result: { target: '#boardStage', fit: '#boardStage', context: ['#predictionLegend'], text: 'Зелёный — ИИ разрешает проезд, красный — запрещает. Знак ? означает, что похожих примеров ещё нет.' } },
+      { target: '#notebookSummary', title: '8. Расширяй опыт робота', text: 'В «Примерах» — девять покрытий. Добавляй разные безопасные и опасные примеры. Затем ИИ сам выберет всю доставку.' }
     ] });
     $('robotTutorial').onclick = () => GameTour.start('robot');
     if (location.hash !== '#epidemic') GameTour.maybeStart('robot');
@@ -36,8 +29,8 @@
       { target: '#pick-bus-frequent', context: ['#choices-bus'], title: 'Помоги добраться', text: 'Жители пропускают поездки. Нажми «Больше рейсов».', event: 'city:choice', accept: d => d.key === 'bus' && d.value === 'frequent' },
       { target: '#tryCity', context: ['#mayorMapSlot .mapscroll'], title: 'Проверь своё решение', text: 'Проверь рейсы. После дня город остановится.', event: 'city:tested', delay: 350,
         watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', context: ['#mayorMapSlot .legend', '#citizenStory'], text: 'Заметь, кто добрался. Нажатие на жителя объяснит его эмоцию.' } },
-      { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'В испытании три раунда. Максимум — за все цели.' },
-      { target: '#projectSummary', title: 'Планируй улучшения', text: 'На строительство — 200 монет. На все три улучшения не хватит.' }
+      { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'В каждой строке: задача, твой результат и цель. Зелёная галочка — цель пока выполнена. Для максимума выполни все цели за четыре дня.' },
+      { target: '#projectSummary', title: 'Планируй улучшения', text: 'Распредели 200 монет. Между днями можно вернуть улучшение и вложить монеты в другое. Прошедшие дни не изменятся.' }
     ] } : mode === 'contest' ? { name: 'Соревнование', steps: [
       { target: '.round-clock', title: 'Семь минут на попытки', text: 'Таймер начнётся после первой проверки. Во время обучения он стоит.' },
       { target: '#contestChoices', title: 'Выбирай карточки', text: 'Открой категорию и нажми вариант. Можно организовать меры на шесть очков.' },

@@ -1,8 +1,8 @@
 /* Lessons show the action and its context; only the requested action is interactive. */
 (function () {
   'use strict';
-  const tours = new Map(), storageKey = 'festival-tours-v5';
-  let active = null, root, card, frames, shades, previousFocus, inertStates, fitStates, openedDetails, previousScroll, sequence = 0, advanceTimer = null, observer, resizeObserver, surfaces;
+  const tours = new Map(), storageKey = 'festival-tours-v6';
+  let active = null, root, card, frames, previousFocus, inertStates, fitStates, openedDetails, previousScroll, sequence = 0, advanceTimer = null, observer, resizeObserver, surfaces;
   function completed() { try { const value = JSON.parse(localStorage.getItem(storageKey) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } }
   function remember(id) { try { localStorage.setItem(storageKey, JSON.stringify([...new Set([...completed(), id])])); } catch {} }
   function targetOf(step) { return document.querySelector(typeof step.target === 'function' ? step.target() : step.target); }
@@ -20,8 +20,8 @@
   }
   function build() {
     root = document.createElement('div'); root.id = 'gameTour'; root.className = 'game-tour';
-    root.innerHTML = `<div class="tour-shades" aria-hidden="true"></div><div class="tour-frames" aria-hidden="true"></div><section class="tour-card" role="dialog" aria-labelledby="tourTitle" aria-describedby="tourText" tabindex="-1"><div class="tour-kicker"><span id="tourCounter"></span><button id="tourSkip" aria-label="Закрыть обучение">Пропустить ×</button></div><div class="tour-progress" aria-hidden="true"></div><h2 id="tourTitle"></h2><p id="tourText"></p><p id="tourTip" class="tour-tip"></p><div class="tour-actions"><button id="tourBack">← Назад</button><button id="tourNext" class="primary">Далее →</button></div><span class="tour-keyboard">Esc — выйти из обучения</span></section>`;
-    document.body.appendChild(root); card = root.querySelector('.tour-card'); frames = root.querySelector('.tour-frames'); shades = root.querySelector('.tour-shades');
+    root.innerHTML = `<div class="tour-frames" aria-hidden="true"></div><section class="tour-card" role="dialog" aria-labelledby="tourTitle" aria-describedby="tourText" tabindex="-1"><div class="tour-kicker"><span id="tourCounter"></span><button id="tourSkip" aria-label="Закрыть обучение">Пропустить ×</button></div><div class="tour-progress" aria-hidden="true"></div><h2 id="tourTitle"></h2><p id="tourText"></p><p id="tourTip" class="tour-tip"></p><div class="tour-actions"><button id="tourBack">← Назад</button><button id="tourNext" class="primary">Далее →</button></div><span class="tour-keyboard">Esc — выйти из обучения</span></section>`;
+    document.body.appendChild(root); card = root.querySelector('.tour-card'); frames = root.querySelector('.tour-frames');
     root.querySelector('#tourSkip').onclick = () => finish(true);
     root.querySelector('#tourBack').onclick = () => show(active.index - 1);
     root.querySelector('#tourNext').onclick = () => { if (!active.steps[active.index].event) advance(); };
@@ -67,19 +67,6 @@
       el.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px`;
     });
   }
-  function shadeOutside(rectangles) {
-    const edges = [...new Set([0, innerHeight, ...rectangles.flatMap(r => [r.top, r.bottom])])].sort((a, b) => a - b), dark = [];
-    // Cover the complement of all lit rectangles, including overlapping context regions.
-    for (let i = 1; i < edges.length; i++) {
-      const top = edges[i - 1], bottom = edges[i], y = (top + bottom) / 2;
-      const lit = mergeIntervals(rectangles.filter(r => r.top < y && r.bottom > y).map(r => [r.left, r.right]));
-      let left = 0;
-      for (const [start, end] of [...lit, [innerWidth, innerWidth]]) {
-        if (start > left) dark.push({ left, top, width: start - left, height: bottom - top }); left = Math.max(left, end);
-      }
-    }
-    boxes(shades, dark, 'tour-shade');
-  }
   function placement(rectangles, view, cw, ch) {
     const gap = 8, r = rectangles[0] || { left: view.left, top: view.top };
     const clampX = x => Math.max(view.left + 4, Math.min(view.right - cw - 4, x));
@@ -106,7 +93,7 @@
     const step = currentStep(), view = viewport(), rectangles = highlighted(step).map(el => visibleRect(el, view)).filter(Boolean);
     boxes(frames, rectangles, 'tour-focus');
     if (frames.firstChild && step.event) frames.firstChild.classList.add('tour-action-focus');
-    shadeOutside(rectangles);
+
     const width = view.right - view.left, height = view.bottom - view.top;
     if (width <= 24 || height <= 24) { card.hidden = true; return; } card.hidden = false;
     card.style.width = Math.min(360, width - 8) + 'px'; card.style.maxHeight = (height - 8) + 'px';

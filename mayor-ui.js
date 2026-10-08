@@ -19,10 +19,10 @@
         <div id="mayorPolicies"></div><div class="city-time-controls"><button id="tryCity" class="primary" disabled>Прожить день 1</button><button id="pauseCity" disabled>Пауза</button></div>
         <p id="roundOutcome" class="round-outcome"></p><button id="restartCity" hidden>Новое прохождение</button>
       </div></div>
-    <details id="cityProjects"><summary id="projectSummary">Улучшения · 200</summary><p>Фонд строительства — 200 монет на всё прохождение. Сейчас у больницы одно место помощи; в третьем раунде обращений станет больше. Доходы города его не пополняют. Улучшения сохраняются; на все три денег не хватит.</p><div id="projectChoices"></div><p id="cityBudget"></p></details>
+    <details id="cityProjects"><summary id="projectSummary">Улучшения · 200</summary><p>Распредели 200 монет между улучшениями. Между днями можно освободить вложенные монеты и выбрать другое улучшение. Оно работает, пока в него вложены монеты. У больницы сначала одно место помощи; в третьем раунде обращений станет больше. Доходы не пополняют эти 200 монет.</p><div id="projectChoices"></div><p id="cityBudget"></p></details>
     <details id="cityPeople"><summary>Жители</summary><label>Житель<select id="citizenChoice"></select></label><div id="citizenPanel"></div></details>
     <details id="cityReports"><summary>Раунды</summary><div id="roundReports"></div><div id="cityAttempts" class="attempt-chips"></div><button id="restartEarly">Начать заново</button></details>
-    <details class="city-rules"><summary>Правила</summary><p>Три раунда по четыре дня дают до 10, 15 и 25 баллов. Цели показаны до начала раунда. Еда, занятия, настроение и помощь оцениваются в среднем за четыре дня; заражения и расходы — в сумме. Максимум доступен только при выполнении всех целей раунда.</p><p>Один клик проживает один день. После него город ждёт твоего решения. Можно поставить анимацию на паузу, рассмотреть жителей и продолжить. Изменения плана действуют со следующего дня.</p><p>Ограниченный фонд оплачивает строительство. Городской бюджет отдельно учитывает ежедневные доходы и расходы, включая содержание улучшений. Построенное работает со следующего дня. Запасы, усталость и болезни переходят между раундами.</p><p>В последнем раунде до четырёх жителей возвращаются после поездки, где заразились накануне. Они учитываются отдельно от заражений внутри города. Симптомы в модели появляются через два дня после заражения.</p><p>🙂 удачная поездка, покупка, отдых или помощь; 😠 пропущенная поездка; 😟 очередь, нехватка еды или помощи; 😴 усталость. Цвет одежды отдельно показывает видимые симптомы.</p><p>Попытки не ограничены. Лучший счёт сохраняется. Время и скорость анимации не влияют на баллы. Это учебная модель вымышленного города.</p></details>`;
+    <details class="city-rules"><summary>Правила</summary><p>Три раунда по четыре дня дают до 10, 15 и 25 баллов. Цели показаны до начала раунда. Еда, занятия и настроение — средние за четыре дня; помощь — доля обслуженных обращений; заражения и расходы — сумма. Максимум доступен только при выполнении всех целей раунда.</p><p>Один клик проживает один день. После него город ждёт твоего решения. Можно поставить анимацию на паузу, рассмотреть жителей и продолжить. Изменения плана действуют со следующего дня.</p><p>Фонд улучшений — 200 монет. Можно вернуть всю стоимость улучшения и перераспределить её между днями. Полученные раньше результаты и оплаченные расходы не меняются. Новый набор улучшений работает со следующего дня. Запасы, усталость и болезни переходят между раундами.</p><p>В последнем раунде до четырёх жителей возвращаются после поездки, где заразились накануне. Они учитываются отдельно от заражений внутри города. Симптомы в модели появляются через два дня после заражения.</p><p>🙂 удачная поездка, покупка, отдых или помощь; 😠 пропущенная поездка; 😟 очередь, нехватка еды или помощи; 😴 усталость. Цвет одежды отдельно показывает видимые симптомы.</p><p>Попытки не ограничены. Лучший счёт сохраняется. Время и скорость анимации не влияют на баллы. Это учебная модель вымышленного города.</p></details>`;
   document.body.insertBefore(shell, document.body.firstChild);
   $('mayorMapSlot').appendChild(document.querySelector('.city'));
   document.body.classList.add('mayor-mode', 'short-city', 'campaign-city'); window.mayorActive = true;
@@ -76,33 +76,44 @@
     }
   }
   const goalFields = [
-    ['cases', 'Новые заражения', '≤', ''], ['food', 'Продукты', '≥', '%'], ['activity', 'Занятия', '≥', '%'],
+    ['cases', 'Новые заражения', '≤', ''], ['food', 'Еда для жителей', '≥', '%'], ['activity', 'Учёба и работа', '≥', '%'],
     ['care', 'Помощь', '≥', '%'], ['comfort', 'Настроение', '≥', '%'], ['expense', 'Расходы', '≤', '']
   ];
   function goals() {
     const c = state(), index = Math.min(2, Math.floor(c.game.day / 4)), goal = C.rounds[index], stats = C.measure(c, index);
-    $('cityGoalTitle').textContent = lesson ? 'Цели испытания · четыре дня' : 'Цели раунда · ' + (stats?.days || 0) + ' / 4 дня';
+    $('cityGoalTitle').textContent = lesson ? 'Чего нужно добиться в испытании' : 'Цели: ' + goal.title + ' · день ' + (stats?.days || 0) + ' из 4';
     const box = $('cityGoalGrid'); box.replaceChildren();
     goalFields.forEach(([key, name, sign, unit]) => {
       const item = element('div', '', box); item.className = 'city-goal';
       const target = key === 'care' && !goal.care ? null : goal[key];
-      element('span', name + (target === null ? '' : ' ' + sign + ' ' + target + unit), item);
-      element('strong', stats ? (key === 'food' || key === 'activity' || key === 'comfort' || key === 'care' ? stats[key].toFixed(1) : stats[key]) + unit : '—', item);
-      if (stats && target !== null) item.setAttribute('data-met', sign === '≤' ? stats[key] <= target : stats[key] >= target);
+      const label = element('span', '', item); element('b', name, label);
+      const description = target === null ? 'Цель появится в третьем раунде' : (sign === '≤' ? 'Не больше ' : 'Не меньше ') + target + unit + (key === 'expense' || key === 'cases' ? ' за раунд' : key === 'care' ? ' обращений' : ' в среднем');
+      element('small', description, label);
+      const met = stats && target !== null ? (sign === '≤' ? stats[key] <= target : stats[key] >= target) : null;
+      const actual = stats ? (['food','activity','comfort','care'].includes(key) ? stats[key].toFixed(1) : stats[key]) + unit : '—';
+      element('strong', actual + (met === null ? '' : met ? ' ✓' : ' !'), item);
+      item.setAttribute('aria-label', name + '. ' + description + '. Сейчас: ' + actual + (met === null ? '' : met ? '. Условие пока выполнено.' : '. Нужно улучшить.'));
+      if (met !== null) item.setAttribute('data-met', met);
     });
-    $('cityNeeds').textContent = 'За раунд: % — среднее; заражения и расходы — сумма.';
+    $('cityNeeds').textContent = 'Максимум — за все цели после 4-го дня. Средние %; помощь — доля обращений; случаи и расходы — сумма.';
   }
   function projects() {
-    $('projectSummary').textContent = 'Улучшения · ' + campaign.funds;
+    $('projectSummary').textContent = 'Монеты · свободно ' + campaign.funds;
     const box = $('projectChoices'); box.replaceChildren();
     for (const id of C.projects) {
-      const project = Mayor.upgrades[id], card = element('article', '', box), button = element('button', project.title + ' · ' + project.cost + ' монет', card);
-      button.id = 'build-' + id; button.disabled = !!lesson || !started || !!pending || campaign.completed || campaign.projects.includes(id) || campaign.funds < project.cost;
-      if (campaign.projects.includes(id)) button.textContent += ' ✓';
+      const project = Mayor.upgrades[id], active = campaign.projects.includes(id), card = element('article', '', box);
+      element('h3', project.title, card);
       element('p', project.effect + '. Содержание: ' + project.upkeep + ' монет в день.', card);
-      button.onclick = () => { campaign = C.invest(campaign, id); update(false); $('mayorStatus').textContent = project.title + ': построено. Работает со следующего дня. Осталось в фонде ' + campaign.funds + '.'; };
+      const button = element('button', active ? 'Освободить ' + project.cost + ' монет ↩' : 'Вложить ' + project.cost + ' монет', card);
+      button.id = active ? 'refund-' + id : 'build-' + id;
+      button.disabled = !!lesson || !started || !!pending || campaign.completed || !active && campaign.funds < project.cost;
+      if (active) card.setAttribute('data-funded', 'true');
+      button.onclick = () => {
+        campaign = active ? C.refund(campaign, id) : C.invest(campaign, id); update(false);
+        $('mayorStatus').textContent = active ? project.title + ': монеты освобождены. Улучшение не работает со следующего дня; прошлые результаты сохранены.' : project.title + ': включено со следующего дня. Свободно ' + campaign.funds + ' монет.';
+      };
     }
-    $('cityBudget').textContent = 'Городской бюджет: ' + campaign.game.cash + ' монет. Фонд улучшений: ' + campaign.funds + ' монет.';
+    $('cityBudget').textContent = 'Свободно: ' + campaign.funds + ' из 200. Городская касса: ' + campaign.game.cash + ' — отдельно от монет улучшений. Содержание за уже прошедшие дни не возвращается.';
   }
   function reports() {
     const box = $('roundReports'); box.replaceChildren();
@@ -231,7 +242,7 @@
     const key = ['school', 'kindergarten', 'work'].includes(id) ? 'school' : ['market', 'mall'].includes(id) ? 'shops' : id === 'bus' ? 'bus' : null;
     if (key) { if (!document.body.classList.contains('monitor-layout')) $('choices-' + key).scrollIntoView({ block: 'center', behavior: 'smooth' }); $('pick-' + key + '-' + (lesson ? lesson.plan : plan)[key]).focus({ preventScroll: true }); }
     else if (id.startsWith('h')) window.mayorCitizenSelect(viewedGame.people.findIndex(p => p.home === id));
-    else if (id === 'clinic') { $('cityProjects').open = true; $('build-clinic').focus({ preventScroll: true }); }
+    else if (id === 'clinic') { $('cityProjects').open = true; ($('build-clinic') || $('refund-clinic'))?.focus({ preventScroll: true }); }
   };
   window.cityTourHooks = {
     before() {

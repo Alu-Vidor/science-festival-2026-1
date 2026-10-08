@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
 const { chromium } = require('playwright');
-const {lesson,teachMap,deliver,optimalDelivery}=require('./robot-browser-helpers.cjs');
+const {lesson,teachMap,teachTraining,adaptRain,deliver,optimalDelivery}=require('./robot-browser-helpers.cjs');
 const City=require('./city-browser-helpers.cjs');
 const root = path.resolve(__dirname, '..');
 const server = http.createServer((req, res) => {
@@ -14,9 +14,9 @@ const server = http.createServer((req, res) => {
   const browser = await chromium.launch();
   const failures=[];
   try {
-    for (const [width,height] of [[1024,768],[1280,640],[1280,720],[1366,680],[1366,768],[1440,900],[1920,1080]]) {
+    for (const [width,height] of [[1024,768],[1280,640],[1280,720],[1366,680],[1366,768],[1440,900],[1920,1080],[2560,1440]]) {
       const context = await browser.newContext({viewport:{width,height},reducedMotion:'reduce'});
-      await context.addInitScript(() => localStorage.setItem('festival-tours-v5', JSON.stringify(['robot','city-mayor'])));
+      await context.addInitScript(() => localStorage.setItem('festival-tours-v6', JSON.stringify(['robot','city-mayor'])));
       const page = await context.newPage();
       page.on('pageerror',e=>console.error('Page error:',e.message));
       async function fits(scope, selectors) {
@@ -38,7 +38,7 @@ const server = http.createServer((req, res) => {
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
-      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#clear','#sensors','#model','.training > details','#robotEditor > summary','#status','#deliveryTries','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress']);
+      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#model','.training > details','#status','#deliveryTries','#moveStart','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress']);
       await page.mouse.wheel(0,700); await fits(page,['#boardStage','#model']);
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-monitor-${width}x${height}.png`)});
       async function lit(scope, selectors) {
@@ -51,27 +51,23 @@ const server = http.createServer((req, res) => {
         assert.deepEqual(problems,[],'Lesson must leave the described objects visible');
       }
       await page.locator('#robotTutorial').click();
-      await fits(page,['.tour-card','#tourTitle','#tourText','#run','#boardStage']);
-      await page.locator('#run').click(); await page.locator('.tour-watching').waitFor();
-      await lit(page,['#boardStage','#robotSprite']); await fits(page,['.tour-card','#boardStage']);
-      await page.screenshot({path:path.join(root,'test-artifacts',`robot-lesson-monitor-${width}x${height}.png`)});
-      await lesson(page);
-      await fits(page,['#model','#train','#status','.training > details','#nextMission','#expeditionNav']);
+      await fits(page,['.tour-card','#tourTitle','#tourText','#boardStage']);
+      assert.equal(await page.locator('.tour-shade').count(),0);
+      await page.screenshot({path:path.join(root,'test-artifacts',`robot-glow-${width}x${height}.png`)});
+      await lesson(page,async()=>fits(page,['.tour-card','#tourTitle','#tourText']));
+      await teachTraining(page);
+      await fits(page,['#model','#train','#status','#nextMission','#expeditionNav']);
       for(let stage=1;stage<=3;stage++){
-        await page.locator('#nextMission').click();await teachMap(page);
-        await deliver(page);
-        await fits(page,['#boardStage','#model','#status','#deliveryTries','#parcelOrder','#routeMode','#robotEditor > summary']);
+        await page.locator('#nextMission').click();
+        if(stage===3)await adaptRain(page);
         await optimalDelivery(page);
-        await fits(page,['#boardStage','#model','#status','#deliveryTries','#parcelOrder','#routeMode']);
+        await fits(page,['#boardStage','#model','#status','#deliveryTries','#autoRoute','#moveStart','#predict','#newParticipant']);
         if(stage<3)await fits(page,['#nextMission']);
         await page.screenshot({path:path.join(root,'test-artifacts',`robot-mission-${stage}-${width}x${height}.png`)});
       }
-      await page.screenshot({path:path.join(root,'test-artifacts',`robot-result-monitor-${width}x${height}.png`)});
-      await page.locator('#robotEditor > summary').click(); await page.locator('.monitor-dialog[open]').waitFor();
-      await fits(page,['.monitor-dialog','#tools button','#multi','#energy','#strategy','#applyStrength','#rain','#reset']);
-      if(width===1366 && height===680) await page.screenshot({path:path.join(root,'test-artifacts','robot-editor-monitor.png')});
-      await page.locator('#tools [data-tool=inspect]').click(); await page.locator('.monitor-dialog[open]').waitFor({state:'detached'});
-      await fits(page,['#boardStage','#status']);
+      await page.locator('#learningNotebook > summary').click();await page.locator('.monitor-dialog[open]').waitFor();
+      await fits(page,['.monitor-dialog','#coverage']);
+      await page.locator('.monitor-dialog > button').click();
       await page.locator('#epiTab').click();
       const city = page.frameLocator('#epiView');
       await city.locator('#mayor').waitFor();
@@ -104,7 +100,7 @@ const server = http.createServer((req, res) => {
       if(width===1366 && height===680) {
         await page.setViewportSize({width:768,height:900}); await page.locator('#robotTab').click();
         await page.waitForFunction(()=>!document.body.classList.contains('monitor-layout'));
-        assert.equal(await page.locator('.monitor-editor-grid').count(),0);
+        assert.equal(await page.locator('#robotEditor').count(),0);
         assert.equal(await page.locator('#robotIntro #robotTutorial').count(),1);
         await page.locator('#robotZoom').click();
         await page.setViewportSize({width,height}); await page.waitForFunction(()=>document.body.classList.contains('monitor-layout')); await fits(page,['#board .cell','#boardStage','#run','#model','#status']);

@@ -1,0 +1,78 @@
+/* Clear learning flow; desktop cards keep the map and actions visible together. */
+.layout{grid-template-columns:minmax(0,1fr) 340px;max-width:1600px}
+.training #labelChoices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.sample-actions button{padding:8px 3px;font-size:14px;min-height:44px}
+.learning-steps{color:#adebd6;font-weight:650}
+#sensorHint{min-height:44px}
+#model{padding:8px 10px;border-radius:8px;background:#173e49;font-size:14px;line-height:1.35}
+#coverage{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#coverage button{font-size:14px;padding:8px}
+#exampleJournal{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px}
+#exampleJournal p,#predictionReason p{margin:5px 0;font-size:14px}
+#predictionLegend{font-size:13px;margin:0}
+.ai-safe{color:#8af0c8}.ai-danger{color:#ff9eab}.ai-unknown{color:#ebd9a9}
+.auto-route{font-size:14px;line-height:1.35;padding:6px 8px;background:#233e45;border-radius:8px;margin:4px 0}
+#board .cell.unknown{border:2px dashed #edcc8b}
+#board .cell.unknown:not([data-visible-object=parcel])::after{content:'?';position:absolute;right:2px;top:0;font-size:clamp(11px,1vw,20px);color:#fff4c6;background:#132c35cc;border-radius:3px;z-index:4;padding:0 2px}
+#board .cell.launch-position{outline:2px solid #b2f4ff;outline-offset:-3px}
+#board .cell.gravel{background:repeating-conic-gradient(#75818a 0% 25%,#404e58 0% 50%) 0/12px 12px;color:#e2ebed}
+#board .cell.grass{background:repeating-linear-gradient(75deg,#426957 0 5px,#365344 5px 8px);color:#cce6a5}
+#board .cell.clay{background:repeating-linear-gradient(20deg,#a37555 0 9px,#8b604a 9px 11px);color:#f2ddbb}
+#board .cell.ice{background:linear-gradient(135deg,#97c5d5,#467d99);color:#eefcff}
+#sessionFooter{display:flex;align-items:center;justify-content:center;gap:12px;padding:5px 12px;flex:none}
+#sessionFooter button{min-height:44px;padding:5px 12px;font-size:13px;background:#1a303c}
+#sessionFooter span{font-size:12px}
+.monitor-layout #sessionFooter{display:flex}
+.monitor-layout .layout{max-width:none;grid-template-columns:230px minmax(0,1fr) 330px;gap:10px;padding:8px 12px}
+.monitor-layout #robotScene{gap:4px}
+.monitor-layout #robotControls>.row{grid-template-columns:1fr 1fr}
+.monitor-layout #robotControls #run{grid-column:auto}
+.monitor-layout #robotControls #stop:disabled{display:block}
+.monitor-layout #robotControls #predict,.monitor-layout #robotControls #moveStart{grid-column:1/-1;display:block;font-size:14px}
+.monitor-layout #robotControls .row:has(#stop:not(:disabled)) #predict{display:block}
+.monitor-layout #robotControls #nextMission{margin-top:12px}
+.monitor-layout #robotScene #status{flex:none;min-height:0;font-size:13px;padding:7px;margin:0}
+.monitor-layout #robotScene .auto-route,.monitor-layout #predictionLegend{flex:none;margin:0;font-size:12px}
+.monitor-layout #robotScene .mission-frame{padding:12px;margin:0}
+.monitor-layout .training>p{margin:6px 0;font-size:13px;line-height:1.3}
+.monitor-layout .training .learning-steps{font-size:12px;margin:0 0 6px}
+.monitor-layout .training #sensorHint{min-height:34px}
+.monitor-layout .training .features{margin:6px 0;gap:3px 8px;font-size:13px}
+.monitor-layout .training .features b{font-size:18px}
+.monitor-layout .training #model{font-size:13px;padding:6px 8px}
+.monitor-layout .training #train{margin-top:6px;padding:8px 4px;font-size:14px}
+.monitor-layout .training details{margin-top:4px}
+.monitor-layout .training summary{font-size:13px;min-height:32px}
+.monitor-layout #labelChoices button{font-size:13px;min-height:44px;padding:6px 2px}
+.monitor-layout.campaign-city .city-map-area>#cityGoalTitle{font-size:16px;margin:0 0 4px;flex:none}
+.monitor-layout.campaign-city .city-map-area>.city-goals{grid-template-columns:repeat(3,minmax(0,1fr));flex:none}
+.campaign-city .city-goal span{display:flex;flex-direction:column;gap:2px}
+.campaign-city .city-goal b{font-size:13px;font-weight:650}
+.campaign-city .city-goal small{font-size:11px;color:#c4d4d3;line-height:1.2}
+.campaign-city .city-goal strong{font-size:15px}
+.monitor-layout.campaign-city .city-map-area>#cityNeeds{font-size:11px;margin:4px 0 6px!important;flex:none}
+.campaign-city #projectChoices h3{font-size:17px;margin:0 0 5px}
+.campaign-city #projectChoices [data-funded=true]{border-left:3px solid #98f2ce;padding-left:10px}
+@media(min-width:1800px) and (min-height:900px){
+ .monitor-layout .layout{grid-template-columns:280px minmax(0,1fr) 380px;gap:16px;padding:12px 20px}
+ .monitor-layout .training>h2{font-size:25px}.monitor-layout .training>p,.monitor-layout .training #model{font-size:16px;margin:12px 0}
+ .monitor-layout .training .features{font-size:17px;gap:8px 12px;margin:16px 0}.monitor-layout .training .features b{font-size:22px}
+ .monitor-layout .training #selectedName,.monitor-layout .training #train,.monitor-layout #labelChoices button{font-size:16px;min-height:46px}
+ .monitor-layout .training summary{font-size:16px;min-height:44px}.monitor-layout .training .learning-steps{font-size:15px}
+ .monitor-layout #robotControls #predict,.monitor-layout #robotControls #moveStart,.monitor-layout #robotControls #run,.monitor-layout #nextMission{font-size:17px;min-height:46px}
+ .monitor-layout #robotScene #status,.monitor-layout #robotScene .auto-route,.monitor-layout #predictionLegend,.monitor-layout #missionBrief,.monitor-layout #deliveryTries{font-size:16px}
+ .monitor-layout.campaign-city .city-playground{grid-template-columns:minmax(0,1fr) 390px}
+ .monitor-layout.campaign-city .city-goal b,.monitor-layout.campaign-city .city-goal strong{font-size:17px}.monitor-layout.campaign-city .city-goal small{font-size:14px}
+ .monitor-layout.campaign-city .city-map-area>#cityGoalTitle{font-size:20px}.monitor-layout.campaign-city .city-map-area>#cityNeeds{font-size:14px}
+}
+@media(min-width:1000px) and (max-height:720px){
+ .monitor-layout .training{padding:9px}.monitor-layout .training>h2{font-size:18px;margin-bottom:4px}
+ .monitor-layout .training>p{margin:3px 0}.monitor-layout .training .features{margin:3px 0;gap:1px 8px}
+ .monitor-layout .training #model{font-size:12px;padding:4px 6px}.monitor-layout .training #sensorHint{font-size:12px;min-height:31px}
+ .monitor-layout .training #train{min-height:36px;padding:5px 3px}.monitor-layout .training summary{min-height:28px;padding:3px 0;font-size:12px}
+ .monitor-layout #labelChoices button{min-height:34px;font-size:12px}
+ .monitor-layout.campaign-city .city-goal b{font-size:11px}.monitor-layout.campaign-city .city-goal small{font-size:10px}.monitor-layout.campaign-city .city-goal strong{font-size:12px}
+ .monitor-layout.campaign-city .city-map-area>#cityGoalTitle{font-size:13px}.monitor-layout.campaign-city .city-map-area>#cityNeeds{font-size:10px}
+}
+@media(max-width:999px){.layout{display:flex;flex-direction:column}.training{width:100%}#sessionFooter{flex-wrap:wrap}}
+@media(max-width:600px){#coverage,#exampleJournal{grid-template-columns:1fr 1fr}}

@@ -114,7 +114,7 @@ body:not(.contest-mode) #contest { display: none; }
 /* The four shades leave a real hole, with a focus ring around the explained control. */
 .tour-open { overflow: hidden; }
 .game-tour { position: fixed; inset: 0; z-index: 2147483000; pointer-events: none; }
-.tour-shade { position: absolute; background: #03131deb; }
+
 .tour-focus { position: absolute; border: 1px solid #a8f5d6; border-radius: 10px; pointer-events: none; }
 .tour-action-focus { border: 3px solid #a8f5d6; outline: 2px solid #143e34; box-shadow: 0 0 24px #76efc466; }
 .tour-card { position: absolute; width: min(440px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; padding: 24px; border: 1px solid #9bd9c3; border-radius: 20px; background: #173440; box-shadow: 0 18px 80px #0008; color: #edf9f4; }
@@ -176,7 +176,7 @@ body:not(.contest-mode) #contest { display: none; }
   .tour-card { padding: 18px; }.tour-card h2 { font-size: 24px; }.tour-card p { font-size: 17px; }.tour-actions button { font-size: 15px; padding: 10px 12px; }
   .tour-kicker { flex-wrap: wrap; gap: 0; }
 }
-@media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior: auto !important; } .tour-focus { box-shadow: none; } }
+@media(prefers-reduced-motion:reduce) { *, *::before, *::after { scroll-behavior: auto !important; }  }
 
 /* Three tasks, one result. The counter stays visible to a passing organiser. */
 .mission-bar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; gap: 20px; max-width: 1600px; margin: auto; padding: 12px 24px; background: #142f38f5; border-bottom: 1px solid #64877f; backdrop-filter: blur(8px); }
@@ -188,7 +188,7 @@ body:not(.contest-mode) #contest { display: none; }
 .features meter::-webkit-meter-optimum-value { background: #90e7c5; }.features meter.danger::-webkit-meter-optimum-value { background: #ff8797; }.features meter.danger::-moz-meter-bar { background: #ff8797; }
 .features.bulk meter { display: none; }
 #deliveryTries { font-size: 15px; color: #dce6ce; }
-.game-tour { pointer-events: none; }.tour-shade, .tour-card { pointer-events: auto; }
+.game-tour { pointer-events: none; }.tour-card { pointer-events: auto; }
 .tour-card { width: min(360px, calc(100vw - 24px)); }.tour-card p { font-size: 17px; line-height: 1.5; }.tour-actions { margin-top: 12px; }.tour-keyboard { margin-top: 10px; }
 .tour-actions:has(> button[hidden]:first-child):has(> button[hidden]:last-child), .tour-watching .tour-actions { display: none; }
 .tour-watching .tour-card { padding: 16px; }.tour-watching .tour-card h2 { margin: 12px 0 8px; font-size: 23px; }.tour-watching .tour-card p { margin: 8px 0; }
@@ -206,3 +206,5 @@ body:not(.contest-mode) #contest { display: none; }
 @media(max-width:1000px) { .city-playground { grid-template-columns: minmax(0,1fr) 285px; gap: 12px; }.city-decisions { padding: 14px; }.city-effects { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media(max-width:700px) { .mission-bar { flex-wrap: wrap; gap: 4px 12px; padding: 8px 12px; }.overall-result { flex: 1; grid-template-columns: auto auto; gap: 0 8px; }.overall-result > span { font-size: 14px; }.overall-result strong { font-size: 18px; }.overall-result b { font-size: 30px; }.mission-tags { order: 2; flex: 1 0 100%; gap: 4px; }.mission-tags span { flex: 1; min-width: 0; font-size: 12px; padding: 4px 6px; }.city-playground { grid-template-columns: 1fr; }.city-decisions { order: -1; }.city-decisions fieldset { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; margin: 14px 0; }.city-decisions legend, .city-decisions .choice-hint { grid-column: 1 / -1; }.city-choice { font-size: 14px; padding: 9px 6px !important; margin: 0; }.short-city .mayor-dashboard { gap: 8px; }.short-city .mayor-dashboard > div { padding: 12px; }.short-city .mayor-dashboard strong { font-size: 22px; }.short-city .mayor-dashboard p { font-size: 12px; }.short-city .mayor-title { flex-direction: row; align-items: center; gap: 10px; }.short-city .mayor-title h1 { font-size: 28px; }.city-local-score { font-size: 20px; padding: 8px; }.short-city #mayor { padding: 14px; }.city-effects strong { font-size: 19px; } }
 @media(max-width:450px) { .short-city .mayor-dashboard { grid-template-columns: 1fr; }.short-city .mayor-dashboard > div { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; }.short-city .mayor-dashboard strong { margin: 0; }.short-city .mayor-dashboard progress, .short-city .mayor-dashboard p { grid-column: 1 / -1; margin: 0; }.city-start { padding: 12px; }.city-start button { width: 100%; }.short-city .mayor-title h1 { font-size: 25px; } }
+
+.tour-focus{border:3px solid #a2ffe2;box-shadow:0 0 0 3px #38dcb34d,0 0 22px 7px #49ffd066;background:transparent}

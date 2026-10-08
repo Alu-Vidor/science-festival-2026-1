@@ -22,7 +22,7 @@
   function sizeBoard() {
     if (!active || !$('boardStage')) return;
     const frame = document.querySelector('.mission-frame');
-    const size = Math.floor(Math.min(frame.clientWidth - 36, frame.clientHeight - 64, 660));
+    const size = Math.floor(Math.min(frame.clientWidth - 36, frame.clientHeight - 52, 860));
     if (size > 0) $('boardStage').style.width = size + 'px';
   }
   function setup() {
@@ -48,34 +48,13 @@
         const controls = document.createElement('aside'); controls.id = 'robotControls'; controls.className = 'card';
         const title = document.createElement('h2'); title.textContent = 'Испытание'; controls.append(title); layout.prepend(controls);
         move($('run').parentElement, controls); move(scene.querySelector('.stats'), controls);
-        move($('routeControls'), controls);
-        move($('deliveryTries'), controls); move($('status'), controls); move($('robotEditor'), controls);
-        move($('nextMission'), controls);
-        const editorGrid = document.createElement('div'); editorGrid.className = 'monitor-editor-grid';
-        for (const node of [...$('robotEditor').children]) if (node.tagName !== 'SUMMARY') move(node, editorGrid);
-        $('robotEditor').append(editorGrid);
-        for (const id of ['energy', 'strategy']) {
-          const label = editorGrid.querySelector(`label[for="${id}"]`), field = document.createElement('div');
-          field.className = 'monitor-editor-field'; label.before(field); move(label, field); move($(id), field);
-        }
-        const training = layout.querySelector('.training');
-        const rules = document.createElement('details'), summary = document.createElement('summary');
-        rules.className = 'monitor-rules'; summary.textContent = 'Правила и баллы'; rules.append(summary); training.append(rules);
-        for (const detail of [...training.querySelectorAll('details')]) if (detail !== rules) move(detail, rules);
-        move(training.querySelector('p.small'), rules);
-        const row = document.createElement('div'); row.className = 'monitor-training-actions'; training.insertBefore(row, $('train'));
-        move($('train'), row); move($('clear'), row);
-        for (const detail of document.querySelectorAll('#robotEditor, .training > details, #leaderTools')) tools(detail);
-        if (!wired.has($('tools'))) {
-          wired.add($('tools'));
-          $('robotEditor').addEventListener('click', e => {
-            if (active && e.target.closest('#tools button, #multi, #applySelection, #clearSelection, #applyStrength, #rain, #reset')) dialog.close();
-          });
-        }
+        move($('deliveryTries'), controls); move($('nextMission'), controls);
+        for (const detail of document.querySelectorAll('.training > details')) tools(detail);
         observer = new ResizeObserver(sizeBoard); observer.observe(scene.querySelector('.mission-frame')); sizeBoard();
       } else {
         const decisions = $('cityDecisions');
         move($('cityStart'), decisions, true); move($('mayorStatus'), city.querySelector('.city-map-area'));
+        move($('cityNeeds'), city.querySelector('.city-map-area'), true); move($('cityGoalGrid'), city.querySelector('.city-map-area'), true); move($('cityGoalTitle'), city.querySelector('.city-map-area'), true);
         move($('cityPeople'), city.querySelector('.mayor-title')); move(city.querySelector('.city-rules'), city.querySelector('.mayor-title'));
         move($('cityTutorial'), city.querySelector('.mayor-title'));
         move($('cityProjects'), city.querySelector('.mayor-title')); move($('cityReports'), city.querySelector('.mayor-title'));
