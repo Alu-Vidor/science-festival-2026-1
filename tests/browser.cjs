@@ -263,6 +263,6 @@ const server = http.createServer((req, res) => {
     await page.locator('#robotTab').click();
     assert.equal(await page.locator('#robotView').isVisible(), true);
     assert.deepEqual(errors, [], 'No JS errors or missing game assets');
-    console.log('Browser: manual routes, measured learning, full 100/100, city tutorials, campaigns, reset and Full HD/QHD passed');
+    console.log('Browser: autonomous deliveries, measured learning, full 100/100, city tutorials, campaigns, reset and Full HD/QHD passed');
   } finally { await browser.close(); server.close(); }
 })().catch(error => { console.error(error); server.close(); process.exitCode = 1; });

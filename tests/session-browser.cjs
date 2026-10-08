@@ -19,10 +19,13 @@ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+(req
   await page.locator('#run').click();await page.waitForFunction(()=>robotExpedition.current().trips.at(-1)?.steps>=2);await page.reload();
   assert.equal(await page.evaluate(()=>robotExpedition.current().running),false);assert.equal(await page.evaluate(()=>robotExpedition.current().trips.at(-1).interrupted),true);
   assert.deepEqual(await page.evaluate(()=>robotExpedition.current().model),learned,'New measurements do not silently retrain on reload');
-  await page.emulateMedia({reducedMotion:'reduce'});await R.run(page,R.routes.wetHill);const failed=await page.locator('#lastActual').innerText();await page.reload();
-  assert.equal(await page.locator('#lastActual').innerText(),failed);assert((await page.locator('#tripOutcome').innerText()).includes('застрял'));
-  await page.locator('#newParticipant').click();await R.complete(page);await page.reload();assert.equal(await page.locator('#overallScore').innerText(),'50');
-  assert.equal(await page.evaluate(()=>robotExpedition.current().stage),1);assert.equal(await page.locator('#qualitySummary').innerText(),'6 / 6 — точный прогноз');
+  await page.emulateMedia({reducedMotion:'reduce'});
+  assert(await page.locator('#run').isDisabled(),'Reload cannot refund a spent experiment');
+  await R.orders(page,['G']);await page.emulateMedia({reducedMotion:'no-preference'});await page.locator('#run').click();await page.waitForFunction(()=>robotExpedition.current().trips.at(-1)?.steps>=2);await page.reload();
+  assert.equal(await page.evaluate(()=>robotExpedition.current().trips.at(-1).interrupted),true);assert(await page.locator('#nextRound').isVisible());
+  assert.equal(await page.evaluate(()=>robotExpedition.current().score.stars),0,'An interrupted delivery consumes a departure without rewarding unfinished orders');
+  await page.locator('#newParticipant').click();await page.emulateMedia({reducedMotion:'reduce'});await R.complete(page);await page.reload();assert.equal(await page.locator('#overallScore').innerText(),'50');
+  assert.equal(await page.evaluate(()=>robotExpedition.current().stage),2);assert.equal(await page.evaluate(()=>robotExpedition.current().score.stars),18);
   await page.locator('#epiTab').click();const city=page.frameLocator('#epiView');await city.locator('#mayor').waitFor();if(!await city.locator('#gameTour').count())await city.locator('#cityTutorial').click();
   await page.emulateMedia({reducedMotion:'no-preference'});await city.locator('#observeCity').click();await city.locator('.tour-watching').waitFor();
   await city.locator('.inhabitant[data-person="0"]').press('Enter');await city.locator('.monitor-dialog[open]').waitFor();
@@ -56,11 +59,11 @@ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+(req
   // Upgrade only the robot: a completed city and its research points remain valid.
   const oldCityScore=await page.evaluate(()=>FestivalSession.read('score').city);
   const oldCityCheckpoint=await city.locator('body').evaluate(()=>JSON.stringify(FestivalSession.read('city')));
-  await page.evaluate(()=>{const saved=JSON.parse(sessionStorage.getItem('festival-session-v1'));saved.data.robot={samples:[],model:[]};delete saved.data.score.robotRules;sessionStorage.setItem('festival-session-v1',JSON.stringify(saved));});
+  await page.evaluate(()=>{const saved=JSON.parse(sessionStorage.getItem('festival-session-v1'));saved.data.robot={samples:[],model:[]};delete saved.data.score.robotRules;saved.data.robotBest.rules='old';sessionStorage.setItem('festival-session-v1',JSON.stringify(saved));});
   await page.reload();await city.locator('#mayor').waitFor();assert.equal(await page.locator('#overallScore').innerText(),String(oldCityScore),'An old robot score cannot survive the new mechanics');
   assert.equal(await city.locator('body').evaluate(()=>JSON.stringify(FestivalSession.read('city'))),oldCityCheckpoint,'Robot migration preserves city research and progress');
   const cityActions=await city.locator('body').evaluate(()=>FestivalSession.read('city').actions);
-  await page.evaluate(()=>{const saved=JSON.parse(sessionStorage.getItem('festival-session-v1'));saved.data.robot.rules='old';saved.data.city.rules='old';saved.data.score.rules='old';saved.data.score.robot=50;saved.data.score.city=50;saved.data.score.deliveryDone=saved.data.score.cityDone=true;sessionStorage.setItem('festival-session-v1',JSON.stringify(saved));});
+  await page.evaluate(()=>{const saved=JSON.parse(sessionStorage.getItem('festival-session-v1'));saved.data.robot.rules='old';saved.data.robotBest.rules='old';saved.data.city.rules='old';saved.data.score.rules='old';saved.data.score.robot=50;saved.data.score.city=50;saved.data.score.deliveryDone=saved.data.score.cityDone=true;sessionStorage.setItem('festival-session-v1',JSON.stringify(saved));});
   await page.reload();await city.locator('#mayor').waitFor();assert.equal(await page.evaluate(()=>robotExpedition.current().stage),0,'Incompatible old robot experiments restart');assert.equal(await page.evaluate(()=>robotExpedition.current().model.length),0);
   const recalculated=await city.locator('body').evaluate((_,actions)=>CityCampaign.replay(actions).campaign.score,cityActions);assert.equal(await page.locator('#overallScore').innerText(),String(recalculated),'Old scores and completion cannot bypass new goals');assert(!(await page.locator('#cityMission').innerText()).startsWith('✓'));assert(!(await city.locator('#cityLearningGoal').innerText()).includes('улучшение подтверждено'));
   await page.locator('#newParticipant').click();await page.reload();assert.equal(await page.locator('#overallScore').innerText(),'0');assert.equal(await page.evaluate(()=>robotExpedition.current().trips.length),0);

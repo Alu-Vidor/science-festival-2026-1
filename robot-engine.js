@@ -1,7 +1,7 @@
 /* Route experiments. Physics and the learned predictor have separate inputs. */
 (function (root) {
   'use strict';
-  const VERSION = 'route-lab-1';
+  const VERSION = 'delivery-school-1';
   const terrains = {
     road: {name:'Дорога',base:2,color:'#667986'}, mud:{name:'Грязь',base:3,color:'#89613c'},
     water:{name:'Мелководье',base:4,color:'#288ca8'}, gravel:{name:'Камни',base:3,color:'#a2aaa1'},
@@ -18,7 +18,7 @@
     if(stage===1){
       for(const [i,type,length] of [[1,'road',10],[2,'road',7],[3,'sand',2],[4,'water',1],[5,'hill',2],[6,'gravel',3],[7,'hill',2],[9,'gravel',2],[10,'mud',2],[11,'road',3],[13,'water',1],[14,'sand',2],[15,'hill',2],[16,'road',5],[17,'road',4]]) Object.assign(edges[i],{type,length});
     }
-    return {stage,title:stage?'Перевал':'Долина',max:stage?13:12,budget:60,nodes,edges,start:'S',goal:'G'};
+    return {stage,nodes,edges,start:'S'};
   }
   const fresh=()=>({dirty:false,wet:0});
   const stateKey=s=>`${+s.dirty}:${s.wet}`;
@@ -48,16 +48,6 @@
     return {energy:o.energy,after:{...o.after},stalled:o.stalled,known:d===0,source:d===0?'Есть опыт в таком состоянии':'По ближайшему опыту; состояние колёс отличается'};
   }
   function edgeBetween(map,a,b){return map.edges.find(e=>e.a===a&&e.b===b||e.a===b&&e.b===a);}
-  function routeSteps(map,route){
-    if(!Array.isArray(route)||route[0]!==map.start||route.length>31)throw Error('Маршрут начинается на базе и содержит не более 30 дорог.');
-    const steps=[];
-    for(let i=1;i<route.length;i++){
-      if(route[i-1]===map.goal)throw Error('После лагеря рейс завершён.');
-      const e=edgeBetween(map,route[i-1],route[i]);if(!e)throw Error('Соедини соседние развилки дорогой.');
-      for(let n=0;n<e.length;n++)steps.push({type:e.type,edge:e.id,from:route[i-1],to:route[i],fraction:(n+1)/e.length});
-    }
-    return steps;
-  }
   function journey(steps,predictor,budget=Infinity){
     let state=fresh(),spent=0,stalled=false,exhausted=false;const observations=[];
     for(const step of steps){
@@ -69,34 +59,6 @@
     }
     return {spent,state,stalled,exhausted,observations,finished:!stalled&&!exhausted&&observations.length===steps.length};
   }
-  const simulate=(map,route)=>journey(routeSteps(map,route),physical,map.budget);
-  const forecast=(map,route,model)=>journey(routeSteps(map,route),(type,s)=>predictStep(model,type,s),map.budget);
-  // Held-out combinations are never added to the learner's observations.
-  const controls=[['mud','road','road','road'],['mud','water','road','road','hill'],['water','hill'],['mud','gravel','road','hill'],['water','sand','hill'],['mud','hill','road']];
-  function assess(model){
-    const checks=controls.map(types=>{
-      const steps=types.map(type=>({type})),actual=journey(steps,physical),predicted=journey(steps,(t,s)=>predictStep(model,t,s));
-      const error=Math.abs(actual.spent-predicted.spent),outcome=actual.stalled===predicted.stalled;
-      const quality=outcome?Math.max(0,1-error/Math.max(1,actual.spent)):0;
-      return {types,actual:actual.spent,predicted:predicted.spent,stalled:actual.stalled,predictedStall:predicted.stalled,error,quality};
-    });
-    return {checks,score:model.length?Math.floor(25*checks.reduce((s,c)=>s+c.quality,0)/checks.length+1e-9):0,correct:checks.filter(c=>c.quality>=.9).length};
-  }
-  // State-space search is used for a fair energy benchmark, never to draw a route for the player.
-  function optimum(map){
-    const queue=[{node:map.start,state:fresh(),energy:0,route:[map.start]}],seen=new Map();
-    while(queue.length){
-      queue.sort((a,b)=>a.energy-b.energy);const c=queue.shift(),id=c.node+':'+stateKey(c.state);
-      if(seen.has(id))continue;seen.set(id,c.energy);if(c.node===map.goal)return c;
-      for(const e of map.edges.filter(e=>e.a===c.node||e.b===c.node)){
-        let state={...c.state},energy=c.energy,stalled=false;
-        for(let n=0;n<e.length;n++){const r=physical(e.type,state);energy+=r.energy;state=r.after;if(r.stalled){stalled=true;break;}}
-        if(!stalled){const node=e.a===c.node?e.b:e.a;queue.push({node,state,energy,route:[...c.route,node]});}
-      }
-    }
-    return null;
-  }
-  function deliveryScore(map,result,route){return result.finished&&route.at(-1)===map.goal?Math.max(1,Math.floor(map.max*optimum(map).energy/result.spent+1e-9)):0;}
-  const api={VERSION,terrains,create,fresh,key,stateName,physical,train,predictStep,edgeBetween,routeSteps,journey,simulate,forecast,assess,optimum,deliveryScore};
+  const api={VERSION,terrains,create,fresh,key,stateName,physical,train,predictStep,edgeBetween,journey};
   root.RobotEngine=api;if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);

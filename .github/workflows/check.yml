@@ -21,6 +21,9 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Check monitor viewports and complete missions
         run: node tests/monitor.cjs
+      - name: Check autonomous robot learning and animation
+        if: success() || failure()
+        run: node tests/robot-gameplay.cjs
       - name: Check real game screens and interactions
         if: success() || failure()
         run: node tests/browser.cjs

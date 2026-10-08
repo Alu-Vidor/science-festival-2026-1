@@ -48,8 +48,14 @@ const server = http.createServer((req, res) => {
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
-      const selectors=['#run','#stop','#train','#status','#forecastEnergy','#forecastOutcome','#forecastConfidence','#qualitySummary','#qualityChange','#deliveryBest','#routeMap','#terrainLegend','#routeText','#nextStageHint','#scoreRules','#newParticipant','.panel > *'];
-      async function robotFits(){await fits(page,selectors);}
+      const selectors=['#status','#qualitySummary','#routeMap','#terrainLegend','#routeText','#scoreRules','#newParticipant','#missionGoal','#remaining','#wheelPicture','#wheelState','#surfaceEffect','#stars','#roundLabel'];
+      async function robotFits(){
+        const conditional=[];
+        for(const id of ['run','train','nextRound','undo','stop','forecastEnergy','forecastOutcome','forecastConfidence','tripOutcome','lastPrediction','lastActual','learningEffect','campaignResult'])if(await page.locator('#'+id).isVisible())conditional.push('#'+id);
+        await fits(page,[...selectors,...conditional]);
+        const clipped=await page.locator('.robot-console').evaluate(panel=>[...panel.children].filter(e=>!e.hidden).filter(e=>e.getBoundingClientRect().bottom>panel.getBoundingClientRect().bottom-5).map(e=>e.id||e.className));
+        assert.deepEqual(clipped,[],'Every robot panel action must fit inside its panel');
+      }
       await robotFits();
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-routes-${width}.png`)});
       await Robot.complete(page,async phase=>{await robotFits();if(phase==='audit')await fits(page,['#robotDialog','#dialogBody']);else await page.screenshot({path:path.join(root,'test-artifacts',`robot-${phase}-${width}.png`)});});
