@@ -73,10 +73,17 @@ const server = http.createServer((req, res) => {
         if(stage===1){
           await page.locator('[data-index="100"]').click();await page.locator('#safe').click();await page.locator('#probe').click();
           const right=['#sensors','#terrainLimits','#sensorHint','#transferForecast','#safe','#unsafe','#probe','#train','#model','.training > details:not([hidden])'];
-          await fits(page,right);await page.screenshot({path:path.join(root,'test-artifacts',`robot-wrong-label-${width}x${height}.png`)});
-          await page.locator('#train').click();await fits(page,right);
+          async function wrongLabelFits(){
+            await fits(page,right);
+            for(const font of ['Arial, sans-serif','DejaVu Sans, sans-serif','Noto Sans, sans-serif']){
+              await page.locator('.training').evaluate((el,font)=>el.style.fontFamily=font,font);await fits(page,right);
+            }
+            await page.locator('.training').evaluate(el=>el.style.fontFamily='');
+          }
+          await wrongLabelFits();await page.screenshot({path:path.join(root,'test-artifacts',`robot-wrong-label-${width}x${height}.png`)});
+          await page.locator('#train').click();await wrongLabelFits();
           await page.locator('#run').click();await page.waitForFunction(()=>!running);assert.equal(await page.evaluate(()=>stuckCell),100);
-          await fits(page,[...right,'#status']);await page.screenshot({path:path.join(root,'test-artifacts',`robot-stalled-${width}x${height}.png`)});
+          await wrongLabelFits();await fits(page,['#status']);await page.screenshot({path:path.join(root,'test-artifacts',`robot-stalled-${width}x${height}.png`)});
           await page.locator('#unsafe').click();await page.locator('#probe').click();await page.locator('#train').click();
         }
         if(stage===2)await adaptGorge(page);
