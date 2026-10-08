@@ -123,14 +123,14 @@ const server = http.createServer((req, res) => {
       await cityFrame.locator('.monitor-dialog > button').click();
       assert.equal(await cityFrame.locator('#cityPlaceInfo').isVisible(),false);
     }
-    assert.equal(await cityFrame.locator('#cityGoalGrid .city-goal').count(),1);
+    assert.equal(await cityFrame.locator('#cityGoalGrid .city-goal').count(),3);
     await cityFrame.locator('#cityConditions > summary').click();await cityFrame.locator('.monitor-dialog[open]').waitFor();
-    assert.equal(await cityFrame.locator('#cityConditionGrid .city-goal').count(),5);
+    assert.equal(await cityFrame.locator('#cityConditionGrid .city-goal').count(),3);
     await cityFrame.locator('.monitor-dialog > button').click();
     await City.maximum(cityFrame,async n=>{if(n===4||n===8)assert((await page.locator('#missionProgress').innerText()).includes('2 / 3'),'City completes only after all three rounds');});
     await page.waitForFunction(()=>+document.getElementById('overallScore').textContent===100);
     assert((await page.locator('#missionProgress').innerText()).includes('3 / 3'));
-    assert.equal(await cityFrame.locator('#cityAttempts span').count(),1);assert.equal(await cityFrame.locator('#cityAttempts span').textContent(),'Город 1: 50/50');
+    assert.equal(await cityFrame.locator('#cityAttempts span').count(),1);assert.equal(await cityFrame.locator('#cityAttempts span').textContent(),'Партия 1: 50/50');
     assert.equal(await cityFrame.locator('.citizen-emotion').count(),4,'A few representative reactions keep the map readable');
     await page.screenshot({path:path.join(shots,'city-three-rounds.png')});
     await cityFrame.locator('#restartCity').click();
@@ -156,11 +156,11 @@ const server = http.createServer((req, res) => {
     if(await cityFrame.locator('.monitor-dialog[open]').count())await cityFrame.locator('.monitor-dialog > button').click();
     await page.emulateMedia({reducedMotion:'reduce'});
     assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().game.day),0,'A paused day cannot finish in the background');
-    await City.day(cityFrame);
-    for(let n=1;n<12;n++)await City.day(cityFrame);
+    await City.round(cityFrame);
+    for(let n=1;n<3;n++)await City.round(cityFrame);
     assert.equal(await cityFrame.locator('#cityBestScore').innerText(),'50 / 50','A weaker replay preserves the best');
-    assert.equal(await cityFrame.locator('#cityLocalScore').innerText(),'22 / 50','The current replay shows its own score');
-    assert((await cityFrame.locator('#roundOutcome').innerText()).includes('Не выполнено:'));
+    assert.notEqual(await cityFrame.locator('#cityLocalScore').innerText(),'50 / 50','The current replay shows its own score');
+    assert((await cityFrame.locator('#roundOutcome').innerText()).includes('Главная задача не решена'));
     assert.equal(await page.locator('#overallScore').innerText(),'100','Overall score keeps the best result');
     assert.equal(await cityFrame.locator('#cityAttempts span').count(),2);
     assert.equal(await cityFrame.locator('#tryCity').isEnabled(),false);

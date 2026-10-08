@@ -5,27 +5,33 @@
   const S = root.GameScore || require('./game-score.js');
   const clone = value => JSON.parse(JSON.stringify(value));
   const rounds = [
-    { id: 'travel', focus: 'activity', task: 'Помоги жителям добраться на занятия и работу', title: 'Утренний час пик', brief: 'Дальним кварталам нужны поездки. Сравни расписание, рейсы и расходы.', max: 10,
-      cases: 2, food: 95, activity: 90, comfort: 75, expense: 440, weights: [3, 2, 3, 0, 1, 1] },
-    { id: 'supply', focus: 'food', task: 'Обеспечь жителей продуктами', title: 'Задержка поставок', brief: 'Четыре дня в магазинах меньше продуктов. Домашние запасы переходят из прошлого раунда.', max: 15,
-      cases: 2, food: 95, activity: 90, comfort: 75, expense: 510, weights: [4, 4, 3, 0, 1, 3] },
-    { id: 'care', focus: 'care', task: 'Организуй помощь заболевшим', title: 'Холод и помощь', brief: 'После поездки вернутся заболевшие. Симптомы появятся позже. Подготовь помощь и следи за поездками.', max: 20,
-      cases: 4, food: 95, activity: 90, comfort: 75, care: 90, expense: 470, weights: [6, 4, 4, 6, 2, 3] }
+    { id: 'travel', focus: 'activity', task: 'Дети и взрослые должны добраться на занятия и работу', title: 'Утренний час пик', brief: 'Час пик: дальним кварталам нужны автобусы. Впереди задержка поставок, затем обращения за помощью.', max: 3,
+      food: 95, activity: 90, expense: 324 },
+    { id: 'supply', focus: 'food', task: 'Обеспечь жителей продуктами', title: 'Задержка поставок', brief: 'На 4 дня снижена вместимость магазинов. Запасы из прошлого раунда сохраняются. Скоро понадобится помощь заболевшим.', max: 3,
+      food: 95, activity: 90, expense: 388 },
+    { id: 'care', focus: 'care', task: 'Организуй помощь заболевшим', title: 'Холод и помощь', brief: 'После поездки вернутся заболевшие. Симптомы появятся позже. Подготовь помощь и следи за поездками.', max: 3,
+      food: 95, activity: 90, care: 90, expense: 348 }
   ];
   const projects = ['bus', 'market', 'clinic'];
-  const projectFunds = 200;
-  const choices = S.cityChoices;
+  const projectFunds = 200, VERSION='city-experiments-1', MAX_STARS=9;
+  const choices = {...S.cityChoices,bus:[['frequent','Утро','60 мест утром, 12 к службам; 40 на отдых.'],['normal','Смешанно','50 мест утром, 22 к службам; 40 на отдых.'],['reduced','Службы','40 мест утром, 32 к службам; 40 на отдых.']]};
+  choices.school=choices.school.map(([v,t,h])=>[v,t,h+(v==='shifts'?' +24 монеты/день, +25% утренних мест.':v==='remote'?' −10 монет/день; не все могут заниматься дома.':'')]);
+  choices.shops=choices.shops.map(([v,t,h])=>[v,t,h+(v==='long'?' +16 монет/день.':v==='one'?' −12 монет/день, торговый центр закрыт.':'')]);
+  const allocations={frequent:[60,12,40],normal:[50,22,40],reduced:[40,32,40]};
+  function policy(plan){return {...S.cityPolicy(plan),bus:'normal',busAllocation:allocations[plan.bus],shopSaving:plan.shops==='one'?12:0};}
+  function dailyExpense(c,plan){return M.dailyCost(c.game.infrastructure,policy(plan));}
   function create() {
     const schedule = {};
     for (let day = 5; day <= 8; day++) schedule[day] = { title: 'Задержка поставок', text: 'Меньше товаров в обоих магазинах.', kind: 'delivery' };
     for (let day = 9; day <= 12; day++) schedule[day] = { title: day === 9 ? 'Холод и заболевшие гости' : 'Похолодание', text: 'Жители выбирают отдых в помещении. Больнице нужна готовность.', kind: 'cold' };
     const districts = M.setup().map((d, i) => ({ ...d, far: [1, 2, 4, 5].includes(i) }));
-    const game = M.create({ seed: 17, districts, maxDays: 12, contactScale: .35, healthcareBeds: 1,
+    const game = M.create({ seed: 17, districts, maxDays: 12, contactScale: .15, healthcareBeds: 1,
       shopSeats: { market: 6, mall: 10 }, eventSchedule: schedule, recordCitizens: true });
     return { game, funds: projectFunds, projects: [], results: [], score: 0, completed: false, incoming: [] };
   }
   function current(c) { return rounds[Math.min(2, Math.floor(c.game.day / 4))]; }
   function invest(c, id) {
+    if(c.game.day%4)throw Error('Улучшения меняются между раундами.');
     if (!projects.includes(id)) throw Error('Это улучшение недоступно в испытании.');
     if (c.completed) throw Error('Город завершён. Начни новое прохождение.');
     if (c.projects.includes(id)) throw Error('Это улучшение уже построено.');
@@ -39,6 +45,7 @@
     return out;
   }
   function refund(c, id) {
+    if(c.game.day%4)throw Error('Улучшения меняются между раундами.');
     if (c.completed) throw Error('Город завершён. Начни новое прохождение.');
     if (!projects.includes(id) || !c.projects.includes(id)) throw Error('В это улучшение монеты не вложены.');
     const out = clone(c), cost = M.upgrades[id].cost;
@@ -56,24 +63,30 @@
     const expense = days.reduce((sum, r) => sum + r.expenses, 0);
     return { days: days.length, cases, food: avg('food'), activity: avg('participation'), comfort: avg('happiness'), care: care ? treated / care * 100 : 100, careRequests: care, careServed: treated, expense };
   }
-  function report(c, index) {
-    const goal = rounds[index], stats = measure(c, index);
-    if (!stats || stats.days !== 4) throw Error('Раунд ещё не завершён.');
-    const { cases, expense } = stats;
-    const met = [cases <= goal.cases, stats.food >= goal.food, stats.activity >= goal.activity,
-      !goal.care || stats.care >= goal.care, stats.comfort >= goal.comfort, expense <= goal.expense];
-    const ratios = [cases ? Math.min(1, goal.cases / cases) : 1, Math.min(1, stats.food / goal.food),
-      Math.min(1, stats.activity / goal.activity), goal.care ? Math.min(1, stats.care / goal.care) : 1,
-      Math.min(1, stats.comfort / goal.comfort), Math.min(1, goal.expense / expense)];
-    const full = met.every(Boolean);
-    const primaryMet = stats[goal.focus] >= goal[goal.focus];
-    const raw = Math.floor(goal.max * goal.weights.reduce((sum, weight, i) => sum + weight * ratios[i], 0) / goal.weights.reduce((sum, weight) => sum + weight, 0) + 1e-9);
-    const cap = primaryMet ? goal.max - 1 : Math.floor(goal.max / 2);
-    return { index, ...stats, score: full ? goal.max : Math.min(cap, raw), full, primaryMet, met };
+  function checks(stats,index){
+    const goal=rounds[index],main=stats && (goal.focus!=='care'||stats.careRequests>0) && stats[goal.focus]>=goal[goal.focus];
+    const support=stats && (index===0?stats.food>=goal.food:index===1?stats.activity>=goal.activity:stats.food>=goal.food&&stats.activity>=goal.activity);
+    const budget=stats && stats.expense<=goal.expense;
+    const labels={activity:'Добрались на занятия и работу',food:'Жители обеспечены едой',care:'Обращения за помощью обслужены'};
+    const number=(key)=>stats?stats[key].toFixed(1)+'%':'—';
+    return [
+      {key:goal.focus,title:'★ '+labels[goal.focus],target:'Не меньше '+goal[goal.focus]+'%',actual:goal.focus==='care'&&stats&&!stats.careRequests?'Пока нет обращений':number(goal.focus),met:!!main},
+      {key:'support',title:'★★ Остальные службы справились',target:index===0?'Еда ≥95%':index===1?'Занятия и работа ≥90%':'Еда ≥95% · занятия и работа ≥90%',actual:index===0?number('food'):index===1?number('activity'):'Еда '+number('food')+' · занятия '+number('activity'),met:!!support},
+      {key:'expense',title:'★★★ Уложились в бюджет',target:'Не больше '+goal.expense+' монет за 4 дня',actual:stats?stats.expense+' монет':'—',met:!!budget}
+    ];
+  }
+  function report(c,index){
+    const stats=measure(c,index);if(!stats||stats.days!==4)throw Error('Раунд ещё не завершён.');
+    const met=checks(stats,index).map(x=>x.met),score=met[0]?(met[1]?(met[2]?3:2):1):0;
+    return {index,...stats,score,full:score===3,primaryMet:met[0],met};
+  }
+  function round(c,plan){
+    if(c.completed||c.game.day%4)throw Error('Нужен город перед началом раунда.');
+    let out=c;for(let i=0;i<4;i++)out=advance(out,plan);return out;
   }
   function advance(c, plan) {
     if (c.completed) throw Error('Город завершён. Начни новое прохождение.');
-    const policy = S.cityPolicy(plan), out = clone(c), day = c.game.day + 1;
+    const p = policy(plan), out = clone(c), day = c.game.day + 1;
     // Announced, reproducible external arrivals. They are not counted as local transmissions.
     if (day === 9) {
       for (let district = 0; district < 4; district++) {
@@ -82,7 +95,7 @@
       }
     }
     out.game.shopSeats = day >= 5 && day <= 8 ? { market: 4.2, mall: 7 } : { market: 6, mall: 10 };
-    out.game = M.step(out.game, policy);
+    out.game = M.step(out.game,p);
     if (day % 4 === 0) out.results.push(report(out, day / 4 - 1));
     out.score = out.results.reduce((sum, r) => sum + r.score, 0);
     out.completed = day === 12;
@@ -102,25 +115,6 @@
     }
     return { campaign, starts };
   }
-  function compare(start, plan, actions) {
-    if (!start || start.game.day % 4 !== 0 || start.completed) throw Error('Нужен город в начале раунда.');
-    let alternative = start;
-    if (actions) {
-      let day = 0;
-      const first = start.game.day, end = first + 4;
-      for (const action of actions) {
-        if (action.kind === 'day') {
-          if (day >= first && day < end) alternative = advance(alternative, plan);
-          day++;
-        } else if (day > first && day < end) {
-          // Keep the actual infrastructure changes; only the operating plan differs.
-          alternative = action.kind === 'invest' ? invest(alternative, action.id) : refund(alternative, action.id);
-        }
-      }
-      if (alternative.game.day !== end) throw Error('Нужен завершённый раунд.');
-    } else for (let day = 0; day < 4; day++) alternative = advance(alternative, plan);
-    return alternative.results.at(-1);
-  }
   function insights(c, index) {
     const days = c.game.reports.slice(index * 4, index * 4 + 4), stats = measure(c, index);
     if (!stats) return [];
@@ -132,14 +126,8 @@
     const expense = 'Работа города: ' + stats.expense + ' монет за ' + days.length + ' дня; содержание улучшений: ' + sum('upkeep') + '.';
     return index === 0 ? [travel, supply, expense] : index === 1 ? [supply, travel, expense] : [care, 'Заражений внутри города: ' + stats.cases + '.', expense];
   }
-  function experiment(actual, alternative, original, proposed) {
-    const changed = Object.keys(choices).filter(key => original[key] !== proposed[key]);
-    const directions = { cases: -1, food: 1, activity: 1, care: 1, comfort: 1, expense: -1 };
-    const improvements = Object.entries(directions).filter(([key, sign]) => sign * (alternative[key] - actual[key]) > .01).map(([key]) => key);
-    return { changed, improvements, success: changed.length === 1 && alternative.full && improvements.length > 0 };
-  }
-  function cityScore(c, researched) { return c.score + (researched ? 5 : 0); }
-  function succeeded(c, researched) { return c.completed && c.results.every(result => result.primaryMet) && researched; }
-  root.CityCampaign = { rounds, projects, projectFunds, choices, create, invest, refund, advance, current, measure, report, replay, compare, insights, experiment, cityScore, succeeded };
+  function cityScore(c) { return Math.floor(c.score*50/MAX_STARS); }
+  function succeeded(c) { return c.completed && c.score===MAX_STARS; }
+  root.CityCampaign = { VERSION,MAX_STARS,allocations,dailyExpense,checks,round,rounds, projects, projectFunds, choices, create, invest, refund, advance, current, measure, report, replay, insights, cityScore, succeeded };
   if (typeof module !== 'undefined') module.exports = root.CityCampaign;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -11,11 +11,11 @@
     const config = mode === 'mayor' ? { name: 'Город', steps: [
       { target: '#observeCity', context: ['#mayorMapSlot .mapscroll'], title: 'Сначала наблюдай', text: 'Нажми «Учебный день». Он бесплатный.', event: 'city:observed', delay: 350,
         watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', interactive: ['#map', '#tryCity', '#pauseCity', '#cityPeople', '.monitor-dialog'], context: ['#mayorMapSlot .legend', '#citizenStory', '.city-time-controls'], text: 'Смотри на поездки и эмоции. Нажатие на жителя остановит день и откроет карточку. Затем нажми «Продолжить день».' } },
-      { target: '#pick-bus-frequent', context: ['#choices-bus'], title: 'Помоги добраться', text: 'Жители пропускают поездки. Нажми «Больше рейсов».', event: 'city:choice', accept: d => d.key === 'bus' && d.value === 'frequent' },
-      { target: '#tryCity', context: ['#mayorMapSlot .mapscroll'], title: 'Проверь своё решение', text: 'Проверь рейсы. После дня город остановится.', event: 'city:tested', delay: 350,
+      { target: '#pick-bus-frequent', context: ['#choices-bus'], title: 'Помоги добраться', text: 'Жители пропускают поездки. Нажми «Утро»: больше мест утром, меньше для поездок к службам.', event: 'city:choice', accept: d => d.key === 'bus' && d.value === 'frequent' },
+      { target: '#tryCity', context: ['#mayorMapSlot .mapscroll'], title: 'Проверь своё решение', text: 'Проверь изменённое распределение на том же исходном дне. После опыта город остановится.', event: 'city:tested', delay: 350,
         watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', interactive: ['#map', '#tryCity', '#pauseCity', '#cityPeople', '.monitor-dialog'], context: ['#mayorMapSlot .legend', '#citizenStory', '.city-time-controls'], text: 'Заметь, кто добрался. Можно нажать на жителя и прочитать его историю. После осмотра закрой карточку и продолжи день.' } },
-      { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'Победа — три решённые задачи и проверенное улучшение плана. Раунды дают до 45 баллов, сравнение одного решения — ещё 5. Для максимума нужны все «Условия успеха».' },
-      { target: '#projectSummary', title: 'Планируй улучшения', text: 'Распредели 200 монет. Между днями можно вернуть улучшение и вложить монеты в другое. Прошедшие дни не изменятся.' }
+      { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'Звёзды идут по порядку: задача, остальные службы, бюджет. Три раунда дают до 9 звёзд. Опыты бесплатные и не добавляют баллы.' },
+      { target: '#projectSummary', title: 'Планируй улучшения', text: 'Распредели 200 монет. Между раундами можно вернуть улучшение и вложить монеты в другое. Прошедшие дни не изменятся.' }
     ] } : mode === 'contest' ? { name: 'Соревнование', steps: [
       { target: '.round-clock', title: 'Семь минут на попытки', text: 'Таймер начнётся после первой проверки. Во время обучения он стоит.' },
       { target: '#contestChoices', title: 'Выбирай карточки', text: 'Открой категорию и нажми вариант. Можно организовать меры на шесть очков.' },

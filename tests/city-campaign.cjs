@@ -1,109 +1,67 @@
-const assert = require('node:assert/strict'), C = require('../city-campaign.js'), M = require('../mayor.js');
-const empty = C.create(), untouched = structuredClone(empty);
-const built = C.invest(empty, 'bus');
-assert.deepEqual(empty, untouched);
-assert.equal(built.funds, 110); assert.equal(built.game.cash, empty.game.cash);
-assert.equal(built.game.infrastructure.bus, 1);
-assert.throws(() => C.invest(built, 'bus'));
-assert.throws(() => C.invest(C.invest(built, 'clinic'), 'market'), /Недостаточно/);
-assert.throws(() => C.invest(empty, 'water'));
-assert.throws(() => C.report(empty, 0));
-function run(strategy) {
-  let c = C.create();
-  for(let day = 1; day <= 12; day++) {
-    if(strategy === 'market' && day === 5) c = C.invest(c, 'market');
-    if(strategy === 'bus' && day === 1) c = C.invest(c, 'bus');
-    if(strategy !== 'static' && day === 9) c = C.invest(c, 'clinic');
-    const before = structuredClone(c);
-    c = C.advance(c, { school:'shifts', bus:strategy === 'bus' && day <= 4 ? 'normal':'frequent', shops:strategy !== 'market' && strategy !== 'static' && day >= 5 && day <= 8 ? 'long':'both' });
-    assert.equal(c.game.day, day); assert.equal(c.game.history.length, day * 5);
-    assert.equal(c.funds, before.funds, 'Daily income never refills the construction grant');
-    assert.equal(c.game.cash, before.game.cash + c.game.reports.at(-1).income - c.game.reports.at(-1).expenses);
-    assert.equal(c.results.length, Math.floor(day / 4));
-    assert.deepEqual(before.game.history, c.game.history.slice(0, -5), 'Past reactions and routes remain immutable');
-  }
-  return c;
+const assert=require('node:assert/strict'),C=require('../city-campaign'),M=require('../mayor');
+const builds=[[],['bus'],['market'],['clinic'],['bus','market'],['bus','clinic'],['market','clinic']];
+const plans=[];for(const school of ['normal','shifts','remote'])for(const bus of ['normal','frequent','reduced'])for(const shops of ['both','long','one'])plans.push({school,bus,shops});
+const initial=C.create(),copy=structuredClone(initial),base={school:'normal',bus:'frequent',shops:'both'};
+function equip(c,ids){for(const id of [...c.projects])if(!ids.includes(id))c=C.refund(c,id);for(const id of ids)if(!c.projects.includes(id))c=C.invest(c,id);return c;}
+function independentChecks(c){
+ c.results.forEach((r,i)=>{const ds=c.game.reports.slice(i*4,i*4+4),avg=k=>ds.reduce((n,d)=>n+d[k],0)/4,requests=ds.reduce((n,d)=>n+d.care,0),treated=ds.reduce((n,d)=>n+d.treated,0);
+  const primary=[avg('participation')>=90,avg('food')>=95,requests>0&&treated/requests>=.9][i],support=i===0?avg('food')>=95:i===1?avg('participation')>=90:avg('food')>=95&&avg('participation')>=90;
+  const expense=ds.reduce((n,d)=>n+d.expenses,0),affordable=expense<=[324,388,348][i];
+  assert.equal(r.score,primary?(support?(affordable?3:2):1):0);assert.equal(r.expense,expense);assert.equal(r.full,r.score===3);
+ });
 }
-const solutions = ['shops','market','bus'].map(run);
-for(const c of solutions) {
-  assert(c.completed); assert.equal(c.score, 45); assert.deepEqual(c.results.map(r=>r.score), [10,15,20]);
-  // Recompute every maximum condition directly from daily observations, independently of scoring.
-  c.results.forEach((r, i) => {
-    const goal = C.rounds[i], days = c.game.reports.slice(i*4,i*4+4), average = key => days.reduce((s,d)=>s+d[key],0)/4;
-    assert(average('food') >= goal.food); assert(average('participation') >= goal.activity); assert(average('happiness') >= goal.comfort);
-    assert(days.reduce((s,d)=>s+d.expenses,0) <= goal.expense);
-    const local = c.game.history.filter(h=>h.day>i*4&&h.day<=i*4+4).reduce((s,h)=>s+h.exposures.length,0);
-    assert(local <= goal.cases);
-    if(goal.care) assert(days.reduce((s,d)=>s+d.treated,0) / days.reduce((s,d)=>s+d.care,0) >= goal.care/100);
-    assert(r.met.every(Boolean));
-  });
-  assert.throws(()=>C.advance(c,{school:'normal',bus:'normal',shops:'both'}));
+let staticMax=0,staticCount=0;
+for(const plan of plans)for(const build of builds){let c=equip(C.create(),build);for(let i=0;i<3;i++){const expected=C.dailyExpense(c,plan)*4;c=C.round(c,plan);assert.equal(c.results[i].expense,expected,'Visible cost must match the actual four-day bill');}independentChecks(c);staticMax=Math.max(staticMax,c.score);staticCount++;}
+assert.equal(staticCount,189);assert.equal(staticMax,6,'No unchanged plan and initial project bundle can approach nine stars');
+console.log('City balance: all 189 static combinations, maximum 6/9');
+let c=C.create();const winning=[];
+for(let i=0;i<3;i++){
+ const options=[];
+ for(const build of builds)for(const plan of plans){const start=equip(c,build),a=C.round(start,plan);if(a.results[i].score===3)options.push({build,plan,c:a,cost:a.results[i].expense});}
+ assert(options.length>=2);assert(new Set(options.map(o=>o.build.join())).size>=2,'Different full-star solutions must use genuinely different infrastructure');
+ options.sort((a,b)=>a.cost-b.cost);console.log('Round '+(i+1)+': '+options.length+' full-star decisions; cheapest cost '+options[0].cost);
+ const expected=[{build:[],plan:base},{build:['market'],plan:base},{build:['clinic'],plan:{...base,bus:'normal'}}][i];
+ const start=equip(c,expected.build),before=JSON.stringify(start),trial=C.round(start,expected.plan),again=C.round(start,expected.plan);
+ assert.equal(JSON.stringify(start),before,'Trials never mutate the real city or its budget');assert.deepEqual(trial,again,'Trial and committed plan reproduce the same four days');
+ assert.equal(trial.results[i].score,3);assert.equal(trial.funds,start.funds);assert.deepEqual(trial.game.history.slice(0,start.game.history.length),start.game.history);
+ winning.push(expected);c=trial;
 }
-assert.equal(new Set(solutions.map(c=>c.funds)).size,3,'Distinct strategies use different project allocations');
-assert.equal(new Set(solutions.map(c=>c.results[1].expense)).size,3,'Distinct strategies have genuinely different operating costs');
-assert.deepEqual(run('shops'),solutions[0],'Initial conditions and external arrivals are reproducible');
-const simple = run('static'); assert(simple.score < 50); assert(simple.results[1].food < 95); assert(simple.results[2].care < 90);
-for(const r of simple.results) if(!r.met.every(Boolean)) assert(r.score < C.rounds[r.index].max,'Rounding cannot award maximum with a missed goal');
-assert.equal(simple.incoming.length,4);
-assert.equal(simple.game.history.find(h=>h.day===9).state[simple.incoming[0]],'S','Latent arrivals have no visible symptoms');
-assert.equal(simple.game.history.find(h=>h.day===10).state[simple.incoming[0]],'I','Symptoms occur two days after infection on day eight');
-const bad = M.create({contactScale:0,recordCitizens:true});
-let hungry = M.step(bad,{market:'closed',mall:'closed'}); const firstDay = structuredClone(hungry.history);
-hungry = M.step(hungry,{market:'closed',mall:'closed'});
-assert.deepEqual(hungry.history.slice(0,5),firstDay);
-assert(hungry.history.at(-1).citizens.some(p=>p.reaction?.kind==='food'));
-assert(hungry.history.filter(h=>h.day===1).every(h=>h.citizens.every(p=>p.reaction?.kind!=='food')),'Earlier frames never inherit later hunger');
-for(const h of hungry.history) for(const p of h.citizens) {
-  if(p.reaction?.kind==='food') assert.equal(p.food,0);
-  if(p.reaction?.kind==='tired') assert(p.energy<40);
-}
-console.log('City campaign: three distinct 45-point round strategies, persistent resources, bounded grant, delayed symptoms, truthful reactions and strict goals passed');
-
-// Reallocation preserves past days and cannot create coins or refund operating costs.
-{
- let c=C.create();c=C.invest(c,'bus');c=C.advance(c,{school:'shifts',bus:'normal',shops:'both'});
- const prior=JSON.stringify(c),cash=c.game.cash,history=JSON.stringify(c.game.history),reports=JSON.stringify(c.game.reports);
- const returned=C.refund(c,'bus');assert.equal(returned.funds,200);assert.equal(returned.game.infrastructure.bus,0);assert.equal(returned.game.cash,cash);
- assert.equal(JSON.stringify(returned.game.history),history);assert.equal(JSON.stringify(returned.game.reports),reports);assert.equal(JSON.stringify(c),prior);
- assert.throws(()=>C.refund(returned,'bus'));const clinic=C.invest(returned,'clinic');assert.equal(clinic.funds,90);assert.equal(clinic.game.infrastructure.clinic,1);
- let again=returned;for(let i=0;i<20;i++)again=C.refund(C.invest(again,'market'),'market');assert.equal(again.funds,200);assert.equal(again.game.cash,cash);
- assert.throws(()=>C.refund({...clinic,completed:true},'clinic'));
-}
-
-// Alternative plans share a checkpoint and never change the real campaign.
-{
- const base=C.create(),before=JSON.stringify(base),a=C.compare(base,{school:'normal',bus:'normal',shops:'both'}),b=C.compare(base,{school:'shifts',bus:'frequent',shops:'both'});
- assert(b.score>a.score);assert.equal(b.score,10);assert.equal(JSON.stringify(base),before);
- const actions=[{kind:'invest',id:'bus'},{kind:'day',plan:{school:'shifts',bus:'normal',shops:'both'}},{kind:'refund',id:'bus'}];
- const replay=C.replay(actions);assert.equal(replay.campaign.game.day,1);assert.equal(replay.campaign.funds,200);assert.equal(replay.starts[0].projects[0],'bus');
- assert.throws(()=>C.replay([{kind:'day',plan:{school:'bogus',bus:'normal',shops:'both'}}]));
- const stable={school:'shifts',bus:'frequent',shops:'both'};
- const changes=[{kind:'day',plan:stable},{kind:'invest',id:'market'},{kind:'day',plan:stable},{kind:'refund',id:'market'},{kind:'day',plan:stable},{kind:'day',plan:stable}];
- const changed=C.replay(changes),unchanged=JSON.stringify(changed.campaign);
- assert.deepEqual(C.compare(changed.starts[0],stable,changes),changed.campaign.results[0],'Comparison repeats investments and refunds on the same days');
- assert.equal(JSON.stringify(changed.campaign),unchanged);
- assert.throws(()=>C.compare(base,stable,changes.slice(0,2)));
- let c=C.create();for(let day=1;day<=9;day++)c=C.advance(c,{school:'shifts',bus:'frequent',shops:'both'});
- assert.equal(C.measure(c,2).careRequests,0);assert(C.insights(c,2).some(s=>s.includes('Обращений за помощью пока не было')));
-}
-
-// Missing a round's main task cannot be compensated by unrelated indicators.
-{
- const passive=[];
- for(const school of ['normal','shifts'])for(const bus of ['normal','frequent']){
-  let c=C.create();const plan={school,bus,shops:'both'};
-  for(let day=0;day<12;day++)c=C.advance(c,plan);
-  passive.push(c.score);
-  for(const result of c.results)if(!result.primaryMet)assert(result.score<=Math.floor(C.rounds[result.index].max/2));
+assert.equal(c.score,9);assert.equal(C.cityScore(c),50);assert(C.succeeded(c));assert.deepEqual(initial,copy);assert.throws(()=>C.round(c,base));independentChecks(c);
+assert.deepEqual(c.results.map(r=>r.expense),[304,320,328]);
+// Every service chain is built from real people and conserves counts.
+for(const r of c.game.reports){
+ for(const [kind,f]of Object.entries(r.flows)){
+  for(const key of ['requested','arrived','served'])assert.equal(new Set(f[key]).size,f[key].length);
+  assert(f.arrived.every(id=>f.requested.includes(id)));assert(f.served.every(id=>f.arrived.includes(id)));
+  const missed=f.requested.filter(id=>!f.arrived.includes(id)),wait=f.arrived.filter(id=>!f.served.includes(id));
+  assert.equal(f.requested.length,missed.length+wait.length+f.served.length);
+  if(kind==='food')assert.deepEqual([...f.capacityDenied,...f.moneyDenied].sort((a,b)=>a-b),wait.sort((a,b)=>a-b));
+  if(kind==='care'){assert.equal(f.requested.length,r.care);assert.equal(f.served.length,r.treated);}
  }
- assert(Math.max(...passive)<=27);
- const original={school:'shifts',bus:'frequent',shops:'both'},cheaper={...original,school:'normal'},base=C.create();
- const actual=C.compare(base,original),alt=C.compare(base,cheaper);
- assert(C.experiment(actual,alt,original,cheaper).success,'A cheaper plan meeting all conditions proves a meaningful improvement');
- assert(!C.experiment(actual,actual,original,original).success,'Repeating the same plan never earns the research bonus');
- const bad={...original,bus:'reduced'};
- assert(!C.experiment(actual,C.compare(base,bad),original,bad).success,'An improvement that misses a condition is not a successful experiment');
- assert(!C.experiment(actual,alt,original,{...cheaper,shops:'long'}).success,'Changing multiple variables is not a controlled experiment');
- assert.equal(C.cityScore(solutions[0],false),45);assert.equal(C.cityScore(solutions[0],true),50);
- assert(!C.succeeded(solutions[0],false));assert(C.succeeded(solutions[0],true));
+ for(const t of r.transport){assert(t.boarded<=t.capacity);assert.equal(t.missed,t.missedIds.length);assert(t.boardedIds.every(id=>t.requestedIds.includes(id)));}
 }
+for(const a of Object.values(C.allocations)){assert.equal(a[0]+a[1],72);assert.equal(a[2],40);}
+// A hospital alone cannot fix failed access: same city, different distribution, same money.
+let careStart=C.create();careStart=C.round(careStart,base);careStart=equip(careStart,['market']);careStart=C.round(careStart,base);careStart=equip(careStart,['clinic']);
+const accessBad=C.round(careStart,base),accessGood=C.round(careStart,{...base,bus:'normal'});
+assert(accessBad.results[2].care<90);assert(accessGood.results[2].care>=90);assert.equal(accessBad.results[2].expense,accessGood.results[2].expense);
+assert(accessBad.game.reports.slice(8).some(r=>r.flows.care.requested.some(id=>!r.flows.care.arrived.includes(id))));
+const noClinic=equip(careStart,[]),capacityBad=C.round(noClinic,{...base,bus:'normal'});assert(capacityBad.game.reports.slice(8).some(r=>r.flows.care.arrived.length>r.flows.care.served.length));
+const events=c.game.history,first=c.incoming[0];assert.equal(events.find(h=>h.day===9).state[first],'S');assert.equal(events.find(h=>h.day===10).state[first],'I');
+assert(!C.checks({careRequests:0,care:100,food:100,activity:100,expense:0},2)[0].met,'No appeals cannot be presented as delivered care');
+// Refunds only change future infrastructure; income and operating expenses are not refundable.
+let funded=C.invest(initial,'bus');assert.equal(funded.funds,110);assert.equal(funded.game.cash,initial.game.cash);assert.throws(()=>C.invest(funded,'bus'));assert.throws(()=>C.invest(C.invest(funded,'clinic'),'market'));
+let repeated=funded;for(let n=0;n<8;n++)repeated=C.invest(C.refund(repeated,'bus'),'bus');assert.equal(repeated.funds,110);
+const oneDay=C.advance(funded,base);assert.throws(()=>C.invest(oneDay,'market'));assert.throws(()=>C.refund(oneDay,'bus'));assert.throws(()=>C.round(oneDay,base));
+const actions=[];for(const [i,w]of winning.entries()){const active=C.replay(actions).campaign;for(const id of active.projects)if(!w.build.includes(id))actions.push({kind:'refund',id});for(const id of w.build)if(!active.projects.includes(id))actions.push({kind:'invest',id});for(let d=0;d<4;d++)actions.push({kind:'day',plan:w.plan});}
+assert.deepEqual(C.replay(actions).campaign,c);assert.throws(()=>C.replay([{kind:'day',plan:{...base,bus:'wrong'}}]));
+const priorHistory=JSON.stringify(careStart.game.history),priorCash=careStart.game.cash;const refund=C.refund(careStart,'clinic');assert.equal(JSON.stringify(refund.game.history),priorHistory);assert.equal(refund.game.cash,priorCash);
+console.log('City: 9 attainable stars, alternative solutions, conserved service chains, independent scoring, fair trials, transport/capacity bottlenecks, persistent consequences and replay passed');
+
+// Three whole successful campaigns use different investments and operating decisions.
+let economic=C.invest(C.create(),'market');economic=C.round(economic,{...base,shops:'one'});economic=C.round(economic,base);economic=C.invest(economic,'clinic');economic=C.round(economic,{...base,bus:'normal',shops:'one'});
+let transport=C.invest(C.create(),'bus');transport=C.round(transport,{...base,bus:'normal'});transport=C.round(transport,{...base,bus:'normal',shops:'long'});transport=C.invest(transport,'clinic');transport=C.round(transport,{...base,bus:'normal'});
+for(const alt of [economic,transport]){assert.equal(alt.score,9);independentChecks(alt);}
+assert.equal(new Set([c,economic,transport].map(x=>x.funds)).size,3);
+assert.equal(new Set([c,economic,transport].map(x=>x.results.reduce((n,r)=>n+r.expense,0))).size,3);
+console.log('Three complete 9/9 strategies with different operating costs and remaining project funds passed');
