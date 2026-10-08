@@ -3,7 +3,7 @@
   'use strict';
   const M = root.Mayor || (typeof require === 'function' ? require('./mayor.js') : null);
   const clamp = (n, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
-  const VERSION = 'missions-20261008-3';
+  const VERSION = 'missions-20261008-4';
   const cityChoices = {
     school: [['normal', 'Все вместе', 'Обычные занятия и работа.'], ['shifts', 'Две смены', 'Группы встречаются отдельно. Организация стоит дороже.'], ['remote', 'Дома', 'Меньше встреч. Не все могут работать и учиться дома.']],
     bus: [['normal', 'Обычные рейсы', '40 мест на каждый этап поездок.'], ['frequent', 'Больше рейсов', '60 мест. Меньше пропущенных поездок, больше расходов.'], ['reduced', 'Меньше рейсов', '20 мест. Дешевле, но дальним кварталам сложнее добраться.']],

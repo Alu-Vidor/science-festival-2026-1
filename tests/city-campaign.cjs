@@ -58,3 +58,14 @@ for(const h of hungry.history) for(const p of h.citizens) {
   if(p.reaction?.kind==='tired') assert(p.energy<40);
 }
 console.log('City campaign: three distinct 50/50 strategies, persistent resources, bounded grant, delayed symptoms, truthful reactions and strict goals passed');
+
+// Reallocation preserves past days and cannot create coins or refund operating costs.
+{
+ let c=C.create();c=C.invest(c,'bus');c=C.advance(c,{school:'shifts',bus:'normal',shops:'both'});
+ const prior=JSON.stringify(c),cash=c.game.cash,history=JSON.stringify(c.game.history),reports=JSON.stringify(c.game.reports);
+ const returned=C.refund(c,'bus');assert.equal(returned.funds,200);assert.equal(returned.game.infrastructure.bus,0);assert.equal(returned.game.cash,cash);
+ assert.equal(JSON.stringify(returned.game.history),history);assert.equal(JSON.stringify(returned.game.reports),reports);assert.equal(JSON.stringify(c),prior);
+ assert.throws(()=>C.refund(returned,'bus'));const clinic=C.invest(returned,'clinic');assert.equal(clinic.funds,90);assert.equal(clinic.game.infrastructure.clinic,1);
+ let again=returned;for(let i=0;i<20;i++)again=C.refund(C.invest(again,'market'),'market');assert.equal(again.funds,200);assert.equal(again.game.cash,cash);
+ assert.throws(()=>C.refund({...clinic,completed:true},'clinic'));
+}

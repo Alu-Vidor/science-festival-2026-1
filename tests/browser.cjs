@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('playwright');
-const {lesson,teachMap,deliver,optimalDelivery}=require('./robot-browser-helpers.cjs');
+const {lesson,teachMap,teachTraining,adaptRain,deliver,optimalDelivery}=require('./robot-browser-helpers.cjs');
 const City=require('./city-browser-helpers.cjs');
 const base = path.resolve(__dirname, '..'), shots = path.join(base, 'test-artifacts');
 const server = http.createServer((req, res) => {
@@ -22,7 +22,7 @@ const server = http.createServer((req, res) => {
   fs.mkdirSync(shots, { recursive: true });
   const browser = await chromium.launch({ headless: true });
   try {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
+    const context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: 'reduce' });
     const page = await context.newPage(), errors = [];
     page.on('pageerror', e => errors.push(e.message));
     page.on('response', r => { if (r.status() >= 400 && !r.url().endsWith('favicon.ico')) errors.push(r.status() + ' ' + r.url()); });
@@ -35,11 +35,17 @@ const server = http.createServer((req, res) => {
       const rect = await scope.locator('.tour-card').boundingBox();
       const size = page.viewportSize();
       assert(rect && rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= size.width + 1 && rect.y + rect.height <= size.height + 1, 'Tour card must fit the visible screen, including inside an iframe: '+JSON.stringify(rect));
-      for (const selector of ['#tourTitle','#tourText']) {
-        const text=await scope.locator(selector).boundingBox();
-        if(text.y<rect.y||text.y+text.height>rect.y+rect.height-4) await page.screenshot({path:path.join(shots,'lesson-text-failure.png')});
-        assert(text.y>=rect.y&&text.y+text.height<=rect.y+rect.height-4,'The short lesson text must be readable without scrolling: '+selector+' '+JSON.stringify({card:rect,text}));
-      }
+      // Read card and child geometry atomically: the lesson can change phase
+      // between separate protocol calls while the city is animating.
+      const clipped=await scope.locator('.tour-card').evaluate(card=>{
+        const r=card.getBoundingClientRect();
+        return ['#tourTitle','#tourText'].flatMap(selector=>{
+          const t=card.querySelector(selector).getBoundingClientRect();
+          return t.top<r.top||t.bottom>r.bottom-4?[{selector,card:r.toJSON(),text:t.toJSON()}]:[];
+        });
+      });
+      if(clipped.length)await page.screenshot({path:path.join(shots,'lesson-text-failure.png')});
+      assert.deepEqual(clipped,[],'The short lesson text must be readable without scrolling');
     }
     async function lit(selectors, scope=page) {
       const problems=await scope.locator('body').evaluate((_, selectors)=>{
@@ -88,51 +94,36 @@ const server = http.createServer((req, res) => {
     await page.goto(url);
     await page.locator('#gameTour').waitFor();
     await tourFits();
-    assert.equal(await page.locator('#robotView').evaluate(el=>el.inert),false);
-    assert.equal(await page.locator('.training').evaluate(el=>el.inert),true);
-    assert.equal(await page.locator('#tourNext').isVisible(),false,'Learning must wait for the actual action');
-    await lit(['#run','#boardStage']);
-    assert(await page.locator('#boardStage').evaluate(el=>!!el.closest('[inert]')),'Lighting the map must not allow unrelated actions');
-    await page.screenshot({path:path.join(shots,'robot-tutorial.png')});
-    await page.locator('.tour-card').press('Tab');
-    assert.equal(await page.evaluate(()=>document.activeElement.id),'run','Keyboard must reach the highlighted action');
-    await startWatching('#boardStage','#robotSprite');
-    await page.locator('#run').press('Enter');
-    await page.locator('.cell.stuck').waitFor(); await tourFits(); await lit(['#boardStage','#robotSprite']);
-    await page.screenshot({path:path.join(shots,'robot-moving-tutorial.png')});
-    await step('Изучи сухой');
-    await watched();
-    assert.equal(await page.locator('[data-index="1"]').evaluate(el=>el.inert),true);
-    await lesson(page);
+    assert.equal(await page.locator('#tourNext').isVisible(),false);
+    assert.equal(await page.locator('#robotEditor, #leaderTools, #parcelOrder, #routeMode').count(),0,'Editor, leader menu and manual routing are removed');
+    await lit(['#board [data-index="0"]','#sensors']);
+    await page.screenshot({path:path.join(shots,'robot-glow-tutorial.png')});
+    await lesson(page,tourFits);
     assert.equal(await page.locator('#overallScore').innerText(),'0','Learning is free');
-    assert(!(await page.locator('#samples').innerText()).includes('/ 3'));
+    assert(await page.locator('#board .unknown').count()>0,'The model distinguishes unfamiliar surfaces');
     await page.locator('#nextMission').click();
-    assert.equal(await page.evaluate(()=>robotExpedition.current().id),'forest');
-    await teachMap(page);
-    await page.locator('#routeMode').selectOption('steps');
-    const first=await deliver(page);assert(first.includes('Доставлено 2/2'),first);
-    assert(+(await page.locator('#overallScore').innerText())<10,'A complete nonoptimal route cannot get maximum');
+    const sparse=await deliver(page);assert(sparse.includes('не нашёл путь'),sparse);
+    assert.equal(await page.locator('#overallScore').innerText(),'0','A tiny dataset cannot solve the real mission');
+    await page.locator('#expedition-training').click();await teachTraining(page);
+    assert.equal(await page.evaluate(()=>samples.length),18,'Nine pairs suffice; no need to label every map cell');
+    await page.locator('#nextMission').click();
+    const original=await page.evaluate(()=>JSON.stringify(grid)),oldStart=await page.evaluate(()=>start);
+    const destination=await page.evaluate(()=>benchmark.path.find(i=>!grid[i].object));
+    await page.locator('#moveStart').click();await page.locator(`[data-index="${destination}"]`).click();
+    assert.notEqual(await page.evaluate(()=>start),oldStart);
+    assert.equal(await page.evaluate(()=>JSON.stringify(grid)),original,'Start placement never edits the field');
     await optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'10');
-    const retained=await page.evaluate(()=>samples.length);
-    await page.locator('#nextMission').click();assert.equal(await page.evaluate(()=>samples.length),retained,'Examples transfer between maps');
-    await teachMap(page);await optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'25');
-    await page.locator('#nextMission').click();assert.equal(await page.locator('#weather').innerText(),'После ливня · влажность +25');
-    await teachMap(page);await optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'50');
-    // Unlimited repeat attempts, preservation of the best score and conditions.
-    for(let i=0;i<4;i++)await optimalDelivery(page);
-    assert.equal(await page.locator('#overallScore').innerText(),'50');
-    await page.screenshot({path:path.join(shots,'robot-three-missions.png')});
-    const monitor=await page.locator('body').evaluate(el=>el.classList.contains('monitor-layout'));
-    await page.locator('#robotEditor > summary').click();
-    await page.locator('#energy').evaluate(el=>{el.value='150';el.dispatchEvent(new Event('input'));});
-    if(monitor)await page.locator('.monitor-dialog > button').click();else await page.locator('#robotEditor > summary').click();
-    assert((await deliver(page)).includes('Свободный опыт'));
-    assert.equal(await page.locator('#overallScore').innerText(),'50');
-    await page.locator('#robotTutorial').click();await page.locator('#tourSkip').click();
-    await page.locator('#clear').click();
-    assert(await page.locator('#expedition-forest').isDisabled());
-    assert(await page.locator('#nextMission').isDisabled());
-    assert.equal(await page.locator('#overallScore').innerText(),'50','Clearing the training data keeps previous mission results');
+    await page.locator('#nextMission').click();await optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'25');
+    await page.locator('#nextMission').click();assert((await page.locator('#weather').innerText()).includes('дождя'));
+    assert((await deliver(page)).includes('не нашёл путь'),'Dry examples leave gaps after rain');
+    await adaptRain(page);await optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'50');
+    for(let i=0;i<2;i++)await optimalDelivery(page);
+    await page.locator('#predict').click();assert.equal(await page.locator('#predict').getAttribute('aria-pressed'),'false');
+    await page.locator('#predict').click();assert.equal(await page.locator('#predictionLegend').isVisible(),true);
+    await page.screenshot({path:path.join(shots,'robot-autonomous-delivery.png')});
+    await page.locator('#learningNotebook > summary').click();await page.locator('#clear').click();
+    if(await page.locator('.monitor-dialog[open]').count())await page.locator('.monitor-dialog > button').click();
+    assert(await page.locator('#run').isDisabled());assert.equal(await page.locator('#overallScore').innerText(),'50','Removing examples preserves earned scores');
     const robotScore=50;
     await noOverflow();
     await page.locator('#epiTab').click();
@@ -155,6 +146,12 @@ const server = http.createServer((req, res) => {
     assert.equal(await cityFrame.locator('.citizen-emotion').count(),4,'A few representative reactions keep the map readable');
     await page.screenshot({path:path.join(shots,'city-three-rounds.png')});
     await cityFrame.locator('#restartCity').click();
+    await City.build(cityFrame,'bus');await City.build(cityFrame,'market');
+    assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().funds),30);
+    await City.refund(cityFrame,'bus');await City.build(cityFrame,'clinic');
+    assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().funds),10);
+    await City.refund(cityFrame,'market');await City.refund(cityFrame,'clinic');
+    assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().funds),200);
     await page.emulateMedia({reducedMotion:'no-preference'});
     await cityFrame.locator('#tryCity').click(); await cityFrame.locator('#pauseCity').click();
     assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().game.day),0);
@@ -176,7 +173,7 @@ const server = http.createServer((req, res) => {
     await cityFrame.locator('.inhabitant[data-person="0"]').press('Enter');
     assert.equal(await cityFrame.locator('#citizenPanel .citizen-route li').count(),5);
     if(await cityFrame.locator('.monitor-dialog[open]').count())await cityFrame.locator('.monitor-dialog > button').click();
-    await page.locator('#leaderTools > summary').click(); await page.locator('#newParticipant').click();
+    await page.locator('#newParticipant').click();
     assert.equal(await page.locator('#overallScore').innerText(),'0');
     assert((await page.locator('#missionProgress').innerText()).includes('0 / 3'));
     assert.equal(await page.evaluate(()=>samples.length),0);
@@ -243,11 +240,7 @@ const server = http.createServer((req, res) => {
         if (await page.locator('#gameTour').count()) await page.locator('#tourSkip').click();
         if (route === '/') {
           await page.locator('#robotTutorial').click(); await tourFits();
-          await startWatching('#boardStage','#robotSprite'); await page.locator('#run').click();
-          await page.locator('.cell.stuck').waitFor(); await tourFits();
-          await page.screenshot({path:path.join(shots,`robot-moving-${width}.png`)});
-          await step('Изучи сухой'); await watched(); await tourFits();
-          await lesson(page);
+          await lesson(page,tourFits);
           await page.evaluate(()=>window.scrollTo(0,0));
         } else if (route === '/epidemic.html') {
           await page.locator('#cityTutorial').click(); await tourFits(); await startWatching('#map','.inhabitant'); await page.locator('#observeCity').click();
@@ -265,9 +258,7 @@ const server = http.createServer((req, res) => {
     // Also check ordinary animation speed and the city embedded on a narrow laptop.
     await page.setViewportSize({width:768,height:900}); await page.emulateMedia({reducedMotion:'no-preference'});
     await page.goto(url); await page.locator('#robotTutorial').click(); await tourFits();
-    await startWatching('#boardStage','#robotSprite'); await page.locator('#run').click();
-    await page.locator('.cell.stuck').waitFor(); await tourFits(); await lit(['#boardStage','#robotSprite']);
-    await step('Изучи сухой'); await watched(); await page.locator('#tourSkip').click();
+    await lesson(page,tourFits);
     await page.locator('#epiTab').click();
     if(!await cityFrame.locator('#gameTour').count())await cityFrame.locator('#cityTutorial').click();
     await tourFits(cityFrame); await startWatching('#map','.inhabitant',cityFrame); await cityFrame.locator('#observeCity').click();
@@ -280,6 +271,6 @@ const server = http.createServer((req, res) => {
     await page.locator('#robotTab').click();
     assert.equal(await page.locator('#robotView').isVisible(), true);
     assert.deepEqual(errors, [], 'No JS errors or missing game assets');
-    console.log('Browser: unobscured robot/city animation, sensors and predictions, iframe tooltip placement, action lessons, three expeditions/optimal energy/unlimited repeats/reset, citizens, legacy modes and 375/768/1280 layouts passed');
+    console.log('Browser: glowing tutorials, actual learning quality, automatic cargo routes, movable start, nine surfaces, city reallocation, full 100/100, reset, citizens and mobile layouts passed');
   } finally { await browser.close(); server.close(); }
 })().catch(error => { console.error(error); server.close(); process.exitCode = 1; });

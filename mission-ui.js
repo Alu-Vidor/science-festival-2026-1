@@ -25,7 +25,7 @@
     GameTour.finish(false); window.resetRobotMission();
     for (const key of Object.keys(state)) state[key] = typeof state[key] === 'boolean' ? false : 0;
     session = String(++nextSession); $('epiView').src = 'epidemic.html?session=' + session;
-    $('robotTab').click(); $('leaderTools').open = false; draw(); GameTour.start('robot');
+    $('robotTab').click(); draw(); GameTour.start('robot');
   };
   draw();
 })();

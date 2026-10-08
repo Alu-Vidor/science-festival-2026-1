@@ -36,4 +36,9 @@ async function maximum(scope, afterDay = async()=>{}) {
   }
   assert.equal(await scope.locator('#cityLocalScore').innerText(),'50 / 50');
 }
-module.exports = {finishLesson,day,build,maximum};
+async function refund(scope, project) {
+ await scope.locator('#cityProjects > summary').click();await scope.locator('#refund-'+project).click();
+ if(await scope.locator('.monitor-dialog[open]').count())await scope.locator('.monitor-dialog > button').click();
+ else await scope.locator('#cityProjects > summary').click();
+}
+module.exports = {finishLesson,day,build,refund,maximum};

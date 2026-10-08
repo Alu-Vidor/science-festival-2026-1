@@ -38,6 +38,15 @@
     out.funds -= cost; out.projects.push(id);
     return out;
   }
+  function refund(c, id) {
+    if (c.completed) throw Error('Город завершён. Начни новое прохождение.');
+    if (!projects.includes(id) || !c.projects.includes(id)) throw Error('В это улучшение монеты не вложены.');
+    const out = clone(c), cost = M.upgrades[id].cost;
+    out.projects = out.projects.filter(project => project !== id);
+    out.funds += cost; out.game.infrastructure[id]--;
+    out.game.investments.push({ day: out.game.day, id, cost: -cost, action: 'refund', level: out.game.infrastructure[id] });
+    return out;
+  }
   function measure(c, index) {
     const goal = rounds[index], days = c.game.reports.slice(index * 4, index * 4 + 4);
     if (!days.length) return null;
@@ -77,6 +86,6 @@
     out.completed = day === 12;
     return out;
   }
-  root.CityCampaign = { rounds, projects, projectFunds, choices, create, invest, advance, current, measure, report };
+  root.CityCampaign = { rounds, projects, projectFunds, choices, create, invest, refund, advance, current, measure, report };
   if (typeof module !== 'undefined') module.exports = root.CityCampaign;
 })(typeof window !== 'undefined' ? window : globalThis);

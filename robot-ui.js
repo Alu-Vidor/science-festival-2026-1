@@ -1,103 +1,151 @@
-
+/* Examples train the model; the model alone plans the complete delivery. */
 'use strict';
-const $=id=>document.getElementById(id), N=12, types={inspect:['⌕','Изучить'],road:['·','Дорога'],wall:['▧','Стена'],mud:['≋','Грязь'],hill:['▲','Холм'],water:['≈','Вода'],sand:['∴','Песок'],start:['🤖','Старт'],parcel:['📦','Посылка'],charge:['⚡','Зарядка']};
-let grid=[],start=60,robot=60,tool='inspect',selected=-1,raining=false,samples=[],model=[],overlay=false,running=false,timer=null,path=[],delivered=0,steps=0,remaining=60,targets=new Set(),visitedCharges=new Set();let selection=new Set(),multi=false,dragStart=null,dragEnd=null,suppressClick=false; let originalGrid=null, stuckCell=-1; let stage=0, mission, benchmark, spent=0, trail=[], best=Array(4).fill(null);
-function terrain(type,i){return RobotEngine.tile(type,i);}
-function features(i){return RobotEngine.features(grid[i],raining);}
-function danger(f){return RobotEngine.danger(f);}
-function probability(f){return +RobotEngine.predict(model,f);}
-function say(s){$('status').textContent=s;}
-function parcelIndices(){return grid.flatMap((c,i)=>c.object==='parcel'?[i]:[]).sort((a,b)=>(grid[a].parcel||'Z').localeCompare(grid[b].parcel||'Z')||a-b);}
-function letter(i){return grid[i].parcel||String.fromCharCode(65+parcelIndices().indexOf(i));}
-function learned(){return model.some(s=>s.y===0)&&model.some(s=>s.y===1);}
-function publish(){window.SessionScore?.robot(best.reduce((s,r)=>s+(r?.score||0),0),best.slice(1).every(r=>r?.complete),learned());}
-function expeditionControls(){
+const $=id=>document.getElementById(id), R=RobotEngine, N=12;
+let grid=[],start=0,robot=0,selected=-1,raining=false,samples=[],model=[],overlay=false,running=false,timer=null;
+let path=[],trail=[],targets=new Set(),delivered=0,steps=0,spent=0,remaining=240,stage=0,mission,benchmark,preview=null;
+let best=Array(4).fill(null),checks=new Map(),placingStart=false,stuckCell=-1;
+const features=i=>R.features(grid[i],raining), danger=f=>R.danger(f), key=f=>f.join(',');
+const say=text=>$('status').textContent=text;
+const learned=()=>model.some(s=>s.y===0)&&model.some(s=>s.y===1);
+const parcelIndices=()=>grid.flatMap((c,i)=>c.object==='parcel'?[i]:[]);
+const letter=i=>grid[i].parcel;
+function publish(){window.SessionScore?.robot(best.reduce((sum,r)=>sum+(r?.score||0),0),best.slice(1).every(r=>r?.complete),learned());}
+function currentMission(){return {...mission,grid,start,rain:raining};}
+function recalculate(){
+ benchmark=R.optimum(currentMission());preview=model.length?R.plan(currentMission(),model):null;
+ const order=preview?[...new Set(preview.path.filter(i=>grid[i].object==='parcel'))].map(letter).join(' → '):'';
+ $('autoRoute').textContent=preview?`Решение ИИ: ${order} · ${preview.energy} энергии.`:model.length?'ИИ пока не может связать все грузы. Добавь примеры незнакомого грунта.':'ИИ сам выберет порядок грузов и путь после обучения.';
+}
+function controls(){
  const nav=$('expeditionNav');nav.replaceChildren();
- RobotEngine.ids.forEach((id,i)=>{const button=document.createElement('button');button.textContent=i===0?'Учебный полигон':`${i}. ${RobotEngine.create(id).title}${best[i]?.complete?' ✓':''}`;button.id='expedition-'+id;button.setAttribute('aria-current',stage===i?'step':'false');button.disabled=running||(i===1?!learned():i>1&&!best[i-1]?.complete);button.onclick=()=>loadStage(i);nav.appendChild(button);});
+ R.ids.forEach((id,i)=>{const b=document.createElement('button');b.id='expedition-'+id;b.textContent=(i?i+'. ':'')+R.create(id).title+(best[i]?.complete?' ✓':'');b.setAttribute('aria-current',stage===i?'step':'false');b.disabled=running||(i===1?!learned():i>1&&!best[i-1]?.complete);b.onclick=()=>loadStage(i);nav.appendChild(b);});
  $('missionName').textContent=mission.title.toUpperCase();$('missionBrief').textContent=mission.brief;
- $('nextMission').hidden=stage===3;
- $('nextMission').textContent=stage===0?'Начать лесную доставку →':'Следующая миссия →';
- $('nextMission').disabled=running||(stage===0?!learned():!best[stage]?.complete);
- $('parcelOrder').disabled=$('routeMode').disabled=running;
- $('routeControls').hidden=stage===0;
- $('deliveryTries').textContent=stage===0?'Учебные запуски бесплатные.':`Энергия: ${spent} · цель: ${benchmark.energy}. Лучший: ${best[stage]?.score||0}/${mission.max}`;
+ $('nextMission').hidden=stage===3;$('nextMission').disabled=running||(stage===0?!learned():!best[stage]?.complete);
+ $('nextMission').textContent=stage===0?'Начать экспедиции →':'Следующая миссия →';
+ $('deliveryTries').textContent=stage===0?'Учебная карта · ошибки бесплатны':`Цель: все грузы за ${benchmark.energy} энергии. Лучший: ${best[stage]?.score||0}/${mission.max}`;
+ $('run').disabled=running||!learned();$('stop').disabled=!running;
+ for(const id of ['moveStart','predict','clear','robotTutorial','newParticipant'])$(id).disabled=running;
+ $('boardStage').classList.toggle('rolling',running);$('moveStart').setAttribute('aria-pressed',placingStart);
  publish();
 }
-function orders(){const goals=parcelIndices(), old=$('parcelOrder').value;$('parcelOrder').replaceChildren();RobotEngine.permutations(goals).forEach(order=>{const o=document.createElement('option');o.value=order.join(',');o.textContent=order.map(letter).join(' → ');$('parcelOrder').appendChild(o);});if([...$('parcelOrder').options].some(o=>o.value===old))$('parcelOrder').value=old;}
 function initial(){
- stop(false);selection.clear();mission=RobotEngine.create(RobotEngine.ids[stage]);grid=mission.grid;start=robot=mission.start;raining=mission.rain;originalGrid=JSON.stringify(grid);benchmark=RobotEngine.optimum(mission);stuckCell=-1;selected=-1;path=[];trail=[];spent=delivered=steps=0;remaining=mission.budget;targets=new Set(parcelIndices());
- $('energy').value=mission.budget;$('energyValue').textContent=mission.budget;$('rain').textContent=raining?'🌧 Дождь включён':'☀ Сухая погода';$('weather').textContent=raining?'После ливня · влажность +25':'Без осадков';$('boardStage').classList.toggle('rainy',raining);orders();draw();inspect();updateSamples();expeditionControls();say(stage===0?'Запусти робота, изучи остановку и обучи ИИ.':`Доставь все грузы. Минимум энергии: ${benchmark.energy}. Меняй порядок и путь.`);
+ clearTimeout(timer);running=false;mission=R.create(R.ids[stage]);grid=mission.grid;start=robot=mission.start;raining=mission.rain;
+ selected=stuckCell=-1;placingStart=false;path=[];trail=[];spent=delivered=steps=0;remaining=mission.budget;targets=new Set(parcelIndices());checks=new Map();
+ $('weather').textContent=raining?'После дождя · влажность +25':'Без осадков';$('boardStage').classList.toggle('rainy',raining);
+ recalculate();draw();inspect();updateLearning();controls();say(mission.brief);
 }
-function loadStage(index){if(running||index<0||index>3)return;if(index===1&&!learned()||index>1&&!best[index-1]?.complete)return;stage=index;tool='inspect';multi=false;$('strategy').value=index===0?'short':'ai';$('routeMode').value='steps';initial();if(index===3)$('model').textContent='Дождь изменил датчики. Проверь старый прогноз и добавь новые примеры.';}
-function draw(){const frag=document.createDocumentFragment();grid.forEach((c,i)=>{const b=document.createElement('button');b.className='cell '+c.type+(i===stuckCell?' stuck':'')+(c.object?' object-'+c.object:'')+(path.includes(i)||trail.includes(i)?' path':'')+(selected===i?' selected':'')+(selection.has(i)?' multi':'');if(overlay&&model.length&&c.type!=='wall')b.classList.add(probability(features(i))>=.5?'bad':'good');let obj=c.object==='parcel'&&!targets.has(i)&&delivered>0?null:c.object;b.textContent=obj?types[obj][0]:types[c.type][0];b.setAttribute('data-visible-object',obj||'');b.setAttribute('data-index',i);const mark=samples.find(s=>s.f.join(',')===features(i).join(','));if(mark){b.dataset.label=mark.y?'unsafe':'safe';b.title+=' · твоя метка: '+(mark.y?'опасно':'безопасно');}if(c.object==='parcel'){b.dataset.parcel=letter(i);b.title+=' · груз '+letter(i);}b.title=`${Math.floor(i/N)+1}:${i%N+1} — ${types[c.type][1]}${c.object?', '+types[c.object][1]:''}`;if(overlay&&model.length&&c.type!=='wall')b.title+=' · прогноз ИИ: '+(probability(features(i))>=.5?'опасно':'безопасно');b.setAttribute('aria-label',b.title);b.onclick=()=>{if(suppressClick){suppressClick=false;return;}if(multi){if(running)return;selection.has(i)?selection.delete(i):selection.add(i);selected=i;draw();inspect();return;}edit(i);};frag.appendChild(b);});$('board').replaceChildren(frag);$('delivered').textContent=delivered+' / '+grid.filter(c=>c.object==='parcel').length;$('remaining').textContent=remaining;$('steps').textContent=steps;$('selectionCount').textContent='Выделено: '+selection.size;moveSprite();}
-function edit(i){if(running)return;selected=i;if(tool==='inspect'){inspect();draw();window.GameTour?.signal('robot:inspected',{index:i});return;}if(tool==='start'){start=i;robot=i;grid[i]=terrain('road',i);}else if(tool==='parcel'||tool==='charge'){if(i===start){say('Перенеси старт, прежде чем ставить здесь объект.');return;}grid[i]=terrain('road',i);grid[i].object=tool;}else {if(i===start&&tool==='wall'){say('На месте старта нельзя поставить стену.');return;}grid[i]=terrain(tool,i);}path=[];delivered=steps=0;robot=start;remaining=+$('energy').value;targets=new Set(grid.flatMap((c,j)=>c.object==='parcel'?[j]:[]));inspect();draw();}
-function inspect(){$('sensors').classList.toggle('bulk',selection.size>0);if(selection.size){$('sensorHint').textContent='Метка применится ко всем выделенным клеткам. Сравни показания: разные участки могут иметь разную опасность.';const cells=[...selection].filter(i=>grid[i].type!=='wall');$('safe').disabled=$('unsafe').disabled=!cells.length||running;$('selectedName').textContent='Выделено участков: '+selection.size;for(const [j,id]of ['wet','slope','rough','bearing'].entries()){const values=cells.map(i=>features(i)[j]);$(id).textContent=values.length?Math.min(...values)+'–'+Math.max(...values)+'%':'—';}return;}let valid=selected>=0&&grid[selected].type!=='wall';$('safe').disabled=$('unsafe').disabled=!valid||running;if(!valid){$('sensorHint').textContent='Выбери участок, чтобы сравнить показания.';$('selectedName').textContent='Выбери участок местности';for(let x of ['wet','slope','rough','bearing']){$(x).textContent='—';$(x+'Meter').value=0;$(x+'Meter').classList.remove('danger');}return;}$('selectedName').textContent=`Участок ${Math.floor(selected/N)+1}:${selected%N+1} · ${types[grid[selected].type][1]}`;features(selected).forEach((v,j)=>{const id=['wet','slope','rough','bearing'][j];$(id).textContent=Math.round(v)+'%';$(id+'Meter').value=v;const f=features(selected);$(id+'Meter').classList.toggle('danger',j===0?(v>=70||f[0]+f[2]>=110):j===1?v>=70:j===2?f[0]+f[2]>=110:v<=30);$(id+'Meter').setAttribute('aria-label',$(id).previousElementSibling?.textContent||id);});const f=features(selected),risks=[];if(f[0]>=70)risks.push('слишком влажно');if(f[1]>=70)risks.push('крутой уклон');if(f[0]+f[2]>=110)risks.push('влажность вместе с неровностью');if(f[3]<=30)risks.push('грунт слишком слабый');$('sensorHint').textContent=risks.length?'⚠ '+risks.join(', ')+'. Сможет ли робот проехать?':'✓ Грунт выдержит робота. Сравни с опасным участком.';}
-function updateSamples(){
- const seen=new Set();for(const sample of samples){const f=sample.f;if(f[0]>=35)seen.add('влажные участки');if(f[1]>=35)seen.add('склоны');if(f[3]<=60)seen.add('разная прочность');}
- $('samples').textContent=samples.length?`В журнале: ${samples.length} примеров${seen.size?' · '+[...seen].join(', '):' · пока только прочная дорога'}`:'Покажи роботу, где можно проехать, а где он застрянет.';
+function loadStage(index){if(running||index<0||index>3||index===1&&!learned()||index>1&&!best[index-1]?.complete)return;stage=index;initial();}
+function moveSprite(){const w=$('board').getBoundingClientRect().width,cell=(w-33)/12,sp=$('robotSprite');sp.style.width=sp.style.height=cell+'px';sp.style.transform=`translate(${robot%N*(cell+3)}px,${(robot/N|0)*(cell+3)}px)`;}
+function draw(){
+ const frag=document.createDocumentFragment();
+ grid.forEach((c,i)=>{
+  const b=document.createElement('button');b.className='cell '+c.type+(selected===i?' selected':'')+(i===stuckCell?' stuck':'')+(path.includes(i)||trail.includes(i)?' path':'');
+  b.dataset.index=i;let text=c.object==='parcel'&&targets.has(i)?'📦':R.icons[c.type];
+  if(c.object==='parcel'){b.dataset.parcel=letter(i);b.dataset.visibleObject=targets.has(i)?'parcel':'';}
+  if(i===start)b.classList.add('launch-position');
+  const sample=samples.find(s=>key(s.f)===key(features(i)));if(sample)b.dataset.label=sample.y?'unsafe':'safe';
+  let title=`${(i/N|0)+1}:${i%N+1} · ${R.names[c.type]||'Стена'}`;
+  if(c.object==='parcel')title+=' · груз '+letter(i);
+  if(overlay&&c.type!=='wall'){
+   const answer=R.predict(model,features(i));b.classList.add(answer===null?'unknown':answer?'bad':'good');
+   b.dataset.prediction=answer===null?'unknown':answer?'unsafe':'safe';title+=' · ИИ: '+(answer===null?'не знает':answer?'нельзя':'можно');
+  }
+  b.textContent=text;b.title=title;b.setAttribute('aria-label',title);b.onclick=()=>select(i);frag.appendChild(b);
+ });
+ $('board').replaceChildren(frag);$('delivered').textContent=delivered+' / '+parcelIndices().length;$('remaining').textContent=remaining;$('steps').textContent=steps;
+ $('predict').textContent=overlay?'Скрыть решения ИИ':'Показать решения ИИ';$('predict').setAttribute('aria-pressed',overlay);
+ $('predictionLegend').hidden=!overlay;moveSprite();
+}
+function select(i){
+ if(running)return;
+ if(placingStart){
+  if(grid[i].type==='wall'||grid[i].object){say('Для старта выбери свободный участок без груза.');return;}
+  if(danger(features(i))){selected=i;checks.set(key(features(i)),true);inspect();draw();say('Этот грунт не выдержит робота. Выбери безопасный старт.');return;}
+  if(!R.optimum({...currentMission(),start:i})){say('Отсюда нет безопасного пути ко всем грузам.');return;}
+  start=robot=i;placingStart=false;spent=steps=delivered=0;remaining=mission.budget;targets=new Set(parcelIndices());trail=[];path=[];stuckCell=-1;
+  recalculate();controls();say('Старт перенесён. ИИ пересчитал порядок грузов и путь; минимум энергии тоже обновлён.');
+ }
+ selected=i;inspect();draw();window.GameTour?.signal('robot:inspected',{index:i});
+}
+function inspect(){
+ const valid=selected>=0&&grid[selected].type!=='wall';
+ for(const id of ['probe','safe','unsafe'])$(id).disabled=running||!valid;
+ if(!valid){$('selectedName').textContent='Нажми на участок карты';$('sensorHint').textContent='Проверка грунта даст ответ для твоего примера. ИИ его ещё не знает.';}
+ else{
+  $('selectedName').textContent=`${R.names[grid[selected].type]} · ${(selected/N|0)+1}:${selected%N+1}`;
+  const result=checks.get(key(features(selected))), f=features(selected);
+  const reasons=[];if(f[0]>=70)reasons.push('слишком влажно');if(f[1]>=70)reasons.push('крутой склон');if(f[0]+f[2]>=110)reasons.push('влажность + неровность');if(f[3]<=30)reasons.push('слабый грунт');
+  $('sensorHint').textContent=result===undefined?'Сравни датчики. «Проверить» покажет, выдержит ли грунт робота.':result?'Проверка: нельзя — '+reasons.join(', ')+'.':'Проверка: можно проехать. Добавь метку «Можно».';
+ }
+ for(const [j,id]of ['wet','slope','rough','bearing'].entries()){$(id).textContent=valid?features(selected)[j]+'%':'—';$(id+'Meter').value=valid?features(selected)[j]:0;}
+ explainSelected();
+}
+function probe(){if(selected<0||grid[selected].type==='wall'||running)return;checks.set(key(features(selected)),danger(features(selected)));inspect();window.GameTour?.signal('robot:probed',{index:selected});}
+function explainSelected(){
+ const box=$('predictionReason');box.replaceChildren();const p=document.createElement('p');box.appendChild(p);
+ if(selected<0||grid[selected].type==='wall'){p.textContent='Выбери клетку: здесь появится решение ИИ и примеры, на которые он опирается.';return;}
+ const answer=R.explain(model,features(selected));p.textContent='ИИ: '+(answer.label===null?'не уверен':answer.label?'проезд запрещён':'проезд разрешён')+'. '+answer.reason+'.';
+ answer.near.forEach(s=>{const e=document.createElement('p');e.textContent=(R.names[s.type]||'Участок')+' · твоя метка: '+(s.y?'нельзя':'можно')+' · датчики '+s.f.join(' / ');box.appendChild(e);});
+}
+function updateLearning(){
+ const trained=new Set(model.map(s=>key(s.f)+':'+s.y)), pending=samples.filter(s=>!trained.has(key(s.f)+':'+s.y)).length;
+ const wrong=samples.filter(s=>checks.has(key(s.f))&&+checks.get(key(s.f))!==s.y).length;
+ $('samples').textContent=`Твоих примеров: ${samples.length}`+(pending?` · новых: ${pending}`:'')+(wrong?` · меток не совпало с проверкой: ${wrong}`:'');
  $('train').disabled=running||!samples.some(s=>s.y===0)||!samples.some(s=>s.y===1);
+ const count=grid.filter(c=>c.type!=='wall'&&R.predict(model,R.features(c,raining))!==null).length,total=grid.filter(c=>c.type!=='wall').length;
+ $('model').textContent=!model.length?'Добавь примеры «можно» и «нельзя», затем обучи ИИ.':pending?'Новые метки ещё не в модели. Нажми «Обучить».':`ИИ узнаёт ${count} из ${total} участков. Остальные отмечены знаком ?.`;
+ const types=Object.keys(R.names),coverage=$('coverage');coverage.replaceChildren();
+ types.forEach(type=>{
+  const seen=new Set(samples.filter(s=>s.type===type).map(s=>s.y)),b=document.createElement('button');
+  b.dataset.coverage=type;b.textContent=R.icons[type]+' '+R.names[type]+' · '+(seen.has(0)?'✓':'·')+' '+(seen.has(1)?'✕':'·');
+  b.title='Найти пример: '+R.names[type];b.onclick=()=>{const cells=grid.flatMap((c,i)=>c.type===type?[i]:[]);const i=cells.find(i=>!samples.some(s=>key(s.f)===key(features(i))));if(i!==undefined){$('learningNotebook').open=false;document.querySelector('.monitor-dialog[open]')?.close();select(i);}else say('Все варианты этого покрытия на карте уже размечены. Можно изменить любую метку.');};coverage.appendChild(b);
+ });
+ const journal=$('exampleJournal');journal.replaceChildren();samples.forEach((s,i)=>{const p=document.createElement('p');p.textContent=`${i+1}. ${R.names[s.type]}: ${s.y?'нельзя':'можно'} · ${s.f.join(' / ')} · ${trained.has(key(s.f)+':'+s.y)?'в модели':'ждёт обучения'}`;journal.appendChild(p);});
+ $('notebookSummary').textContent='Примеры и решения ИИ · '+samples.length;explainSelected();
 }
-function label(y){if(running)return;for(const i of selection.size?[...selection]:[selected]){if(i<0||grid[i].type==='wall')continue;const f=features(i),old=samples.findIndex(s=>s.f.join(',')===f.join(','));if(old>=0)samples[old]={f,y};else samples.push({f,y});}updateSamples();draw();$('model').textContent='Примеры изменены. Нажми «Обучить ИИ», чтобы робот их использовал.';window.GameTour?.signal('robot:labeled',{index:selected,label:y});}
-function neighbors(i){return RobotEngine.neighbors(i,grid);}
-function findPath(from,goals,useAI){
- const order=($('parcelOrder').value||'').split(',').map(Number),goal=order.find(i=>goals.has(i))??[...goals][0];
- return goal===undefined?[]:RobotEngine.shortest(grid,from,goal,{rain:raining,model,mode:useAI?$('routeMode').value:'steps',useAI});
+function label(y){
+ if(running||selected<0||grid[selected].type==='wall')return;
+ const sample={f:features(selected),y,type:grid[selected].type},old=samples.findIndex(s=>key(s.f)===key(sample.f));
+ if(old<0)samples.push(sample);else samples[old]=sample;
+ updateLearning();draw();window.GameTour?.signal('robot:labeled',{index:selected,label:y});
 }
-function lock(on){$('boardStage').classList.toggle('rolling',on);for(let id of ['run','reset','rain','energy','strategy','clear','present','multi','applySelection','clearSelection','strength','applyStrength'])$(id).disabled=on;$('stop').disabled=!on;for(let b of $('tools').children)b.disabled=on;$('robotTutorial').disabled=on;updateSamples();inspect();if(mission)expeditionControls();}
-function stop(message=true){clearTimeout(timer);timer=null;running=false;lock(false);if(message)say('Испытание остановлено. Можно изменить полигон и запустить заново.');}
+function train(){model=samples.map(s=>({...s,f:[...s.f]}));overlay=true;recalculate();draw();updateLearning();controls();say('ИИ обновил решения по твоим примерам. Зелёный — можно, красный — нельзя, ? — не знает.');window.GameTour?.signal('robot:trained');}
+function stop(message=true){clearTimeout(timer);running=false;controls();inspect();updateLearning();if(message)say('Робот остановлен. Можно проверить грунт, исправить метки и повторить.');}
 function run(){
- if(running)return;const useAI=$('strategy').value==='ai',scored=stage>0&&useAI&&isOriginal();
- if(useAI&&!learned()){say('Покажи безопасный и опасный участки, затем обучи ИИ.');return;}
- targets=new Set(parcelIndices());if(!targets.size){say('На карте нет грузов. Поставь посылку в редакторе.');return;}
- robot=start;remaining=+$('energy').value;delivered=steps=spent=0;path=[];trail=[];stuckCell=-1;visitedCharges=new Set();running=true;lock(true);say('Робот выполняет доставку…');
+ if(running||!learned())return;placingStart=false;robot=start;remaining=mission.budget;delivered=steps=spent=0;trail=[];path=[];stuckCell=-1;targets=new Set(parcelIndices());
+ recalculate();running=true;controls();inspect();updateLearning();
+ const route=preview;path=route?[...route.path]:[];
  function finish(message){
-  stop(false);draw();const complete=targets.size===0;
-  if(scored){const result={score:RobotEngine.score({max:mission.max,delivered,parcels:parcelIndices().length,energy:spent,optimal:benchmark.energy,complete}),complete,energy:spent,order:$('parcelOrder').value,mode:$('routeMode').value};if(!best[stage]||result.score>best[stage].score||result.score===best[stage].score&&result.energy<best[stage].energy)best[stage]=result;
-   message+=` Эта попытка: ${result.score}/${mission.max}. `+(complete?(spent===benchmark.energy?'Минимум энергии найден!':`Энергия ${spent}, минимум ${benchmark.energy}. Сравни порядок грузов и выбери «По энергии».`):'Можно повторить попытку.');
-  }else message+=stage===0?' Учебный запуск — без баллов.':' Свободный опыт: баллы сохранены.';
-  expeditionControls();say(message);window.GameTour?.signal('robot:finished',{delivered,useAI});
+  const complete=!targets.size;running=false;clearTimeout(timer);
+  if(stage){const result={score:R.score({max:mission.max,delivered,parcels:parcelIndices().length,energy:spent,optimal:benchmark.energy,complete}),complete,energy:spent,start};if(!best[stage]||result.score>best[stage].score||result.score===best[stage].score&&result.energy<best[stage].energy)best[stage]=result;
+   message+=` Результат: ${result.score}/${mission.max}. `+(complete&&spent===benchmark.energy?'Минимум энергии найден!':complete?'ИИ сделал лишний обход. Проверь участки, которые он считает опасными.':'Добавь примеры и попробуй снова.');
+  }else message+=' Учебный запуск — без баллов.';
+  path=[];draw();inspect();controls();updateLearning();say(message);window.GameTour?.signal('robot:finished',{delivered,useAI:true});
  }
- function plan(){path=findPath(robot,targets,useAI);if(!path){
-   // A known-safe connection exists on every authored mission; blocked predictions
-   // identify a concrete sample to review without replacing the player's model.
-   const goal=($('parcelOrder').value||'').split(',').map(Number).find(i=>targets.has(i))??[...targets][0];
-   const safe=RobotEngine.shortest(grid,robot,goal,{rain:raining,oracle:true});
-   const blocked=safe?.find(i=>probability(features(i))>=.5);
-   if(blocked!==undefined){selected=blocked;inspect();finish(`ИИ закрыл участок ${Math.floor(blocked/N)+1}:${blocked%N+1}. Проверь датчики и добавь безопасный пример.`);}
-   else finish('Маршрут не найден. Проверь прогноз и карту.');return;
-  }tick();}
- function tick(){if(!running)return;if(!path.length){plan();return;}const next=path.shift(),cost=RobotEngine.costs[grid[next].type]||1;
-  if(remaining<cost){finish('Энергия закончилась. Сравни порядок доставки и выбери экономный путь.');return;}
+ function tick(){
+  if(!running)return;
+  if(!route){selected=benchmark.path.find(i=>R.predict(model,features(i))!==0)??start;finish('ИИ не нашёл путь. Выделен участок для проверки и нового примера.');return;}
+  const next=path.shift();if(next===undefined){finish('Доставка завершена.');return;}
+  const cost=R.costs[grid[next].type];if(remaining<cost){finish('Энергия закончилась. ИИ выбрал слишком длинный обход.');return;}
   robot=next;remaining-=cost;spent+=cost;steps++;trail.push(next);
-  if(danger(features(next))){stuckCell=selected=next;tool='inspect';inspect();finish('Ошибка ИИ: робот застрял. Изучи датчики и обучи снова.');return;}
-  if(grid[next].object==='charge'&&!visitedCharges.has(next)){remaining=+$('energy').value;visitedCharges.add(next);}
-  if(targets.has(next)){targets.delete(next);delivered++;}draw();expeditionControls();
-  if(!targets.size){finish(`Доставлено ${delivered}/${parcelIndices().length}!`);return;}
-  timer=setTimeout(path.length?tick:plan,window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches?20:90);
+  if(danger(features(next))){selected=stuckCell=next;checks.set(key(features(next)),true);finish('Робот застрял: ИИ разрешил опасный участок.');return;}
+  if(targets.has(next)){targets.delete(next);delivered++;}draw();
+  if(!targets.size){finish(`Доставлены все ${delivered} груза.`);return;}
+  timer=setTimeout(tick,window.matchMedia('(prefers-reduced-motion: reduce)').matches?20:160);
  }
- draw();window.GameTour?.signal('robot:started');timer=setTimeout(plan,250);
+ draw();say('Робот сам выполняет выбранную ИИ доставку…');window.GameTour?.signal('robot:started');timer=setTimeout(tick,350);
 }
-for(let [key,[icon,name]] of Object.entries(types)){const b=document.createElement('button');b.textContent=icon+' '+name;b.className=key===tool?'active':'';b.setAttribute('data-tool',key);b.onclick=()=>{tool=key;for(let c of $('tools').children)c.classList.remove('active');b.classList.add('active');};$('tools').appendChild(b);}
-window.addEventListener('message',e=>{if(e.source===$('epiView').contentWindow&&e.data?.kind==='epidemic-height'&&Number.isFinite(e.data.height))$('epiView').style.height=Math.max(600,Math.min(10000,e.data.height))+'px';});$('robotTab').onclick=()=>switchLab(false);$('epiTab').onclick=()=>switchLab(true);function switchLab(epi){stop(false);document.body.classList.toggle('city-active',epi);$('robotView').style.display=epi?'none':'';$('epiView').style.display=epi?'block':'none';$('robotTab').classList.toggle('active',!epi);$('epiTab').classList.toggle('active',epi);$('robotTab').setAttribute('aria-pressed',!epi);$('epiTab').setAttribute('aria-pressed',epi);if(epi)$('epiView').contentWindow.postMessage('city-active','*');else{$('epiView').contentWindow.postMessage('pause','*');window.GameTour?.maybeStart('robot');}location.hash=epi?'epidemic':'robot';}if(location.hash==='#epidemic')setTimeout(()=>switchLab(true),0);$('safe').onclick=()=>label(0);$('unsafe').onclick=()=>label(1);$('train').onclick=()=>{model=samples.map(s=>({f:[...s.f],y:s.y}));overlay=true;$('boardStage').classList.add('scanning');$('strategy').value='ai';draw();$('model').textContent='ИИ обучен. Прогноз: зелёный — можно, красный — опасно. Проверь доставку.';expeditionControls();window.GameTour?.signal('robot:trained');};$('clear').onclick=()=>{samples=[];model=[];overlay=false;$('boardStage').classList.remove('scanning');updateSamples();$('model').textContent='ИИ пока не обучен.';draw();expeditionControls();};$('predict').onclick=()=>{if(!model.length){say('Сначала обучи ИИ на своих примерах.');return;}overlay=!overlay;$('boardStage').classList.toggle('scanning',overlay);draw();};$('rain').onclick=()=>{raining=!raining;$('boardStage').classList.toggle('rainy',raining);$('rain').textContent=raining?'🌧 Дождь включён':'☀ Сухая погода';$('weather').textContent=raining?'Дождь · влажность +25':'Без осадков';inspect();draw();say('Погода изменилась. Проверь показания датчиков: старый прогноз может оказаться неверным.');};$('energy').oninput=()=>{$('energyValue').textContent=$('energy').value;remaining=+$('energy').value;draw();};$('run').onclick=run;$('stop').onclick=()=>stop();$('reset').onclick=initial;$('present').onclick=()=>{document.body.classList.toggle('present');$('present').textContent=document.body.classList.contains('present')?'Обычный вид':'Режим панели';};
-function moveSprite(){const board=$('board');if(!board.getBoundingClientRect)return;const w=board.getBoundingClientRect().width,cell=(w-33)/12,sp=$('robotSprite');sp.style.width=sp.style.height=cell+'px';sp.style.transform=`translate(${(robot%N)*(cell+3)}px,${Math.floor(robot/N)*(cell+3)}px)`;}
-function rectangle(a,b){const out=[];for(let y=Math.min(a/N|0,b/N|0);y<=Math.max(a/N|0,b/N|0);y++)for(let x=Math.min(a%N,b%N);x<=Math.max(a%N,b%N);x++)out.push(y*N+x);return out;}
-$('multi').onclick=()=>{multi=!multi;$('multi').setAttribute('aria-pressed',multi);$('multi').classList.toggle('active',multi);};
-$('clearSelection').onclick=()=>{selection.clear();draw();inspect();};
-$('applySelection').onclick=()=>{if(running)return;if(!selection.size){say('Сначала выдели клетки.');return;}if(tool==='inspect'||tool==='start'){say('Для области выбери материал, посылки или зарядки. Старт размещается на одной клетке.');return;}for(const i of selection)edit(i);say('Область изменена. Исследуй новые участки и проверь прогноз ИИ.');};
-$('strength').oninput=()=>{$('strengthValue').textContent=$('strength').value+'%';};
-$('applyStrength').onclick=()=>{if(running)return;const cells=selection.size?[...selection]:selected>=0?[selected]:[];if(!cells.length){say('Выбери клетку или область.');return;}for(const i of cells)if(grid[i].type!=='wall')grid[i].f[3]=+$('strength').value;path=[];inspect();draw();say('Прочность грунта изменена. Сравни показания и испытай робота.');};
-$('board').onpointerdown=e=>{if(!multi||running||e.button>0)return;const i=e.target.getAttribute?.('data-index');if(i===null||i===undefined)return;dragStart=dragEnd=+i;};
-$('board').onpointermove=e=>{if(dragStart===null)return;const hit=document.elementFromPoint(e.clientX,e.clientY),i=hit?.getAttribute?.('data-index');if(i===null||i===undefined)return;dragEnd=+i;const cells=new Set(rectangle(dragStart,dragEnd));for(let n=0;n<$('board').children.length;n++)$('board').children[n].classList.toggle('multi',cells.has(n)||selection.has(n));};
-function endSelection(){if(dragStart===null)return;if(dragStart!==dragEnd){rectangle(dragStart,dragEnd).forEach(i=>selection.add(i));selected=dragEnd;suppressClick=true;setTimeout(()=>{suppressClick=false;},0);draw();inspect();}dragStart=dragEnd=null;}
-window.addEventListener('pointerup',endSelection);window.addEventListener('pointercancel',()=>{dragStart=dragEnd=null;draw();});
-if(typeof ResizeObserver!=='undefined')new ResizeObserver(moveSprite).observe($('board'));
-function isOriginal(){return JSON.stringify(grid)===originalGrid&&start===mission.start&&raining===mission.rain&&+$('energy').value===mission.budget;}
-window.resetRobotMission=()=>{stop(false);stage=0;best=Array(4).fill(null);samples=[];model=[];overlay=false;multi=false;selection.clear();tool='inspect';$('strategy').value='short';$('boardStage').classList.remove('scanning');$('model').textContent='ИИ пока не обучен.';initial();};
-window.robotLesson={begin(){stop(false);stage=0;$('strategy').value='short';tool='inspect';multi=false;selection.clear();$('robotEditor').open=false;$('boardStage').classList.remove('enlarged');$('robotZoom').setAttribute('aria-pressed','false');$('robotZoom').textContent='＋ Крупнее клетки';initial();return true;}};
-$('nextMission').onclick=()=>loadStage(stage+1);
-$('parcelOrder').onchange=$('routeMode').onchange=()=>{trail=[];path=[];draw();say('План изменён. Запусти робота и сравни расход энергии.');};
-window.robotExpedition={current:()=>({stage,id:mission.id,spent,best:best.map(r=>r&&({...r})),optimal:benchmark.energy}),load:loadStage};
-$('robotEditor').ontoggle=()=>{if(!$('robotEditor').open&&!running){tool='inspect';multi=false;selection.clear();draw();inspect();}};
-
+$('safe').onclick=()=>label(0);$('unsafe').onclick=()=>label(1);$('probe').onclick=probe;$('train').onclick=train;
+$('clear').onclick=()=>{samples=[];model=[];overlay=false;recalculate();draw();updateLearning();controls();};
+$('predict').onclick=()=>{overlay=!overlay;draw();say(overlay?'Рамки — решения модели: зелёный можно, красный нельзя, ? нужен похожий пример. Они могут быть ошибочными.':'Решения ИИ скрыты. Робот продолжает использовать обученную модель.');window.GameTour?.signal('robot:prediction');};
+$('moveStart').onclick=()=>{placingStart=!placingStart;controls();say(placingStart?'Нажми на свободную безопасную клетку — это будет новый старт робота.':'Перенос старта отменён.');};
+$('run').onclick=run;$('stop').onclick=()=>stop();$('nextMission').onclick=()=>loadStage(stage+1);
 $('robotZoom').onclick=()=>{const on=$('boardStage').classList.toggle('enlarged');$('robotZoom').setAttribute('aria-pressed',on);$('robotZoom').textContent=on?'− Обычные клетки':'＋ Крупнее клетки';moveSprite();};
-initial();
+window.resetRobotMission=()=>{stop(false);stage=0;best=Array(4).fill(null);samples=[];model=[];overlay=false;initial();};
+window.robotLesson={begin(){stop(false);stage=0;initial();return true;}};
+window.robotExpedition={current:()=>({stage,id:mission.id,start,spent,best:best.map(r=>r&&({...r})),optimal:benchmark.energy}),load:loadStage};
+function switchLab(epi){stop(false);document.body.classList.toggle('city-active',epi);$('robotView').style.display=epi?'none':'';$('epiView').style.display=epi?'block':'none';for(const [id,on]of [['robotTab',!epi],['epiTab',epi]]){$(id).classList.toggle('active',on);$(id).setAttribute('aria-pressed',on);}if(epi)$('epiView').contentWindow.postMessage('city-active','*');else{$('epiView').contentWindow.postMessage('pause','*');window.GameTour?.maybeStart('robot');}location.hash=epi?'epidemic':'robot';}
+$('robotTab').onclick=()=>switchLab(false);$('epiTab').onclick=()=>switchLab(true);
+window.addEventListener('message',e=>{if(e.source===$('epiView').contentWindow&&e.data?.kind==='epidemic-height'&&Number.isFinite(e.data.height))$('epiView').style.height=Math.max(600,Math.min(10000,e.data.height))+'px';});
+new ResizeObserver(moveSprite).observe($('board'));
+initial();if(location.hash==='#epidemic')setTimeout(()=>switchLab(true),0);
