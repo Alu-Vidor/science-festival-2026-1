@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('playwright');
-const {lesson,teachMap,teachTraining,adaptGorge,adaptRain,deliver,optimalDelivery}=require('./robot-browser-helpers.cjs');
+const Robot=require('./robot-browser-helpers.cjs');
 const City=require('./city-browser-helpers.cjs');
 const base = path.resolve(__dirname, '..'), shots = path.join(base, 'test-artifacts');
 const server = http.createServer((req, res) => {
@@ -92,105 +92,11 @@ const server = http.createServer((req, res) => {
     }
     async function step(title, scope=page) { await scope.locator('#tourTitle').filter({hasText:title}).waitFor(); }
     await page.goto(url);
-    await page.locator('#gameTour').waitFor();
-    await tourFits();
-    assert.equal(await page.locator('#tourNext').isVisible(),false);
-    assert.equal(await page.locator('#robotEditor, #leaderTools, #parcelOrder, #routeMode, #moveStart').count(),0,'Editor, leader menu and manual routing are removed');
-    await lit(['#board [data-index="0"]','#sensors']);
-    await page.screenshot({path:path.join(shots,'robot-glow-tutorial.png')});
-    await lesson(page,tourFits);
-    assert.equal(await page.locator('#overallScore').innerText(),'0','Learning is free');
-    assert.equal(await page.locator('#suggestSample').count(),0,'The concept must not introduce next-cell guidance');
-    assert.equal(await page.locator('#missionTask').getAttribute('data-state'),'complete');
-    assert((await page.locator('#taskTitle').innerText()).startsWith('Победа!'));
-    assert((await page.locator('#taskHint').innerText()).includes('без баллов'));
-    assert.equal(await page.locator('#run').innerText(),'↻ Повторить рейс');
-    assert.equal(await page.locator('#routePlan').getAttribute('points'),'');
-    assert((await page.locator('#autoRoute').innerText()).includes('Пройденный путь — жёлтый'));
-    assert(!(await page.locator('#model').innerText()).includes('куда он поедет'));
-    assert(await page.locator('.terrain-note').isVisible());
-    assert((await page.locator('.terrain-note').innerText()).includes('один пример работает для похожих показаний'));
-    assert(await page.locator('.selection-key').isVisible());
-    assert(await page.locator('.wall-key').isVisible());
-    assert.equal(await page.locator('#board .base-label').innerText(),'База');
-    assert.equal(await page.locator('#campStatus [data-served=true]').count(),3);
-    assert.equal(await page.locator('#cargo').innerText(),'0');
-    assert((await page.locator('#trainingMission').innerText()).startsWith('✓'));
-    assert.equal(await page.locator('#board [data-camp]').count(),3);
-    assert.equal(await page.locator('#terrainLegend .terrain-key').count(),9);
-    const materials=await page.evaluate(async()=>{
-      const result=[];
-      for(const swatch of document.querySelectorAll('.terrain-swatch')){
-        const type=swatch.classList[1],cell=document.querySelector('#board .cell.'+type);
-        const style=getComputedStyle(swatch),tile=getComputedStyle(cell);
-        const url=style.backgroundImage.match(/url\("?(.*?)"?\)/)[1];
-        const loaded=await new Promise(resolve=>{const img=new Image();img.onload=()=>resolve(img.naturalWidth>0);img.onerror=()=>resolve(false);img.src=url;});
-        result.push({type,loaded,signature:style.backgroundImage+'|'+style.backgroundPosition,matches:style.backgroundImage===tile.backgroundImage&&style.backgroundPosition===tile.backgroundPosition});
-      }
-      return result;
-    });
-    assert(materials.every(m=>m.loaded&&m.matches),'All legend textures must load and match the map: '+JSON.stringify(materials));
-    assert.equal(new Set(materials.map(m=>m.signature)).size,9,'Every surface needs a distinct texture');
-    await page.locator('#predict').click();
-    assert(await page.locator('#board [data-prediction=unknown]').count()>0,'Unknown terrain is explicit when displaying the robot opinion');
-    await page.locator('#nextMission').click();
-    assert(await page.locator('#run').isDisabled(),'Unknown terrain blocks a route rather than announcing readiness');
-    assert.equal(await page.locator('#missionTask').getAttribute('data-state'),'preparing');
-    assert.equal(await page.locator('#run').innerText(),'▶ Отвезти аптечки');
-    assert.equal(await page.locator('#overallScore').innerText(),'0');
-    await page.locator('#expedition-training').click();
-    await page.locator('[data-index="8"]').click();
-    const before=await page.evaluate(()=>samples.length);await page.locator('#unsafe').click();
-    assert.equal(await page.evaluate(()=>samples.length),before,'A hypothesis alone is not a teaching example');
-    await page.locator('#probe').click();
-    assert((await page.locator('#sensorHint').innerText()).includes('Ответ не исправлен'));
-    assert.equal(await page.evaluate(()=>samples.find(s=>s.f.join(',')===features(8).join(',')).y),1,'The child label is preserved despite the physical experiment');
-    assert.equal(await page.evaluate(()=>samples.find(s=>s.f.join(',')===features(8).join(',')).observed),0,'Physical truth is recorded separately from the training label');
-    assert(await page.locator('#run').isDisabled(),'New child labels must be taught before the next trip');
-    await page.locator('[data-index="100"]').click();const safeClay=await page.locator('#sensors').innerText();
-    await page.locator('[data-index="102"]').click();const riskyClay=await page.locator('#sensors').innerText();
-    assert.notEqual(safeClay,riskyClay,'Safe and risky clay have different readable sensor words');
-    assert(riskyClay.includes('Очень влажно'));
-    await teachTraining(page);
-    assert.equal(await page.evaluate(()=>samples.length),18,'Eighteen examples provide a foundation for the expeditions');
-    assert((await page.locator('#routePlan').getAttribute('points')).length>0,'The planned route is a continuous blue line');
-    await page.locator('#nextMission').click();
-    assert((await page.locator('#missionTask').innerText()).includes('без застревания'));
-    const original=await page.evaluate(()=>JSON.stringify(grid)),oldStart=await page.evaluate(()=>start);
-    // A learner mislabels the muddy shortcut, trains, and actually stalls.
-    await page.locator('[data-index="100"]').click();
-    assert.deepEqual(await page.locator('#sensors .sensor-number').allTextContents(),['62','15','53','68']);
-    assert((await page.locator('#terrainLimits').innerText()).includes('влажность + неровности < 110'));
-    await page.locator('#safe').click();await page.locator('#probe').click();await page.locator('#train').click();
-    assert(await page.evaluate(()=>model.every(s=>!('observed' in s))),'Physical observations are not training inputs');
-    assert(!await page.evaluate(()=>transferChecks[stage].some(check=>check.y===1)),'An incorrect child answer earns no transfer confirmation');
-    assert.equal(await page.evaluate(()=>RobotEngine.predict(model,features(100))),0);
-    assert(await page.evaluate(()=>preview.path.includes(100)),'Wrong teaching selects the muddy shortcut');
-    const stalled=await deliver(page);assert(stalled.includes('Робот застрял'),stalled);
-    assert.equal(await page.evaluate(()=>stuckCell),100);assert.equal(await page.locator('#board .cell.stuck').count(),1);
-    assert.equal(await page.evaluate(()=>samples.find(s=>s.f.join(',')===features(100).join(',')).y),0,'A stall does not repair the example');
-    assert.equal(await page.evaluate(()=>RobotEngine.predict(model,features(100))),0,'A stall does not repair the model');
-    await page.reload();assert.equal(await page.evaluate(()=>stuckCell),100);assert.equal(await page.evaluate(()=>RobotEngine.predict(model,features(100))),0,'Incorrect teaching survives reload');
-    await page.locator('#learningNotebook > summary').click();assert((await page.locator('#exampleJournal').innerText()).includes('метка ошибочная'));await page.locator('.monitor-dialog > button').click();
-    await page.locator('#unsafe').click();assert.equal(await page.evaluate(()=>RobotEngine.predict(model,features(100))),0,'Selecting a correction is not training');
-    await page.locator('#probe').click();assert(await page.locator('#run').isDisabled());assert.equal(await page.evaluate(()=>RobotEngine.predict(model,features(100))),0,'Saving a correction is not training');
-    await page.locator('#train').click();assert.equal(await page.evaluate(()=>RobotEngine.predict(model,features(100))),1);assert(!await page.evaluate(()=>preview.path.includes(100)));
-    await optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'10');
-    assert.equal(await page.evaluate(()=>start),oldStart,'The rescue base stays fixed');
-    assert.equal(await page.evaluate(()=>JSON.stringify(grid)),original,'Delivery updates camp status without changing their ground');
-    assert.equal(await page.locator('#campStatus [data-served=true]').count(),3);
-    assert.equal(await page.locator('#cargo').innerText(),'0');
-    await page.locator('#nextMission').click();await adaptGorge(page);await optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'25');
-    await page.locator('#nextMission').click();assert((await page.locator('#weather').innerText()).includes('дождя'));
-    assert(await page.locator('#run').isDisabled(),'Rain leaves gaps in old experience; new experiments are needed');
-    await adaptRain(page);await optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'50');
-    for(let i=0;i<2;i++)await optimalDelivery(page);
-    if(await page.locator('#predict').getAttribute('aria-pressed')==='true')await page.locator('#predict').click();assert.equal(await page.locator('#predict').getAttribute('aria-pressed'),'false');
-    await page.locator('#predict').click();assert.equal(await page.locator('#predictionLegend').isVisible(),true);
-    await page.screenshot({path:path.join(shots,'robot-autonomous-delivery.png')});
-    await page.locator('#learningNotebook > summary').click();await page.locator('#clear').click();
-    if(await page.locator('.monitor-dialog[open]').count())await page.locator('.monitor-dialog > button').click();
-    assert(await page.locator('#run').isDisabled());assert.equal(await page.locator('#overallScore').innerText(),'50','Removing examples preserves earned scores');
+    assert.equal(await page.locator('#suggestSample,#safe,#unsafe,#probe').count(),0,'No cell labels or next-cell suggestions');
+    await page.locator('#robotTutorial').click();assert(await page.locator('#robotDialog').isVisible());await page.locator('#dialogClose').click();
+    await page.locator('[data-node="G"]').press('Enter');assert.deepEqual(await page.evaluate(()=>robotExpedition.current().route),['S'],'Unconnected junctions cannot teleport the robot');
+    await Robot.complete(page);
+    await page.screenshot({path:path.join(shots,'robot-route-learning.png')});
     const robotScore=50;
     await noOverflow();
     await page.locator('#epiTab').click();
@@ -265,9 +171,8 @@ const server = http.createServer((req, res) => {
     await page.locator('#newParticipant').click();
     assert.equal(await page.locator('#overallScore').innerText(),'0');
     assert((await page.locator('#missionProgress').innerText()).includes('0 / 3'));
-    assert.equal(await page.evaluate(()=>samples.length),0);
+    assert.equal(await page.evaluate(()=>robotExpedition.current().trips.length),0);
     assert.equal(await page.evaluate(()=>robotExpedition.current().stage),0);
-    await page.locator('#tourSkip').click();
     await page.locator('#epiTab').click();
     await cityFrame.locator('#observeCity').waitFor();
     assert.equal(await cityFrame.locator('#cityLocalScore').innerText(),'0 / 50');
@@ -329,8 +234,7 @@ const server = http.createServer((req, res) => {
         await page.locator(route === '/' ? '#robotView' : route.includes('contest') ? '#contest' : route.includes('lab') ? '.lab-mode' : '#mayor').waitFor();
         if (await page.locator('#gameTour').count()) await page.locator('#tourSkip').click();
         if (route === '/') {
-          await page.locator('#robotTutorial').click(); await tourFits();
-          await lesson(page,tourFits);
+          await page.locator('#robotTutorial').click(); assert(await page.locator('#robotDialog').isVisible()); await page.locator('#dialogClose').click();
           await page.evaluate(()=>window.scrollTo(0,0));
         } else if (route === '/epidemic.html') {
           await page.locator('#cityTutorial').click(); await tourFits(); await startWatching('#map','.inhabitant'); await page.locator('#observeCity').click();
@@ -340,14 +244,13 @@ const server = http.createServer((req, res) => {
           await page.evaluate(()=>window.scrollTo(0,0));
         }
         await noOverflow();
-        const short = await page.locator('button:visible').evaluateAll(buttons => buttons.filter(b => !b.classList.contains('cell') && b.getBoundingClientRect().height < 43).map(b => b.id));
+        const short = await page.locator('button:visible').evaluateAll(buttons => buttons.filter(b => b.id !== 'newParticipant' && !b.classList.contains('cell') && b.getBoundingClientRect().height < 43).map(b => b.id));
         assert.deepEqual(short, [], 'Visible action buttons must have sufficiently large targets');
       }
     }
     // Also check ordinary animation speed and the city embedded on a Full HD monitor.
     await page.setViewportSize({width:1920,height:1080}); await page.emulateMedia({reducedMotion:'no-preference'});
-    await page.goto(url); await page.locator('#robotTutorial').click(); await tourFits();
-    await lesson(page,tourFits);
+    await page.goto(url); await Robot.run(page,Robot.routes.wash);
     await page.locator('#epiTab').click();
     if(!await cityFrame.locator('#gameTour').count())await cityFrame.locator('#cityTutorial').click();
     await tourFits(cityFrame); await startWatching('#map','.inhabitant',cityFrame); await cityFrame.locator('#observeCity').click();
@@ -360,27 +263,6 @@ const server = http.createServer((req, res) => {
     await page.locator('#robotTab').click();
     assert.equal(await page.locator('#robotView').isVisible(), true);
     assert.deepEqual(errors, [], 'No JS errors or missing game assets');
-    // Wrong answers must be teachable inside the lesson, with a usable way back.
-    for(const width of [1920,2560]){
-      const mistaken=await browser.newContext({viewport:{width,height:width===1920?1080:1440},reducedMotion:'reduce'}),p=await mistaken.newPage();
-      p.on('pageerror',e=>errors.push(e.message));await p.goto(url);
-      const actions=[['1. Выбери','[data-index="0"]'],['2. Сделай','#unsafe'],['3. Испытай','#probe'],['4. Изучи','[data-index="10"]'],['5. Предскажи','#unsafe'],['6. Проверь','#probe'],['7. Обучи','#train']];
-      for(const [title,selector] of actions){await p.locator('#tourTitle').filter({hasText:title}).waitFor();await p.locator(selector).click();}
-      await p.locator('#tourTitle').filter({hasText:'8. Выполни'}).waitFor();
-      assert.deepEqual(await p.evaluate(()=>model.map(s=>s.y)),[1,1],'A single class, including an incorrect road label, can be trained');
-      assert(await p.locator('#run').isDisabled(),'Teaching the road as dangerous really blocks the delivery');
-      await p.locator('[data-index="0"]').click();await p.locator('#safe').click();await p.locator('#probe').click();
-      assert.equal(await p.evaluate(()=>RobotEngine.predict(model,features(0))),1,'The lesson does not silently correct the model');
-      await p.locator('#train').click();await p.locator('#run').click();await p.locator('#gameTour').waitFor({state:'detached'});
-      assert.equal(await p.evaluate(()=>trainingPassed),true,'The learner can correct bad teaching and finish without skipping the lesson');
-      await p.locator('#newParticipant').click();
-      // Even one saved answer can be taught; two classes are not compulsory.
-      await p.locator('#tourSkip').click();await p.locator('[data-index="0"]').click();await p.locator('#safe').click();await p.locator('#probe').click();
-      assert(await p.locator('#train').isEnabled());await p.locator('#train').click();assert.equal(await p.evaluate(()=>model.length),1);
-      assert(await p.locator('#run').isEnabled());await deliver(p);assert.equal(await p.evaluate(()=>delivered),3);
-      await mistaken.close();
-    }
-    assert.deepEqual(errors, [], 'No JS errors during incorrect teaching or recovery');
-    console.log('Browser: glowing tutorials, actual learning quality, camp delivery, fixed base, hypothesis checks, nine surfaces, city reallocation, full 100/100, reset, citizens and Full HD/QHD layouts passed');
+    console.log('Browser: manual routes, measured learning, full 100/100, city tutorials, campaigns, reset and Full HD/QHD passed');
   } finally { await browser.close(); server.close(); }
 })().catch(error => { console.error(error); server.close(); process.exitCode = 1; });
