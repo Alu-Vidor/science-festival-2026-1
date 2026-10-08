@@ -3,6 +3,7 @@ async function finishLesson(scope, fits = async()=>{}) {
   await scope.locator('#tourTitle').filter({hasText:'Цели каждого'}).waitFor();
   await fits(scope); await scope.locator('#tourNext').click();
   await scope.locator('#tourTitle').filter({hasText:'Планируй улучшения'}).waitFor();
+  assert.equal(await scope.locator('#cityProjects').evaluate(el=>el.open),false,'Highlighting a summary must leave its dialog closed');
   await fits(scope); await scope.locator('#tourNext').click();
   await scope.locator('#gameTour').waitFor({state:'detached'});
   assert.equal(await scope.locator('#cityLocalScore').innerText(),'0 / 50');

@@ -149,7 +149,11 @@
     restoreFit();
     const token = sequence, step = currentStep(), target = targetOf(step), index = active.index;
     let ancestor = target;
-    while (ancestor) { if (ancestor.tagName === 'DETAILS' && !ancestor.open) { openedDetails.add(ancestor); ancestor.open = true; } ancestor = ancestor.parentElement; }
+    while (ancestor) {
+      const ownSummary = target?.tagName === 'SUMMARY' && ancestor === target.parentElement;
+      if (ancestor.tagName === 'DETAILS' && !ancestor.open && !ownSummary) { openedDetails.add(ancestor); ancestor.open = true; }
+      ancestor = ancestor.parentElement;
+    }
     limitInteraction(target, !!step.event);
     root.classList.toggle('tour-watching', !!active.phase);
     root.classList.toggle('tour-acting', !!step.event);
