@@ -26,7 +26,7 @@ function run(strategy) {
 }
 const solutions = ['shops','market','bus'].map(run);
 for(const c of solutions) {
-  assert(c.completed); assert.equal(c.score, 50); assert.deepEqual(c.results.map(r=>r.score), [10,15,25]);
+  assert(c.completed); assert.equal(c.score, 45); assert.deepEqual(c.results.map(r=>r.score), [10,15,20]);
   // Recompute every maximum condition directly from daily observations, independently of scoring.
   c.results.forEach((r, i) => {
     const goal = C.rounds[i], days = c.game.reports.slice(i*4,i*4+4), average = key => days.reduce((s,d)=>s+d[key],0)/4;
@@ -57,7 +57,7 @@ for(const h of hungry.history) for(const p of h.citizens) {
   if(p.reaction?.kind==='food') assert.equal(p.food,0);
   if(p.reaction?.kind==='tired') assert(p.energy<40);
 }
-console.log('City campaign: three distinct 50/50 strategies, persistent resources, bounded grant, delayed symptoms, truthful reactions and strict goals passed');
+console.log('City campaign: three distinct 45-point round strategies, persistent resources, bounded grant, delayed symptoms, truthful reactions and strict goals passed');
 
 // Reallocation preserves past days and cannot create coins or refund operating costs.
 {
@@ -85,4 +85,25 @@ console.log('City campaign: three distinct 50/50 strategies, persistent resource
  assert.throws(()=>C.compare(base,stable,changes.slice(0,2)));
  let c=C.create();for(let day=1;day<=9;day++)c=C.advance(c,{school:'shifts',bus:'frequent',shops:'both'});
  assert.equal(C.measure(c,2).careRequests,0);assert(C.insights(c,2).some(s=>s.includes('Обращений за помощью пока не было')));
+}
+
+// Missing a round's main task cannot be compensated by unrelated indicators.
+{
+ const passive=[];
+ for(const school of ['normal','shifts'])for(const bus of ['normal','frequent']){
+  let c=C.create();const plan={school,bus,shops:'both'};
+  for(let day=0;day<12;day++)c=C.advance(c,plan);
+  passive.push(c.score);
+  for(const result of c.results)if(!result.primaryMet)assert(result.score<=Math.floor(C.rounds[result.index].max/2));
+ }
+ assert(Math.max(...passive)<=27);
+ const original={school:'shifts',bus:'frequent',shops:'both'},cheaper={...original,school:'normal'},base=C.create();
+ const actual=C.compare(base,original),alt=C.compare(base,cheaper);
+ assert(C.experiment(actual,alt,original,cheaper).success,'A cheaper plan meeting all conditions proves a meaningful improvement');
+ assert(!C.experiment(actual,actual,original,original).success,'Repeating the same plan never earns the research bonus');
+ const bad={...original,bus:'reduced'};
+ assert(!C.experiment(actual,C.compare(base,bad),original,bad).success,'An improvement that misses a condition is not a successful experiment');
+ assert(!C.experiment(actual,alt,original,{...cheaper,shops:'long'}).success,'Changing multiple variables is not a controlled experiment');
+ assert.equal(C.cityScore(solutions[0],false),45);assert.equal(C.cityScore(solutions[0],true),50);
+ assert(!C.succeeded(solutions[0],false));assert(C.succeeded(solutions[0],true));
 }

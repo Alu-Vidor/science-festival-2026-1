@@ -28,7 +28,7 @@ const server = http.createServer((req, res) => {
             if(!r.width || !r.height || r.left<0 || r.top<0 || r.right>innerWidth+1 || r.bottom>innerHeight+1) issues.push(selector+': '+JSON.stringify({x:r.x,y:r.y,w:r.width,h:r.height}));
             for(let p=el.parentElement;p&&p!==document.body;p=p.parentElement) {
               const b=p.getBoundingClientRect(), css=getComputedStyle(p);
-              if(['hidden','auto','scroll','clip'].includes(css.overflowY) && (r.top<b.top-1 || r.bottom>b.bottom+1)) issues.push(selector+' clipped by '+p.className);
+              if((['hidden','auto','scroll','clip'].includes(css.overflowY)||p.matches('.training,.city-decisions,#robotControls')) && (r.top<b.top-1 || r.bottom>b.bottom+1)) issues.push(selector+' (#'+el.id+') clipped by '+p.className+' at '+Math.round(r.bottom)+' / '+Math.round(b.bottom)+'; expedition '+(window.robotExpedition?.current().stage??'city'));
               if(p.scrollTop || p.scrollLeft) issues.push(selector+' panel scroll');
             }
           }
@@ -48,7 +48,7 @@ const server = http.createServer((req, res) => {
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
-      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#model','.training > details','#status','#deliveryTries','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#sessionPace','#terrainLegend','#cargoPanel','#campStatus','#routeLayer','.terrain-note','.selection-key','.wall-key']);
+      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#terrainLimits','#sensors .sensor-number','#model','.training > details:not([hidden])','#status','#deliveryTries','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#sessionPace','#terrainLegend','#robotRules','#cargoPanel','#campStatus','#routeLayer','.terrain-note','.selection-key','.wall-key']);
       await page.mouse.wheel(0,700); await fits(page,['#boardStage','#model']);
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-monitor-${width}x${height}.png`)});
       async function lit(scope, selectors) {
@@ -70,13 +70,39 @@ const server = http.createServer((req, res) => {
       await fits(page,['#model','#train','#status','#nextMission','#expeditionNav']);
       for(let stage=1;stage<=3;stage++){
         await page.locator('#nextMission').click();
+        if(stage===1){
+          await page.locator('[data-index="100"]').click();await page.locator('#safe').click();await page.locator('#probe').click();
+          const right=['#sensors','#terrainLimits','#sensorHint','#transferForecast','#safe','#unsafe','#probe','#train','#model','.training > details:not([hidden])'];
+          async function wrongLabelFits(){
+            await fits(page,right);
+            for(const font of ['Arial, sans-serif','DejaVu Sans, sans-serif','Noto Sans, sans-serif']){
+              await page.locator('.training').evaluate((el,font)=>el.style.fontFamily=font,font);await fits(page,right);
+            }
+            await page.locator('.training').evaluate(el=>el.style.fontFamily='');
+          }
+          await wrongLabelFits();await page.screenshot({path:path.join(root,'test-artifacts',`robot-wrong-label-${width}x${height}.png`)});
+          await page.locator('#train').click();await wrongLabelFits();
+          await page.locator('#run').click();await page.waitForFunction(()=>!running);assert.equal(await page.evaluate(()=>stuckCell),100);
+          await wrongLabelFits();await fits(page,['#status']);await page.screenshot({path:path.join(root,'test-artifacts',`robot-stalled-${width}x${height}.png`)});
+          await page.locator('#unsafe').click();await page.locator('#probe').click();await page.locator('#train').click();
+        }
         if(stage===2)await adaptGorge(page);
         if(stage===3)await adaptRain(page);
         await optimalDelivery(page);
-        await fits(page,['#boardStage','#model','#status','#deliveryTries','#autoRoute','#predict','#newParticipant']);
+        await fits(page,['#boardStage','#model','#status','#deliveryTries','#autoRoute','#predict','#newParticipant','#transferForecast','#terrainLimits','#sensors .sensor-number','#robotResearch','#robotRules','.training > details:not([hidden])']);
         if(stage<3)await fits(page,['#nextMission']);
         await page.screenshot({path:path.join(root,'test-artifacts',`robot-mission-${stage}-${width}x${height}.png`)});
       }
+      // System-font metrics vary between festival PCs and Linux CI.
+      // Check ordinary fallbacks without replacing the default-font checks above.
+      for(const font of ['Arial, sans-serif','DejaVu Sans, sans-serif']){
+        await page.locator('.training').evaluate((el,font)=>el.style.fontFamily=font,font);
+        await fits(page,['#sensors','#terrainLimits','#sensors .sensor-number','#sensorHint','#transferForecast','#safe','#unsafe','#probe','#train','#model','.training > details:not([hidden])']);
+      }
+      await page.locator('.training').evaluate(el=>el.style.fontFamily='');
+      await page.locator('#robotRules > summary').click();await page.locator('.monitor-dialog[open]').waitFor();
+      await fits(page,['.monitor-dialog','#robotBenchmark']);
+      await page.locator('.monitor-dialog > button').click();
       await page.locator('#learningNotebook > summary').click();await page.locator('.monitor-dialog[open]').waitFor();
       await fits(page,['.monitor-dialog','#coverage']);
       await page.locator('.monitor-dialog > button').click();
@@ -86,7 +112,7 @@ const server = http.createServer((req, res) => {
       const frame=page.frames().find(f=>f.url().includes('epidemic.html'));
       if(await city.locator('.tour-card').count()) await city.locator('.tour-card').press('Escape');
       await readableCity(frame);
-      await fits(frame,['#map','#map .building-sprite','#observeCity','#beginCity','#mayorStatus','#cityLocalScore','#cityRounds','#projectSummary']);
+      await fits(frame,['#map','#map .building-sprite','#observeCity','#beginCity','#mayorStatus','#cityLocalScore','#cityRounds','#projectSummary','#cityLearningGoal']);
       assert.equal(await city.locator('#map').getAttribute('viewBox'),'0 0 1750 1080','Every building stays in the full city view');
       await city.locator('#cityTutorial').click(); await fits(frame,['.tour-card','#tourTitle','#tourText','#observeCity']);
       await city.locator('#observeCity').click();

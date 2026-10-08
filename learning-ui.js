@@ -4,15 +4,15 @@
   function registerRobot() {
     GameTour.register('robot', { name: 'Первый спасательный рейс', before: () => window.robotLesson.begin(), steps: [
       { target: '#board [data-index="0"]', context: ['#sensors'], title: '1. Выбери участок', text: 'Три лагеря ждут аптечки. Робот поедет сам, а ты научишь его узнавать проезд. Нажми на дорогу под роботом.', event: 'robot:inspected', accept: d => d.index === 0 },
-      { target: '#labelChoices', context: ['#sensors'], title: '2. Сделай предположение', text: 'Дорога сухая, почти ровная и твёрдая. Как думаешь, робот проедет? Выбери свою гипотезу.', event: 'robot:guessed' },
-      { target: '#probe', context: ['#sensorHint'], title: '3. Испытай грунт', text: 'Испытание проверит гипотезу и сохранит настоящий результат. Робот узнает его после обучения.', event: 'robot:probed' },
+      { target: '#labelChoices', context: ['#sensors'], title: '2. Сделай предположение', text: 'Сравни числа с границами проезда. Все условия должны выполняться одновременно. Как думаешь, робот проедет?', event: 'robot:guessed' },
+      { target: '#probe', context: ['#sensorHint'], title: '3. Испытай грунт', text: 'Испытание покажет результат, но сохранит твой ответ. Неверная метка тоже попадёт в обучение.', event: 'robot:probed' },
       { target: '#board [data-index="10"]', context: ['#sensors'], title: '4. Изучи другой грунт', text: 'Теперь исследуй грязь. Даже знакомое покрытие может оказаться опасным из-за своего состояния.', event: 'robot:inspected', accept: d => d.index === 10 },
       { target: '#labelChoices', context: ['#sensors'], title: '5. Предскажи результат', text: 'Здесь мокро и много неровностей. Сделай предположение, что случится с роботом.', event: 'robot:guessed' },
-      { target: '#probe', context: ['#sensorHint'], title: '6. Проверь гипотезу', text: 'Испытай грунт. В памяти появятся проверенные примеры проезда и опасности.', event: 'robot:probed' },
-      { target: '#train', context: ['#samples', '#model'], title: '7. Обучи робота', text: 'Передай роботу проверенные примеры. Он сравнит новые участки с ними и построит путь к лагерям.', event: 'robot:trained', delay: 900,
-        result: { target: '#boardStage', fit: '#boardStage', text: 'Синяя линия — путь, выбранный роботом. Для первого рейса достаточно этих двух примеров.' } },
-      { target: '#run', context: ['#cargoPanel'], title: '8. Выполни первый рейс', text: 'У робота три аптечки. Отправь его в лагеря A, B и C. Первый рейс завершится, когда каждый лагерь получит помощь.', event: 'robot:finished', accept: d => d.delivered === 3, delay: 1200,
-        result: { target: '#campStatus', text: 'Все три лагеря получили помощь! Первый рейс пройден. В лесу будут новые покрытия: твои эксперименты пригодятся снова.' } }
+      { target: '#probe', context: ['#sensorHint'], title: '6. Проверь гипотезу', text: 'Испытай грунт. В примере останется твоя метка. Испытание её не исправляет.', event: 'robot:probed' },
+      { target: '#train', context: ['#samples', '#model'], title: '7. Обучи робота', text: 'Передай роботу свои метки. Он сравнит новые участки с ними и построит путь к лагерям.', event: 'robot:trained', delay: 900,
+        result: { target: '#boardStage', fit: '#boardStage', text: 'Синяя линия — путь, выбранный роботом. Если пути нет, проверь свои метки и обучи снова.' } },
+      { target: '#run', context: ['#cargoPanel'], title: '8. Выполни первый рейс', text: 'Отправь робота в лагеря A, B и C. Если он застрял или пути нет, исправь свою метку, сохрани пример и обучи снова.', interactive: ['#board','#labelChoices','#probe','#train'], event: 'robot:finished', accept: d => d.delivered === 3, delay: 1200,
+        result: { target: '#campStatus', text: 'Все три лагеря получили помощь! В экспедициях доставь аптечки и подтверди перенос опыта: проезд и опасность на выбранных тобой участках.' } }
     ] });
     $('robotTutorial').onclick = () => GameTour.start('robot');
     if (location.hash !== '#epidemic' && !window.robotExpedition.restored) GameTour.maybeStart('robot');
@@ -30,7 +30,7 @@
       { target: '#pick-bus-frequent', context: ['#choices-bus'], title: 'Помоги добраться', text: 'Жители пропускают поездки. Нажми «Больше рейсов».', event: 'city:choice', accept: d => d.key === 'bus' && d.value === 'frequent' },
       { target: '#tryCity', context: ['#mayorMapSlot .mapscroll'], title: 'Проверь своё решение', text: 'Проверь рейсы. После дня город остановится.', event: 'city:tested', delay: 350,
         watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', interactive: ['#map', '#tryCity', '#pauseCity', '#cityPeople', '.monitor-dialog'], context: ['#mayorMapSlot .legend', '#citizenStory', '.city-time-controls'], text: 'Заметь, кто добрался. Можно нажать на жителя и прочитать его историю. После осмотра закрой карточку и продолжи день.' } },
-      { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'На карте показана главная задача раунда. В «Условиях успеха» — остальные требования. Галочка означает, что условие пока выполнено. Максимум дают за все условия после четырёх дней.' },
+      { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'Победа — три решённые задачи и проверенное улучшение плана. Раунды дают до 45 баллов, сравнение одного решения — ещё 5. Для максимума нужны все «Условия успеха».' },
       { target: '#projectSummary', title: 'Планируй улучшения', text: 'Распредели 200 монет. Между днями можно вернуть улучшение и вложить монеты в другое. Прошедшие дни не изменятся.' }
     ] } : mode === 'contest' ? { name: 'Соревнование', steps: [
       { target: '.round-clock', title: 'Семь минут на попытки', text: 'Таймер начнётся после первой проверки. Во время обучения он стоит.' },

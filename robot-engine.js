@@ -11,7 +11,8 @@
     grass: [[35,8,28,75],[35,8,28,24]], clay: [[40,25,45,75],[69,25,48,75]],
     ice: [[30,15,8,70],[30,76,8,70]]
   };
-  const danger = f => f[0] >= 70 || f[1] >= 70 || f[0] + f[2] >= 110 || f[3] <= 30;
+  const limits = Object.freeze({ wet: 70, slope: 70, wetRough: 110, bearing: 30 });
+  const danger = f => f[0] >= limits.wet || f[1] >= limits.slope || f[0] + f[2] >= limits.wetRough || f[3] <= limits.bearing;
   const sensorWords = f => [
     f[0] >= 70 ? 'Мокро' : f[0] >= 60 ? 'Очень влажно' : f[0] >= 35 ? 'Влажно' : f[0] >= 20 ? 'Слегка влажно' : 'Сухо',
     f[1] >= 70 ? 'Круто' : f[1] >= 35 ? 'Наклон' : 'Ровно',
@@ -33,6 +34,9 @@
     return { label: risk > .35 && risk < .65 ? null : +(risk >= .5), near, reason: risk > .35 && risk < .65 ? 'Похожие примеры противоречат друг другу' : 'Сравнение с тремя ближайшими примерами', risk };
   }
   function predict(model, f) { return explain(model,f).label; }
+  function transfer(model, f) {
+    return explain(model.filter(sample => sample.f.some((value, i) => value !== f[i])), f);
+  }
   function shortest(grid, start, goal, { rain = false, model = [], mode = 'energy', oracle = false, useAI = true } = {}) {
     const dist = Array(144).fill(Infinity), prev = Array(144).fill(-1), done = new Set(); dist[start] = 0;
     for (let k = 0; k < 144; k++) {
@@ -114,6 +118,9 @@
       for(let k=0;k<queue.length;k++)for(const j of neighbors(queue[k],grid))if(!seen.has(j)&&!danger(features(grid[j],rain))){seen.add(j);queue.push(j);}
       if(grid.some((c,j)=>c.type!=='wall'&&!danger(features(c,rain))&&!seen.has(j)))grid[i]=before;
     }
+    // A muddy shortcut preserves the safe graph (this was a wall). A mistaken
+    // 'passable' label makes it attractive, so the learner sees a real stall.
+    if(id==='forest')grid[100]=tile('mud',100,profiles.mud[1]);
     // Every route to the lower camps crosses scree with readings absent from the lab.
     // One safe field example transfers to the other passes; a weak pass stays optional.
     if(id==='gorge')for(const i of [50,55,57,97,101,105])grid[i]=tile('gravel',i,[10,12,45,i===50?22:50]);
@@ -131,6 +138,6 @@
     // Every nonoptimal complete path scores strictly below the maximum.
     return Math.min(max - 1, Math.max(delivery, Math.floor(max * (.6 + .4 * optimal / energy))));
   }
-  root.RobotEngine = { N, costs, danger, sensorWords, tile, features, predict, explain, shortest, plan, optimum, permutations, create, examples, names, icons, profiles, score, ids: ['training', 'forest', 'gorge', 'rain'] };
+  root.RobotEngine = { N, costs, limits, danger, sensorWords, tile, features, predict, explain, transfer, shortest, plan, optimum, permutations, create, examples, names, icons, profiles, score, ids: ['training', 'forest', 'gorge', 'rain'] };
   if (typeof module !== 'undefined') module.exports = root.RobotEngine;
 })(typeof window !== 'undefined' ? window : globalThis);

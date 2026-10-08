@@ -5,13 +5,13 @@
   const names = { school: '🎒 Занятия и работа', bus: '🚌 Поездки', shops: '🛒 Продукты' };
   let campaign = C.create(), plan = GameScore.cityDefaults(), started = false, lesson = null;
   let best = 0, completedOnce = false, attempts = [], playing = false, pending = null, timer = null;
-  let actions = [], roundStarts = [], restoring = true, availableExperiments = 0;
+  let actions = [], roundStarts = [], research = [], restoring = true, availableExperiments = 0;
   let selectedCitizen = 0, viewedGame, viewedFrame, viewedHistory, viewedIndex;
   const session = new URLSearchParams(location.search).get('session') || window.FestivalSession?.id || 'initial';
   const shell = document.createElement('section'); shell.id = 'mayor';
   shell.innerHTML = `<div class="mayor-title"><div><span class="eyebrow">ЗАДАНИЕ 3 · ЖИВОЙ ГОРОД</span><h1>Помоги городу жить</h1><p id="cityCalendar">Три раунда · 12 игровых дней</p></div><div class="city-scoreboard"><span>Это прохождение<strong id="cityLocalScore" class="city-local-score">0 / 50</strong></span><span>Лучший результат<strong id="cityBestScore">0 / 50</strong></span></div></div>
     <nav id="cityRounds" class="city-rounds" aria-label="Раунды города"></nav>
-    <p id="cityRoundBrief" class="city-round-brief"></p>
+    <p id="cityRoundBrief" class="city-round-brief"></p><p id="cityLearningGoal" class="city-learning-goal" role="status"></p>
     <div class="city-playground"><div class="city-map-area"><div id="mayorMapSlot"></div><p id="citizenStory">Эмоции появятся над жителями. Нажми на фигурку, чтобы узнать причину.</p>
       <div id="cityComparison" class="city-comparison" hidden><div id="cityEffects"></div></div><p id="mayorStatus" role="status" aria-live="polite"></p></div>
       <div id="cityDecisions" class="city-decisions">
@@ -19,29 +19,36 @@
         <h2 id="cityGoalTitle">Цели на четыре дня</h2><div id="cityGoalGrid" class="city-goals"></div><p id="cityNeeds" class="city-needs"></p>
         <div id="mayorPolicies"></div><div class="city-time-controls"><button id="tryCity" class="primary" disabled>Прожить день 1</button><button id="pauseCity" disabled>Пауза</button></div>
         <p id="roundOutcome" class="round-outcome"></p>
-        <article id="roundLearning" class="round-learning" hidden><h3 id="roundLearningTitle"></h3><p id="roundWhy"></p><p>Какие последствия связаны с твоим планом? Сравни другое решение на тех же начальных условиях.</p></article>
-        <details id="cityExperiment" hidden><summary>Сравнить другой план</summary><p>Выбери завершённый раунд и измени план. Опыт начинается с того же города. Изменения улучшений повторяются как в твоём раунде. Выбранный план действует все четыре дня.</p><label>Раунд<select id="experimentRound"></select></label><div id="experimentChoices"></div><button id="testAlternative" class="primary">Проверить другой план</button><div id="alternativeResult" role="status" aria-live="polite"></div><p>Это отдельный опыт. Основной город и баллы сохраняются.</p></details><button id="restartCity" hidden>Новое прохождение</button>
+        <article id="roundLearning" class="round-learning" hidden><h3 id="roundLearningTitle"></h3><p id="roundWhy"></p><p>Исследование: измени одно решение, улучши показатель и сохрани все условия успеха. Это ещё 5 баллов.</p></article>
+        <details id="cityExperiment" hidden><summary>Сравнить другой план</summary><p>Измени одно решение плана первого дня. Оба плана проверяются четыре дня на том же начальном городе, с теми же улучшениями. Улучши показатель, выполнив все условия: +5 баллов.</p><label>Раунд<select id="experimentRound"></select></label><div id="experimentChoices"></div><button id="testAlternative" class="primary">Проверить другой план</button><p id="experimentState" role="status" aria-live="polite">Выбери план и запусти проверку.</p><div id="alternativeResult"></div></details><button id="restartCity" hidden>Новое прохождение</button>
       </div></div>
     <details id="cityProjects"><summary id="projectSummary">Улучшения · 200</summary><p>Распредели 200 монет между улучшениями. Между днями можно освободить вложенные монеты и выбрать другое улучшение. Оно работает, пока в него вложены монеты. У больницы сначала одно место помощи; в третьем раунде обращений станет больше. Доходы не пополняют эти 200 монет.</p><div id="projectChoices"></div><p id="cityBudget"></p></details>
     <details id="cityConditions"><summary id="cityConditionSummary">Условия успеха</summary><p>Главная задача меняется в каждом раунде. Для максимума выполни все условия за четыре дня.</p><div id="cityConditionGrid" class="city-goals"></div></details>
     <details id="cityPlaceInfo"><summary>Место в городе</summary><div id="cityPlacePanel"></div></details>
     <details id="cityPeople"><summary>Жители</summary><label>Житель<select id="citizenChoice"></select></label><div id="citizenPanel"></div></details>
     <details id="cityReports"><summary>Раунды</summary><div id="roundReports"></div><div id="cityAttempts" class="attempt-chips"></div><button id="restartEarly">Начать заново</button></details>
-    <details class="city-rules"><summary>Правила</summary><p>Три раунда по четыре дня дают до 10, 15 и 25 баллов. Цели показаны до начала раунда. Еда, занятия и настроение — средние за четыре дня; помощь — доля обслуженных обращений; заражения и расходы — сумма. Максимум доступен только при выполнении всех целей раунда.</p><p>Один клик проживает один день. После него город ждёт твоего решения. Можно поставить анимацию на паузу, рассмотреть жителей и продолжить. Изменения плана действуют со следующего дня.</p><p>Фонд улучшений — 200 монет. Можно вернуть всю стоимость улучшения и перераспределить её между днями. Полученные раньше результаты и оплаченные расходы не меняются. Новый набор улучшений работает со следующего дня. Запасы, усталость и болезни переходят между раундами.</p><p>В последнем раунде до четырёх жителей возвращаются после поездки, где заразились накануне. Они учитываются отдельно от заражений внутри города. Симптомы в модели появляются через два дня после заражения.</p><p>🙂 удачная поездка, покупка, отдых или помощь; 😠 пропущенная поездка; 😟 очередь, нехватка еды или помощи; 😴 усталость. Цвет одежды отдельно показывает видимые симптомы.</p><p>Попытки не ограничены. Лучший счёт сохраняется. Время и скорость анимации не влияют на баллы. Это учебная модель вымышленного города.</p></details>`;
+    <details class="city-rules"><summary>Правила</summary><p>Три раунда по четыре дня дают до 10, 15 и 20 баллов. Если главная задача раунда не решена, за него можно получить не больше половины баллов. Ещё 5 баллов — за проверенное улучшение одного решения при выполнении всех условий опыта. Победа — три решённые главные задачи и одно подтверждённое улучшение. Цели показаны до начала раунда. Еда, занятия и настроение — средние за четыре дня; помощь — доля обслуженных обращений; заражения и расходы — сумма. Максимум доступен только при выполнении всех целей раунда.</p><p>Один клик проживает один день. После него город ждёт твоего решения. Можно поставить анимацию на паузу, рассмотреть жителей и продолжить. Изменения плана действуют со следующего дня.</p><p>Фонд улучшений — 200 монет. Можно вернуть всю стоимость улучшения и перераспределить её между днями. Полученные раньше результаты и оплаченные расходы не меняются. Новый набор улучшений работает со следующего дня. Запасы, усталость и болезни переходят между раундами.</p><p>В последнем раунде до четырёх жителей возвращаются после поездки, где заразились накануне. Они учитываются отдельно от заражений внутри города. Симптомы в модели появляются через два дня после заражения.</p><p>🙂 удачная поездка, покупка, отдых или помощь; 😠 пропущенная поездка; 😟 очередь, нехватка еды или помощи; 😴 усталость. Цвет одежды отдельно показывает видимые симптомы.</p><p>Попытки не ограничены. Лучший счёт сохраняется. Время и скорость анимации не влияют на баллы. Это учебная модель вымышленного города.</p></details>`;
   document.body.insertBefore(shell, document.body.firstChild);
   $('mayorMapSlot').appendChild(document.querySelector('.city'));
   document.body.classList.add('mayor-mode', 'short-city', 'campaign-city'); window.mayorActive = true;
   function element(tag, text, parent) { const e = document.createElement(tag); e.textContent = text; parent.appendChild(e); return e; }
   function signal(name, detail) { window.GameTour?.signal(name, detail); }
   function persist() {
-    if (!restoring) window.FestivalSession?.save('city',{actions,plan,started,best,completedOnce,attempts,
+    if (!restoring) window.FestivalSession?.save('city',{rules:GameScore.VERSION,actions,plan,started,best,completedOnce,attempts,research,
       pending:pending&&!pending.lesson?{plan:pending.plan,index:pending.nextIndex-1}:null},session);
   }
   function publish() {
     persist();
-    $('cityLocalScore').textContent = campaign.score + ' / 50';
+    $('cityLocalScore').textContent = currentScore() + ' / 50';
     $('cityBestScore').textContent = best + ' / 50';
     if (window !== parent) parent.postMessage({ kind: 'city-score', version: GameScore.VERSION, session, score: best, completed: completedOnce }, location.origin === 'null' ? '*' : location.origin);
+  }
+  function researched() { return research.some(result => result.success); }
+  function currentScore() { return C.cityScore(campaign, researched()); }
+  function recordProgress() {
+    best = Math.max(best, currentScore());
+    completedOnce ||= C.succeeded(campaign, researched());
+    if (campaign.completed && attempts.length) attempts[attempts.length - 1] = currentScore();
   }
   function initialHistory(game) {
     return { day: 0, phase: 4, state: game.people.map((_, i) => i ? 'S' : 'I'), loc: game.people.map(p => p.home), events: [], S: game.people.length - 1, I: 1, R: 0, outside: 0,
@@ -117,7 +124,7 @@
       if (key === goal.focus) card(primary, key, name, sign, unit);
     });
     $('cityConditionSummary').textContent = 'Условия успеха · ' + (stats ? metCount + '/' + total : total);
-    $('cityNeeds').textContent = 'До ' + goal.max + ' баллов. Максимум — за все условия после четырёх дней. Открой «Условия успеха», чтобы проверить город.';
+    $('cityNeeds').textContent = 'До ' + goal.max + ' баллов. Главная задача не решена — до ' + Math.floor(goal.max / 2) + '. Максимум — за все условия.';
   }
 
   function projects() {
@@ -159,6 +166,8 @@
     select.value=availableExperiments===campaign.results.length&&campaign.results[chosen]?chosen:Math.max(0,campaign.results.length-1);
     if(availableExperiments!==campaign.results.length){availableExperiments=campaign.results.length;experimentPlan();}
     const chips = $('cityAttempts'); chips.replaceChildren(); attempts.forEach((score, i) => element('span', 'Город ' + (i + 1) + ': ' + score + '/50', chips));
+    $('cityLearningGoal').textContent = 'Реши три задачи: ' + campaign.results.filter(result => result.primaryMet).length + '/3 · Исследование: ' + (researched() ? 'улучшение подтверждено ✓ · +5' : 'найди лучший план · +5') + ' · Всего 50 баллов';
+    $('cityLearningGoal').hidden = !!lesson;
     $('restartEarly').disabled = !!pending || !started || !!lesson;
   }
   function update(renderNow = true) {
@@ -174,7 +183,7 @@
     $('beginCity').hidden = !!lesson && !lesson.tested;
     $('observeCity').disabled = !!pending; $('beginCity').disabled = !!pending;
     $('tryCity').disabled = playing || (pending ? false : lesson ? !lesson.observed || lesson.tested : !started || campaign.completed);
-    $('tryCity').textContent = pending && !playing ? 'Продолжить день' : lesson ? 'Проверить рейсы' : campaign.completed ? 'Город завершён ✓' : 'Прожить день ' + (campaign.game.day + 1);
+    $('tryCity').textContent = pending && !playing ? 'Продолжить день' : lesson ? 'Проверить рейсы' : campaign.completed ? C.succeeded(campaign,researched()) ? 'Задача города выполнена ✓' : '12 дней прожиты' : 'Прожить день ' + (campaign.game.day + 1);
     $('pauseCity').disabled = !playing;
     $('restartCity').hidden = !campaign.completed || !!lesson;
     if (renderNow) render(c);
@@ -204,16 +213,21 @@
     actions.push({kind:'day',plan:task.plan});
     campaign = task.after; dailyFeedback(task.before, campaign);
     const day = campaign.game.day, endRound = day % 4 === 0;
-    if (endRound) {
-      best = Math.max(best, campaign.score); const result = campaign.results.at(-1);
-      $('roundOutcome').textContent = C.rounds[result.index].title + ': ' + result.score + '/' + C.rounds[result.index].max + '. ' + (result.full ? 'Все цели выполнены.' : 'Не выполнено: ' + goalFields.filter((field, i) => !result.met[i]).map(field => field[1].toLowerCase()).join(', ') + '. Подробности — в «Раундах».');
-    } else $('roundOutcome').textContent = 'День ' + day + ' окончен. Можно изменить план и улучшить город.';
-    if (campaign.completed) { completedOnce = true; attempts.push(campaign.score); }
-    update(); publish();
-    $('mayorStatus').textContent = campaign.completed ? 'Город завершён: ' + campaign.score + '/50. Лучший результат: ' + best + '/50. Можно пройти заново.' : endRound ? 'Раунд окончен. Прочитай следующую ситуацию и подготовь город.' : 'Город на паузе. Посмотри на эмоции и последствия перед следующим днём.';
+    if (campaign.completed) attempts.push(currentScore());
+    recordProgress(); restoreFeedback(); update(); publish();
+    $('mayorStatus').textContent = campaign.completed ? (C.succeeded(campaign,researched()) ? 'Победа! Три задачи решены и улучшение подтверждено.' : '12 дней прожиты. Проверь задачи и исследование. Можно сравнить план или пройти заново.') + ' Результат: ' + currentScore() + '/50.' : endRound ? 'Раунд окончен. Проверь итог и сравни другой план.' : 'Город на паузе. Посмотри на эмоции и последствия перед следующим днём.';
     signal('city:day', { day }); if (endRound) signal('city:round', { index: day / 4 - 1 });
   }
+  function restoreFeedback() {
+    if (!campaign.game.day) { $('roundOutcome').textContent = ''; $('cityComparison').hidden = true; return; }
+    dailyFeedback({game:{reports:campaign.game.reports.slice(0,-1)}}, campaign);
+    const result = campaign.results.at(-1);
+    if (!result) { $('roundOutcome').textContent = 'День ' + campaign.game.day + ' окончен. Можно изменить план.'; return; }
+    const goal = C.rounds[result.index], missing = goalFields.filter((_, i) => !result.met[i]).map(field => field[1].toLowerCase());
+    $('roundOutcome').textContent = goal.title + ': ' + result.score + '/' + goal.max + '. ' + (result.full ? 'Все условия выполнены.' : (result.primaryMet ? 'Главная задача решена. ' : 'Главная задача не решена: до половины баллов. ') + 'Не выполнено: ' + missing.join(', ') + '.');
+  }
   function tick() {
+
     if (!pending || !playing) return;
     if (pending.nextIndex > pending.endIndex) { finishDay(); return; }
     render(pending.after, pending.nextIndex++); persist();
@@ -247,7 +261,7 @@
   window.addEventListener?.('message', e => { if (e.source === parent && e.data === 'pause') pauseDay(); });
   function restart() {
     if (pending || lesson) return;
-    campaign = C.create(); actions = []; roundStarts = []; plan = GameScore.cityDefaults(); started = true; selectedCitizen = 0;
+    campaign = C.create(); actions = []; roundStarts = []; research = []; plan = GameScore.cityDefaults(); started = true; selectedCitizen = 0;
     $('roundOutcome').textContent = ''; $('alternativeResult').replaceChildren(); $('cityComparison').hidden = true; update(); publish(); $('mayorStatus').textContent = 'Новый город. Лучший счёт сохранён; фонд снова 200 монет.';
   }
   $('restartCity').onclick = restart; $('restartEarly').onclick = restart;
@@ -299,20 +313,31 @@
   function experimentPlan(){
     const index=+$('experimentRound').value,original=actions.filter(action=>action.kind==='day')[index*4]?.plan||plan;
     for(const key of Object.keys(C.choices))$('experiment-'+key).value=original[key];
+    invalidateExperiment();
+  }
+  function invalidateExperiment(){
     $('alternativeResult').replaceChildren();
+    $('experimentState').textContent='План изменён. Нажми «Проверить другой план» — прежний результат не относится к этим вариантам.';
   }
   $('experimentRound').onchange=experimentPlan;
+  for(const key of Object.keys(C.choices))$('experiment-'+key).onchange=invalidateExperiment;
   $('testAlternative').onclick=()=>{
     const index=+$('experimentRound').value,base=roundStarts[index],actual=campaign.results[index];if(!base||!actual)return;
     const alternativePlan=Object.fromEntries(Object.keys(C.choices).map(key=>[key,$('experiment-'+key).value]));
     const alternative=C.compare(base,alternativePlan,actions),box=$('alternativeResult');box.replaceChildren();
+    const originalPlan=actions.filter(action=>action.kind==='day')[index*4].plan, baseline=C.compare(base,originalPlan,actions), outcome=C.experiment(baseline,alternative,originalPlan,alternativePlan);
+    if(outcome.success&&!researched())research.push({round:index,plan:alternativePlan,success:true});
+    recordProgress();
+    $('experimentState').textContent=outcome.success?'Улучшение подтверждено ✓ · исследование +5 баллов.':outcome.changed.length!==1?'Для исследования измени ровно одно решение.':!alternative.full?'Опыт не выполнил все условия. Проверь показатели.':'Условия выполнены, но улучшение пока не найдено.';
     element('h3','Результат опыта · '+C.rounds[index].title,box);
+    element('p',Object.entries(alternativePlan).map(([key,value])=>C.choices[key].find(([v])=>v===value)[1]).join(' · '),box);
     const table=element('table','',box),header=element('tr','',table);
-    for(const title of ['Показатель','Твой раунд','Другой план'])element('th',title,header);
+    for(const title of ['Показатель','Начальный план','Другой план'])element('th',title,header);
     const rows=[['Баллы','score',''],['Занятия','activity','%'],['Еда','food','%'],['Заражения','cases',''],['Настроение','comfort','%'],['Расходы','expense','']];
     if(C.rounds[index].care)rows.splice(3,0,['Помощь','care','%']);
-    rows.forEach(([name,key,unit])=>{const row=element('tr','',table);element('th',name,row);for(const result of [actual,alternative])element('td',key==='care'&&!result.careRequests?'Нет обращений':(unit?result[key].toFixed(1):result[key])+unit,row);});
-    element('p',alternative.full?'Другой план выполнил все условия.':'В другом плане ещё есть невыполненные условия.',box);
+    rows.forEach(([name,key,unit])=>{const row=element('tr','',table);element('th',name,row);for(const result of [baseline,alternative])element('td',key==='care'&&!result.careRequests?'Нет обращений':(unit?result[key].toFixed(1):result[key])+unit,row);});
+    publish(); reports();
+    if(C.succeeded(campaign,researched())){$('tryCity').textContent='Задача города выполнена ✓';$('mayorStatus').textContent='Победа! Три задачи решены и улучшение подтверждено.';}
   };
   function recoverCity(){
     const saved=window.FestivalSession?.read('city');if(!saved)return;
@@ -326,7 +351,12 @@
         if(!Number.isInteger(index)||index<=before.game.history.length||index>after.game.history.length)return;
         next={before,after,plan:saved.pending.plan,lesson:false,nextIndex:index+1,endIndex:after.game.history.length};
       }
-      campaign=restored.campaign;roundStarts=restored.starts;actions=saved.actions;plan=saved.plan;started=!!saved.started;best=Math.max(saved.best,campaign.score);completedOnce=!!saved.completedOnce;attempts=saved.attempts;pending=next;
+      campaign=restored.campaign;roundStarts=restored.starts;actions=saved.actions;plan=saved.plan;started=!!saved.started;pending=next;
+      if(saved.rules===GameScore.VERSION){
+        research=Array.isArray(saved.research)?saved.research.filter(r=>r.success&&Number.isInteger(r.round)&&campaign.results[r.round]&&Object.entries(C.choices).every(([key,values])=>values.some(([v])=>v===r.plan?.[key]))&&C.experiment(C.compare(roundStarts[r.round],actions.filter(action=>action.kind==='day')[r.round*4].plan,actions),C.compare(roundStarts[r.round],r.plan,actions),actions.filter(action=>action.kind==='day')[r.round*4].plan,r.plan).success).slice(0,1):[];
+        best=Math.max(saved.best,currentScore());completedOnce=!!saved.completedOnce;attempts=saved.attempts;
+      }else{best=currentScore();completedOnce=false;attempts=campaign.completed?[currentScore()]:[];}
+      recordProgress();
       window.cityRestored=started||completedOnce;
     }catch{}
   }
@@ -337,11 +367,12 @@
       lesson = { c: C.create(), plan: GameScore.cityDefaults(), observed: false, tested: false };
       $('cityComparison').hidden = true; update(); return true;
     },
-    after() { if (pending) { clearTimeout(timer); window.pauseMayorMotion?.(); pending = null; playing = false; } lesson = null; $('cityComparison').hidden = true; update(); $('mayorStatus').textContent = started ? 'Испытание сохранено. Продолжай свой город.' : 'Теперь начни испытание. Учебные дни не расходуют его бюджет.'; }
+    after() { if (pending) { clearTimeout(timer); window.pauseMayorMotion?.(); pending = null; playing = false; } lesson = null; update(); restoreFeedback(); $('mayorStatus').textContent = started ? 'Испытание сохранено. Продолжай свой город.' : 'Теперь начни испытание. Учебные дни не расходуют его бюджет.'; }
   };
   window.cityLesson = { observed: () => !!lesson?.observed, attempted: () => !!lesson?.tested };
   window.cityCampaignGame = { current: () => campaign, isPlaying: () => playing, isPending: () => !!pending };
   update();
+  restoreFeedback();
   if(pending)render(pending.after,pending.nextIndex-1,false);
   publish(); $('mayorStatus').textContent = window.cityRestored ? 'Прогресс восстановлен. '+(pending?'День на паузе — можно продолжить.':'Продолжай город или сравни другой план.') : 'Начни с учебного дня или сразу перейди к испытанию.';
 })();

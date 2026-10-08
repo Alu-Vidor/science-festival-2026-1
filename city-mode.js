@@ -18,7 +18,7 @@
   }
   if (mode === 'lab') { document.body.classList.add('lab-mode'); ready(); return; }
   const script = document.createElement('script');
-  script.src = (mode === 'mayor' ? 'mayor-ui.js?v=20261008-session' : 'contest-ui.js?v=20261006-missions');
+  script.src = (mode === 'mayor' ? 'mayor-ui.js?v=20261008-child-labels-2' : 'contest-ui.js?v=20261006-missions');
   script.onload = ready;
   script.onerror = () => { help.disabled = true; help.textContent = 'Не удалось загрузить игру — обнови страницу'; };
   document.body.appendChild(script);
