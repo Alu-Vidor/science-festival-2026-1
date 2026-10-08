@@ -14,7 +14,7 @@
     const done = [state.trainingDone, state.deliveryDone, state.cityDone].filter(Boolean).length;
     $('missionProgress').textContent = `Задания: ${done} / 3`;
     $('missionBar').classList.toggle('all-done', done === 3);
-    for (const [id, name, flag] of [['trainingMission', '1. Точный прогноз', state.trainingDone], ['deliveryMission', '2. Две доставки', state.deliveryDone], ['cityMission', '3. Помоги городу', state.cityDone]]) {
+    for (const [id, name, flag] of [['trainingMission', '1. Обучи робота', state.trainingDone], ['deliveryMission', '2. Три выезда', state.deliveryDone], ['cityMission', '3. Помоги городу', state.cityDone]]) {
       $(id).textContent = `${flag ? '✓ ' : ''}${name}`; $(id).classList.toggle('done', flag);
     }
   }
