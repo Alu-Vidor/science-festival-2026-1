@@ -8,7 +8,7 @@
 | 2 | Mud | Sand | Water |
 | 3 | Stone wall | Rocky hills | Gravel road |
 
-The city uses cropped SVG patterns aligned to its existing ground projection. Base colors remain behind the images as a fallback. Lane markings, crossings, buildings and residents stay separate. The robot uses CSS background positions to select the six corresponding tiles. Path, prediction and selection indicators remain separate from the material image; the water's old background-position animation is disabled so it cannot scroll into another atlas tile.
+The city uses cropped SVG patterns aligned to its existing ground projection. Base colors remain behind the images as a fallback. Lane markings, crossings, buildings and residents stay separate. The robot uses seven distinct atlas positions: asphalt for road, grass for grass, mud, sand, water, rocky hills and gravel. Its wall uses the masonry position. Authored `clay.svg` (terracotta fissures) and `ice.svg` (blue translucent fractures) complete the nine traversable surfaces. Legend swatches and map cells use the same CSS definitions. Path, prediction and selection indicators remain separate from the material image; the water's old background-position animation is disabled so it cannot scroll into another atlas tile.
 
 Generation used the following prompt. Subsequent processing only resized the complete atlas and encoded WebP.
 
