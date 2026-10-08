@@ -39,7 +39,7 @@
   }
   function create({ districts = setup(), seed = 1, challenge = 'balance', maxDays = 14,
     initialDistrict = 0, eventful = true, contactScale = 1, healthcareBeds = 8,
-    shopSeats = { market: 22, mall: 40 } } = {}) {
+    shopSeats = { market: 22, mall: 40 }, eventSchedule = null, recordCitizens = false } = {}) {
     const ds = districts.map(d => ({
       adults: clamp(+d.adults | 0, 0, 20), children: clamp(+d.children | 0, 0, 20),
       seniors: clamp(+d.seniors | 0, 0, 20), far: !!d.far
@@ -72,7 +72,7 @@
     let initial = people.findIndex(x => x.district === initialDistrict);
     if (initial < 0) initial = 0;
     return { version: 2, people, households, districts: ds, seed: +seed || 1, challenge, maxDays, eventful,
-      contactScale, healthcareBeds, shopSeats: { market: Math.max(1, +shopSeats.market || 22), mall: Math.max(1, +shopSeats.mall || 40) }, day: 0, cash: 300, trust: 85, waste: 0,
+      contactScale, healthcareBeds, eventSchedule, recordCitizens, shopSeats: { market: Math.max(1, +shopSeats.market || 22), mall: Math.max(1, +shopSeats.mall || 40) }, day: 0, cash: 300, trust: 85, waste: 0,
       infrastructure: Object.fromEntries(Object.keys(upgrades).map(k => [k, 0])), investments: [],
       states: people.map((_, i) => i === initial ? 'I' : 'S'),
       infected: people.map((_, i) => i === initial ? 0 : null), exposed: people.map(() => null),
@@ -103,7 +103,10 @@
     if (game.day >= game.maxDays) throw Error('Опыт завершён');
     const g = JSON.parse(JSON.stringify(game)), p = { ...g.policy, ...choices };
     for (const k of Object.keys(modes)) if (!modes[k].includes(p[k])) throw Error('Неизвестный режим: ' + k);
-    const day = ++g.day, ev = g.eventful ? event(day) : { title: 'Обычный день', kind: 'normal', text: '' };
+    const day = ++g.day, ev = g.eventful ? (g.eventSchedule ? g.eventSchedule[day] || { title: 'Обычный день', kind: 'normal', text: '' } : event(day)) : { title: 'Обычный день', kind: 'normal', text: '' };
+    const previousEnergy = g.people.map(person => person.energy);
+    const previousMood = g.people.map(person => person.happiness);
+    const morningStocks = g.households.map(h => h.food / h.members.length);
     const n = g.people.length, home = i => g.people[i].home;
     const roll = (i, slot) => E.rng(g.seed + g.people[i].key * 1009 + day * 9176 + slot * 65537)();
     const random = E.rng(g.seed + day * 131071), services = serviceState(g);
@@ -131,16 +134,18 @@
     });
     const capacity = p.bus === 'closed' ? 0 : Math.floor(((p.bus === 'reduced' ? 20 : p.bus === 'frequent' ? 60 : 40) +
       g.infrastructure.bus * 20) * (ev.kind === 'bus' ? .5 : 1));
-    const missedSet = new Set(), travelMinutes = Array(n).fill(0), travelByPhase = [];
+    const missedSet = new Set(), travelMinutes = Array(n).fill(0), travelByPhase = [], deniedTrips = [];
     // Allocate a fresh bus capacity at each public-trip stage. Nearby residents may walk.
     function transport(loc, slot) {
       const candidates = g.people.map((person, i) => loc[i] !== home(i) &&
         (g.districts[person.district].far || roll(i, 2 + slot) < .4) ? i : -1).filter(i => i >= 0)
         .sort((a, b) => roll(a, 50 + slot) - roll(b, 50 + slot));
       const boarded = new Set(candidates.slice(0, capacity));
+      const denied = new Set();
       for (const i of candidates) {
-        if (!boarded.has(i) && g.districts[g.people[i].district].far) { loc[i] = home(i); missedSet.add(i); }
+        if (!boarded.has(i) && g.districts[g.people[i].district].far) { loc[i] = home(i); missedSet.add(i); denied.add(i); }
       }
+      deniedTrips.push(denied);
       loc.forEach((id, i) => {
         if (id === home(i)) return;
         const from = E.places.find(x => x.id === home(i)), to = E.places.find(x => x.id === id);
@@ -211,10 +216,11 @@
     transport(restLoc, 2);
     const restCapacity = { park: 60 + g.infrastructure.park * 20, gym: p.gym === 'limited' ? 12 : 24, mall: 40 };
     let restQueue = 0;
+    const deniedRest = new Set();
     for (const place of Object.keys(restCapacity)) {
       const visitors = g.people.map((_, i) => restLoc[i] === place ? i : -1).filter(i => i >= 0)
         .sort((a, b) => g.people[a].energy - g.people[b].energy || roll(a, 9) - roll(b, 9));
-      for (const i of visitors.slice(restCapacity[place])) { restLoc[i] = home(i); restQueue++; }
+      for (const i of visitors.slice(restCapacity[place])) { restLoc[i] = home(i); restQueue++; deniedRest.add(i); }
     }
     let informal = 0;
     const visiting = new Map();
@@ -273,6 +279,33 @@
       person.happiness = Math.round(clamp(person.happiness * .6 + comfort * .4));
       if (person.child) person.learning = Math.round(clamp(person.learning * .8 + learning(i) * 100 * .2));
     }
+    // A frame owns its reactions: replay must never display the final day's mood in an earlier day.
+    if (g.recordCitizens) dayFrames.forEach((frame, phase) => {
+      frame.householdFood = phase === 4 ? g.households.map(h => h.food / h.members.length) : [...morningStocks];
+      frame.citizens = g.people.map((person, i) => {
+        const energy = phase === 4 ? person.energy : previousEnergy[i];
+        const happiness = phase === 4 ? person.happiness : previousMood[i];
+        let reaction = null;
+        const react = (kind, emoji, text, priority) => { reaction = { kind, emoji, text, priority }; };
+        if (phase === 0 && deniedTrips[0].has(i) || phase === 2 && deniedTrips[1].has(i) || phase === 3 && deniedTrips[2].has(i))
+          react('bus', '😠', 'Не хватило места в автобусе. Я не добрался.', 5);
+        else if (phase === 2 && careSet.has(i)) {
+          if (careServed.has(i)) react('care', '🙂', 'Мне оказали помощь в больнице.', 3);
+          else react('care-missed', '😟', 'Мне нужна помощь, но я не попал на приём.', 6);
+        } else if (phase === 2 && buyers.includes(i)) {
+          if (served.has(i)) react('shopping', '🙂', 'Купил продукты для всей семьи.', 2);
+          else if (shopLoc[i] !== home(i)) react('queue', '😟', 'В магазине очередь. Не успел купить продукты.', 4);
+        } else if (phase === 3 && deniedRest.has(i)) react('rest-missed', '😴', 'На отдыхе не хватило места.', 3);
+        else if (phase === 4 && fed[i] < 1) react('food', '😟', 'У нашей семьи закончились продукты.', 6);
+        else if (phase === 4 && energy < 40) react('tired', '😴', 'Очень устал. Мне нужен отдых.', 4);
+        else if (phase === 1 && person.child && dayLoc[i] !== home(i)) react('school', '🙂', 'Успел на занятия.', 1);
+        else if (phase === 1 && working.has(i)) react('work', '🙂', 'Смог поработать. У семьи будет доход.', 1);
+        else if (phase === 3 && restLoc[i] !== home(i)) react('rest', '🙂', 'Удалось отдохнуть.', 1);
+        else if (phase === 4 && missedSet.has(i)) react('bus', '😠', 'Сегодня пропустил поездку из-за автобуса.', 4);
+        else if (phase === 4 && happiness >= 80) react('comfortable', '🙂', 'Сегодня хватило еды и сил.', 1);
+        return { energy, happiness, reaction, food: phase === 4 ? Math.round(fed[i] * 100) : null };
+      });
+    });
     g.waste = Math.max(0, g.waste + (n - services.capacity.waste) * .2);
     services.accumulatedWaste = Math.round(g.waste);
     const districtReports = g.districts.map((d, k) => {

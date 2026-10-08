@@ -30,16 +30,14 @@
   function registerCity() {
     if (window.cityLearningRegistered) return; window.cityLearningRegistered = true;
     const mode = window.cityMode;
-    const config = mode === 'mayor' ? { name: 'Город', steps: () => window.cityLesson.attempted() ? [
-      { target: '#mayorPolicies', title: 'Меняй одно решение', text: 'Выбери занятия, рейсы или магазины. Остальные условия опыта остаются одинаковыми.' },
-      { target: '#cityComparison', title: 'Сравни последствия', text: 'Стрелки показывают исходный и новый результат. Посмотри, что улучшилось и что ухудшилось.' },
-      { target: '#cityLocalScore', title: 'Сохрани лучший результат', text: 'В общий счёт входит лучшая из трёх проверок города. Время не влияет на баллы.' }
-    ] : [
-      ...(!window.cityLesson.observed() ? [{ target: '#observeCity', context: ['#mayorMapSlot .mapscroll'], title: 'Сначала наблюдай', text: 'Нажми кнопку. Город проживёт две недели без твоих решений.', event: 'city:observed', delay: 350,
-        watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', context: ['#mayorMapSlot .legend'], text: 'Смотри на карту: жители идут учиться, работать и за продуктами. Красные фигурки — заражённые.' } }] : []),
+    const config = mode === 'mayor' ? { name: 'Город', steps: [
+      { target: '#observeCity', context: ['#mayorMapSlot .mapscroll'], title: 'Сначала наблюдай', text: 'Нажми «Учебный день». Он бесплатный.', event: 'city:observed', delay: 350,
+        watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', context: ['#mayorMapSlot .legend'], text: 'Смотри на жителей и эмоции. Цвет одежды отдельно показывает симптомы.' } },
       { target: '#pick-bus-frequent', context: ['#choices-bus'], title: 'Помоги добраться', text: 'Жители пропускают поездки. Нажми «Больше рейсов».', event: 'city:choice', accept: d => d.key === 'bus' && d.value === 'frequent' },
-      { target: '#tryCity', context: ['#mayorMapSlot .mapscroll', '#mayorStatus'], title: 'Проверь своё решение', text: 'Нажми «Проверить план». Сравни поездки и число заражений.', event: 'city:tested', delay: 350,
-        watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', context: ['#mayorMapSlot .legend'], text: 'Смотри, как город живёт с твоим планом. После проверки сравни поездки и заражения.' } }
+      { target: '#tryCity', context: ['#mayorMapSlot .mapscroll'], title: 'Проверь своё решение', text: 'Проверь рейсы. После дня город остановится.', event: 'city:tested', delay: 350,
+        watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', context: ['#mayorMapSlot .legend'], text: 'Заметь, кто добрался. Нажатие на жителя объяснит его эмоцию.' } },
+      { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'В испытании три раунда. Максимум — за все цели.' },
+      { target: '#projectSummary', title: 'Планируй улучшения', text: 'На строительство — 200 монет. На все три улучшения не хватит.' }
     ] } : mode === 'contest' ? { name: 'Соревнование', steps: [
       { target: '.round-clock', title: 'Семь минут на попытки', text: 'Таймер начнётся после первой проверки. Во время обучения он стоит.' },
       { target: '#contestChoices', title: 'Выбирай карточки', text: 'Открой категорию и нажми вариант. Можно организовать меры на шесть очков.' },

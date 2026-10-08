@@ -75,10 +75,11 @@
         observer = new ResizeObserver(sizeBoard); observer.observe(scene.querySelector('.mission-frame')); sizeBoard();
       } else {
         const decisions = $('cityDecisions');
-        move($('cityStart'), decisions, true); move($('cityComparison'), decisions); move($('mayorStatus'), city.querySelector('.city-map-area'));
+        move($('cityStart'), decisions, true); move($('mayorStatus'), city.querySelector('.city-map-area'));
+        move($('cityNeeds'), city.querySelector('.city-map-area'), true); move($('cityGoalGrid'), city.querySelector('.city-map-area'), true); move($('cityGoalTitle'), city.querySelector('.city-map-area'), true);
         move($('cityPeople'), city.querySelector('.mayor-title')); move(city.querySelector('.city-rules'), city.querySelector('.mayor-title'));
         move($('cityTutorial'), city.querySelector('.mayor-title'));
-        move($('cityAttempts'), city.querySelector('.city-rules')); move($('cityBudget'), city.querySelector('.city-rules'));
+        move($('cityProjects'), city.querySelector('.mayor-title')); move($('cityReports'), city.querySelector('.mayor-title'));
         $('fit').click();
         if (!wired.has($('map'))) { wired.add($('map')); $('map').addEventListener('pointerdown', e => { if (active) e.stopImmediatePropagation(); }, true); }
         for (const detail of city.querySelectorAll('details')) tools(detail);

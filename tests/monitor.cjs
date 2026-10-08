@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
 const { chromium } = require('playwright');
 const {lesson,teachMap,deliver,optimalDelivery}=require('./robot-browser-helpers.cjs');
+const City=require('./city-browser-helpers.cjs');
 const root = path.resolve(__dirname, '..');
 const server = http.createServer((req, res) => {
   const file = path.resolve(root, '.' + (req.url.split('?')[0] === '/' ? '/index.html' : req.url.split('?')[0]));
@@ -15,7 +16,7 @@ const server = http.createServer((req, res) => {
   try {
     for (const [width,height] of [[1024,768],[1280,640],[1280,720],[1366,680],[1366,768],[1440,900],[1920,1080]]) {
       const context = await browser.newContext({viewport:{width,height},reducedMotion:'reduce'});
-      await context.addInitScript(() => localStorage.setItem('festival-tours-v4', JSON.stringify(['robot','city-mayor'])));
+      await context.addInitScript(() => localStorage.setItem('festival-tours-v5', JSON.stringify(['robot','city-mayor'])));
       const page = await context.newPage();
       async function fits(scope, selectors) {
         const problems = await scope.evaluate(selectors => {
@@ -75,7 +76,7 @@ const server = http.createServer((req, res) => {
       await city.locator('#mayor').waitFor();
       const frame=page.frames().find(f=>f.url().includes('epidemic.html'));
       if(await city.locator('.tour-card').count()) await city.locator('.tour-card').press('Escape');
-      await fits(frame,['#map','#map .building-sprite','#observeCity','.city-choice','#tryCity','#mayorStatus','#cityLocalScore']);
+      await fits(frame,['#map','#map .building-sprite','#observeCity','#beginCity','#mayorStatus','#cityLocalScore','#cityRounds','#projectSummary']);
       assert.equal(await city.locator('#map').getAttribute('viewBox'),'0 0 1750 1080','Every building stays in the full city view');
       await city.locator('#cityTutorial').click(); await fits(frame,['.tour-card','#tourTitle','#tourText','#observeCity']);
       await city.locator('#observeCity').click(); await city.locator('#tryCity').waitFor({state:'visible'});
@@ -85,9 +86,12 @@ const server = http.createServer((req, res) => {
       await city.locator('#tourTitle').filter({hasText:'Помоги добраться'}).waitFor(); await fits(frame,['.tour-card','#tourText']);
       await city.locator('#pick-bus-frequent').click(); await city.locator('#tourTitle').filter({hasText:'Проверь своё'}).waitFor();
       await fits(frame,['.tour-card','#tourText']); await city.locator('#tryCity').click();
-      await city.locator('#gameTour').waitFor({state:'detached'});
-      await fits(frame,['#map','.city-choice','#tryCity','#mayorStatus','#cityEffects','#cityNeeds']);
-      for(const option of ['#pick-school-shifts','#pick-shops-one']) {await city.locator(option).click();await city.locator('#tryCity').click();await city.locator('#cityAttempts span').nth(option.includes('school')?1:2).waitFor({state:'attached'});await fits(frame,['#map','#tryCity','#cityEffects','#cityNeeds','#mayorStatus']);}
+      await City.finishLesson(city,async()=>fits(frame,['.tour-card','#tourTitle','#tourText']));
+      await City.maximum(city,async n=>{
+        await fits(frame,['#map','.city-choice','#tryCity','#pauseCity','#cityGoalGrid','#cityNeeds','#mayorStatus','#roundOutcome']);
+        if(n%4===0)await page.screenshot({path:path.join(root,'test-artifacts',`city-round-${n/4}-${width}x${height}.png`)});
+      });
+      await fits(frame,['#map','#restartCity','#cityEffects','#cityNeeds','#mayorStatus']);
       await page.screenshot({path:path.join(root,'test-artifacts',`city-monitor-${width}x${height}.png`)});
       await fits(page,['#epiView','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress']);
       await city.locator('.inhabitant[data-person="0"]').press('Enter'); await city.locator('.monitor-dialog[open]').waitFor();

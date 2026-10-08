@@ -1,7 +1,7 @@
 /* Lessons show the action and its context; only the requested action is interactive. */
 (function () {
   'use strict';
-  const tours = new Map(), storageKey = 'festival-tours-v4';
+  const tours = new Map(), storageKey = 'festival-tours-v5';
   let active = null, root, card, frames, shades, previousFocus, inertStates, fitStates, openedDetails, previousScroll, sequence = 0, advanceTimer = null, observer, resizeObserver, surfaces;
   function completed() { try { const value = JSON.parse(localStorage.getItem(storageKey) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } }
   function remember(id) { try { localStorage.setItem(storageKey, JSON.stringify([...new Set([...completed(), id])])); } catch {} }
