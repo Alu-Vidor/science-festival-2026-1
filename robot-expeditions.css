@@ -26,11 +26,17 @@
 .monitor-layout #robotEditor { margin-top:2px; }.monitor-layout #robotEditor summary { font-size:13px; }
 .monitor-layout #samples { font-size:13px; line-height:1.3; }
 .monitor-layout #robotControls #predict { padding:6px 3px; font-size:14px; }
+.monitor-layout #robotControls #run { font-size:15px; white-space:nowrap; padding:6px; }
 @media(max-height:720px) and (min-width:1000px) {
  .monitor-layout .layout { padding-top:6px; }.monitor-layout #robotControls { padding:9px; }
  .monitor-layout #robotControls > h2 { font-size:19px; margin-bottom:5px; }
  .monitor-layout #robotControls .row button { min-height:36px; padding:5px; }
  .monitor-layout .stat { padding:3px 2px; }.monitor-layout .stat strong { font-size:18px; }
  .monitor-layout #missionBrief { font-size:12px; }
+ .monitor-layout .training > p { margin:3px 0; }
+ .monitor-layout .training > h2 { font-size:20px; margin-bottom:6px; }
+ .monitor-layout .training .features { margin:4px 0; gap:2px 8px; }
+ .monitor-layout .training .features b { font-size:17px; padding:0; }
+ .monitor-layout .training #model { font-size:13px; }
 }
 @media(max-width:650px) { .expedition-nav { display:grid; grid-template-columns:1fr 1fr; }.expedition-nav button { font-size:13px; } }

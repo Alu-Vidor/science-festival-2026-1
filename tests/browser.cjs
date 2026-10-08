@@ -127,7 +127,7 @@ const server = http.createServer((req, res) => {
     if(monitor)await page.locator('.monitor-dialog > button').click();else await page.locator('#robotEditor > summary').click();
     assert((await deliver(page)).includes('Свободный опыт'));
     assert.equal(await page.locator('#overallScore').innerText(),'50');
-    const training=20; // City regression checks below use training + 30 = robot's 50.
+    const robotScore=50;
     await noOverflow();
     await page.locator('#epiTab').click();
     const cityFrame=page.frameLocator('#epiView');
@@ -144,7 +144,7 @@ const server = http.createServer((req, res) => {
     await watched(cityFrame);
     assert.equal(await cityFrame.locator('#cityAttempts span').count(),1);
     const firstCity=parseInt(await cityFrame.locator('#cityLocalScore').innerText());
-    await page.waitForFunction(value=>+document.getElementById('overallScore').textContent===value,training+30+firstCity);
+    await page.waitForFunction(value=>+document.getElementById('overallScore').textContent===value,robotScore+firstCity);
     assert((await page.locator('#missionProgress').innerText()).includes('3 / 3'));
     await cityFrame.locator('#pick-school-shifts').click(); await cityFrame.locator('#tryCity').click();
     await cityFrame.locator('#cityAttempts span').nth(1).waitFor({state:'attached'});
