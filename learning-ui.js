@@ -3,14 +3,22 @@
   const $ = id => document.getElementById(id);
   function registerRobot() {
     GameTour.register('robot', { name: 'Робот', before: () => window.robotLesson.begin(), steps: [
-      { target: '#run', context: ['#boardStage'], view: '#boardStage', fit: '#boardStage', title: 'Проверь короткий путь', text: 'Нажми «Запустить». Посмотри, где он застрянет.', event: 'robot:finished', delay: 700,
-        watch: { event: 'robot:started', target: '#boardStage', context: [], text: 'Смотри на карту: робот пробует короткий путь. Место остановки отмечается жёлтым.' } },
+      { target: '#run', context: ['#boardStage'], view: '#boardStage', fit: '#boardStage', title: 'Проверь короткий путь', text: 'Нажми «Запустить».', event: 'robot:finished', delay: 700,
+        watch: { event: 'robot:started', target: '#boardStage', context: [], text: 'Смотри на карту. Жёлтая клетка — место остановки.' } },
       { target: '#board [data-index="0"]', context: ['#selectedName', '#sensors'], title: 'Изучи сухой участок', text: 'Нажми на подсвеченную клетку. Датчики покажут её свойства.', event: 'robot:inspected', accept: d => d.index === 0 },
       { target: '#safe', context: ['#selectedName', '#sensors', '#sensorHint'], view: '#sensors', title: 'Безопасный пример', text: 'Грунт выдержит робота. Нажми «Безопасно».', event: 'robot:labeled', accept: d => d.index === 0 && d.label === 0 },
       { target: '#board [data-index="61"]', context: ['#robotSprite', '#selectedName', '#sensors'], title: 'Найди причину остановки', text: 'Нажми на подсвеченную грязь. Влажность и неровность вместе мешают проехать.', event: 'robot:inspected', accept: d => d.index === 61 },
       { target: '#unsafe', context: ['#selectedName', '#sensors', '#sensorHint'], view: '#sensors', title: 'Опасный пример', text: 'Влажность + неровность мешают. Нажми «Опасно».', event: 'robot:labeled', accept: d => d.index === 61 && d.label === 1 },
+      { target: '#board [data-index="20"]', context: ['#selectedName', '#sensors'], title: 'Пологий склон', text: 'Изучи подсвеченный холм. Не каждый склон опасен.', event: 'robot:inspected', accept: d => d.index === 20 },
+      { target: '#safe', context: ['#sensors', '#sensorHint'], title: 'Можно проехать по склону', text: 'Этот уклон безопасен. Добавь его как безопасный пример.', event: 'robot:labeled', accept: d => d.index === 20 && d.label === 0 },
+      { target: '#board [data-index="19"]', context: ['#selectedName', '#sensors'], title: 'Крутой склон', text: 'Изучи соседний холм и сравни уклон.', event: 'robot:inspected', accept: d => d.index === 19 },
+      { target: '#unsafe', context: ['#sensors', '#sensorHint'], title: 'Крутой склон опасен', text: 'Здесь робот застрянет. Добавь опасный пример.', event: 'robot:labeled', accept: d => d.index === 19 && d.label === 1 },
+      { target: '#board [data-index="15"]', context: ['#selectedName', '#sensors'], title: 'Прочный песок', text: 'Изучи песок. Проверь прочность, а не только цвет клетки.', event: 'robot:inspected', accept: d => d.index === 15 },
+      { target: '#safe', context: ['#sensors', '#sensorHint'], title: 'Песок выдержит робота', text: 'Добавь безопасный пример прочного песка.', event: 'robot:labeled', accept: d => d.index === 15 && d.label === 0 },
+      { target: '#board [data-index="14"]', context: ['#selectedName', '#sensors'], title: 'Слабый песок', text: 'Изучи соседний песок. Его прочность ниже.', event: 'robot:inspected', accept: d => d.index === 14 },
+      { target: '#unsafe', context: ['#sensors', '#sensorHint'], title: 'Слабый грунт опасен', text: 'Добавь опасный пример: сухой участок тоже может быть опасным.', event: 'robot:labeled', accept: d => d.index === 14 && d.label === 1 },
       { target: '#train', context: ['#samples', '#model'], title: 'Обучи ИИ', text: 'Нажми «Обучить ИИ». Посмотри, как изменится прогноз на карте.', event: 'robot:trained', delay: 1400,
-        result: { target: '#boardStage', fit: '#boardStage', context: [], text: 'Зелёная рамка — прогноз «безопасно», красная — «опасно». Добавь ещё разные примеры и проверь доставку.' } }
+        result: { target: '#boardStage', fit: '#boardStage', context: [], text: 'Рамки показывают прогноз ИИ. Начни лесную доставку. После ошибки добавляй примеры и обучай снова.' } }
     ] });
     $('robotTutorial').onclick = () => GameTour.start('robot');
     if (location.hash !== '#epidemic') GameTour.maybeStart('robot');

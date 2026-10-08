@@ -3,7 +3,7 @@
   'use strict';
   const M = root.Mayor || (typeof require === 'function' ? require('./mayor.js') : null);
   const clamp = (n, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
-  const VERSION = 'missions-20261006-1';
+  const VERSION = 'missions-20261008-2';
   const cityChoices = {
     school: [['normal', 'Все вместе', 'Обычные занятия и работа.'], ['shifts', 'Две смены', 'Группы встречаются отдельно. Организация стоит дороже.'], ['remote', 'Дома', 'Меньше встреч. Не все могут работать и учиться дома.']],
     bus: [['normal', 'Обычные рейсы', '40 мест на каждый этап поездок.'], ['frequent', 'Больше рейсов', '60 мест. Меньше пропущенных поездок, больше расходов.'], ['reduced', 'Меньше рейсов', '20 мест. Дешевле, но дальним кварталам сложнее добраться.']],
@@ -42,23 +42,9 @@
       activity: Math.round(average('participation')), missed: Math.round(average('missed')),
       queue: Math.round(average('queue')), cash: game.cash, care, treated };
   }
-  const danger = f => f[0] >= 70 || f[1] >= 70 || f[0] + f[2] >= 110 || f[3] <= 30;
-  // These eight feature vectors do not occur on the original training map.
-  const robotChecks = [[13, 9, 12, 88], [55, 7, 42, 46], [17, 61, 32, 79], [10, 7, 24, 39],
-    [79, 4, 22, 17], [61, 15, 55, 59], [22, 78, 44, 90], [11, 8, 28, 27]];
-  function predict(model, f) {
-    const nearest = model.map(s => ({ y: s.y, d: s.f.reduce((sum, v, j) => sum + (v - f[j]) ** 2, 0) }))
-      .sort((a, b) => a.d - b.d).slice(0, 3);
-    return nearest.length ? nearest.reduce((s, v) => s + v.y, 0) / nearest.length >= .5 : false;
+  function total({ robot = 0, city = 0 } = {}) {
+    return clamp(robot, 0, 50) + clamp(city, 0, 50);
   }
-  function robotQuality(model) {
-    if (!Array.isArray(model) || model.filter(s => s.y === 0).length < 3 || model.filter(s => s.y === 1).length < 3) return { score: 0, correct: 0, ready: false };
-    const correct = robotChecks.filter(f => predict(model, f) === danger(f)).length;
-    return { score: Math.round(20 * correct / robotChecks.length), correct, ready: true };
-  }
-  function total({ training = 0, delivery = 0, city = 0 } = {}) {
-    return clamp(training, 0, 20) + clamp(delivery, 0, 30) + clamp(city, 0, 50);
-  }
-  root.GameScore = { VERSION, cityChoices, cityDefaults, cityPolicy, cityRun, robotQuality, robotChecks, danger, predict, total };
+  root.GameScore = { VERSION, cityChoices, cityDefaults, cityPolicy, cityRun, total };
   if (typeof module !== 'undefined') module.exports = root.GameScore;
 })(typeof window !== 'undefined' ? window : globalThis);

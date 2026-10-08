@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
 const { chromium } = require('playwright');
+const {lesson,teachMap,deliver,optimalDelivery}=require('./robot-browser-helpers.cjs');
 const root = path.resolve(__dirname, '..');
 const server = http.createServer((req, res) => {
   const file = path.resolve(root, '.' + (req.url.split('?')[0] === '/' ? '/index.html' : req.url.split('?')[0]));
@@ -14,7 +15,7 @@ const server = http.createServer((req, res) => {
   try {
     for (const [width,height] of [[1024,768],[1280,640],[1280,720],[1366,680],[1366,768],[1440,900],[1920,1080]]) {
       const context = await browser.newContext({viewport:{width,height},reducedMotion:'reduce'});
-      await context.addInitScript(() => localStorage.setItem('festival-tours-v3', JSON.stringify(['robot','city-mayor'])));
+      await context.addInitScript(() => localStorage.setItem('festival-tours-v4', JSON.stringify(['robot','city-mayor'])));
       const page = await context.newPage();
       async function fits(scope, selectors) {
         const problems = await scope.evaluate(selectors => {
@@ -35,7 +36,7 @@ const server = http.createServer((req, res) => {
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
-      await fits(page,['#board .cell','#run','#stop','#predict','#safe','#unsafe','#train','#clear','#sensors','#model','.training > details','#robotEditor > summary','#status','#deliveryTries','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress']);
+      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#clear','#sensors','#model','.training > details','#robotEditor > summary','#status','#deliveryTries','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress']);
       await page.mouse.wheel(0,700); await fits(page,['#boardStage','#model']);
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-monitor-${width}x${height}.png`)});
       async function lit(scope, selectors) {
@@ -52,14 +53,17 @@ const server = http.createServer((req, res) => {
       await page.locator('#run').click(); await page.locator('.tour-watching').waitFor();
       await lit(page,['#boardStage','#robotSprite']); await fits(page,['.tour-card','#boardStage']);
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-lesson-monitor-${width}x${height}.png`)});
-      for(const [title,selector] of [['Изучи сухой','[data-index="0"]'],['Безопасный пример','#safe'],['Найди причину','[data-index="61"]'],['Опасный пример','#unsafe'],['Обучи ИИ','#train']]) {
-        await page.locator('#tourTitle').filter({hasText:title}).waitFor(); await fits(page,['.tour-card','#tourTitle','#tourText',selector]); await page.locator(selector).click();
+      await lesson(page);
+      await fits(page,['#model','#train','#status','.training > details','#nextMission','#expeditionNav']);
+      for(let stage=1;stage<=3;stage++){
+        await page.locator('#nextMission').click();await teachMap(page);
+        await deliver(page);
+        await fits(page,['#boardStage','#model','#status','#deliveryTries','#parcelOrder','#routeMode','#robotEditor > summary']);
+        await optimalDelivery(page);
+        await fits(page,['#boardStage','#model','#status','#deliveryTries','#parcelOrder','#routeMode']);
+        if(stage<3)await fits(page,['#nextMission']);
+        await page.screenshot({path:path.join(root,'test-artifacts',`robot-mission-${stage}-${width}x${height}.png`)});
       }
-      await page.locator('#gameTour').waitFor({state:'detached'});
-      await fits(page,['#model','#train','#status','.training > details']);
-      for(const [indices,label] of [[[1,2],'safe'],[[67,68],'unsafe']]) for(const i of indices) {await page.locator(`[data-index="${i}"]`).click();await page.locator('#'+label).click();}
-      await page.locator('#train').click();
-      for(let i=0;i<3;i++) {await page.locator('#run').click();await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Доставлено 3'));await fits(page,['#boardStage','#model','#status','#deliveryTries','#robotEditor > summary']);}
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-result-monitor-${width}x${height}.png`)});
       await page.locator('#robotEditor > summary').click(); await page.locator('.monitor-dialog[open]').waitFor();
       await fits(page,['.monitor-dialog','#tools button','#multi','#energy','#strategy','#applyStrength','#rain','#reset']);
