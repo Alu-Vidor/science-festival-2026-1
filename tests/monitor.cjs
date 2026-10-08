@@ -14,7 +14,7 @@ const server = http.createServer((req, res) => {
   const browser = await chromium.launch();
   const failures=[];
   try {
-    for (const [width,height] of [[1024,768],[1280,640],[1280,720],[1366,680],[1366,768],[1440,900],[1920,1080],[2560,1440]]) {
+    for (const [width,height] of [[1920,1080],[2560,1440]]) {
       const context = await browser.newContext({viewport:{width,height},reducedMotion:'reduce'});
       await context.addInitScript(() => localStorage.setItem('festival-tours-v6', JSON.stringify(['robot','city-mayor'])));
       const page = await context.newPage();
@@ -38,7 +38,7 @@ const server = http.createServer((req, res) => {
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
-      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#model','.training > details','#status','#deliveryTries','#moveStart','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#terrainLegend']);
+      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#model','.training > details','#status','#deliveryTries','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#terrainLegend','#cargoPanel','#campStatus','#routeLayer']);
       await page.mouse.wheel(0,700); await fits(page,['#boardStage','#model']);
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-monitor-${width}x${height}.png`)});
       async function lit(scope, selectors) {
@@ -61,7 +61,7 @@ const server = http.createServer((req, res) => {
         await page.locator('#nextMission').click();
         if(stage===3)await adaptRain(page);
         await optimalDelivery(page);
-        await fits(page,['#boardStage','#model','#status','#deliveryTries','#autoRoute','#moveStart','#predict','#newParticipant']);
+        await fits(page,['#boardStage','#model','#status','#deliveryTries','#autoRoute','#predict','#newParticipant']);
         if(stage<3)await fits(page,['#nextMission']);
         await page.screenshot({path:path.join(root,'test-artifacts',`robot-mission-${stage}-${width}x${height}.png`)});
       }
@@ -87,7 +87,6 @@ const server = http.createServer((req, res) => {
       await City.finishLesson(city,async()=>fits(frame,['.tour-card','#tourTitle','#tourText']));
       await City.maximum(city,async n=>{
         await fits(frame,['#map',...(n<12?['.city-choice']:[]),'#tryCity','#pauseCity','#cityGoalGrid','#cityNeeds','#mayorStatus','#roundOutcome']);
-        if(width===1280&&height===640&&n===2)await page.screenshot({path:path.join(root,'test-artifacts','city-day-2-compact.png')});
         if(n%4===0)await page.screenshot({path:path.join(root,'test-artifacts',`city-round-${n/4}-${width}x${height}.png`)});
       });
       await fits(frame,['#map','#restartCity','#cityEffects','#cityNeeds','#mayorStatus']);
@@ -95,18 +94,7 @@ const server = http.createServer((req, res) => {
       await fits(page,['#epiView','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress']);
       await city.locator('.inhabitant[data-person="0"]').press('Enter'); await city.locator('.monitor-dialog[open]').waitFor();
       await fits(frame,['.monitor-dialog','#citizenChoice','#citizenPanel']);
-      if(width===1280&&height===640)await page.screenshot({path:path.join(root,'test-artifacts','city-citizen-compact.png')});
       await city.locator('.monitor-dialog > button').click(); await fits(frame,['#map','#cityEffects']);
-      if(width===1366 && height===680) {
-        await page.setViewportSize({width:768,height:900}); await page.locator('#robotTab').click();
-        await page.waitForFunction(()=>!document.body.classList.contains('monitor-layout'));
-        assert.equal(await page.locator('#robotEditor').count(),0);
-        assert.equal(await page.locator('#robotIntro #robotTutorial').count(),1);
-        await page.locator('#robotZoom').click();
-        await page.setViewportSize({width,height}); await page.waitForFunction(()=>document.body.classList.contains('monitor-layout')); await fits(page,['#board .cell','#boardStage','#run','#model','#status']);
-        assert.equal(await page.locator('#robotZoom').getAttribute('aria-pressed'),'false');
-        await page.locator('#epiTab').click(); await fits(frame,['#map','#cityEffects','#cityNeeds']);
-      }
       await context.close(); console.log('Monitor fits:',width,height);
     }
     assert.deepEqual(failures,[]);

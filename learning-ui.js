@@ -2,16 +2,17 @@
   'use strict';
   const $ = id => document.getElementById(id);
   function registerRobot() {
-    GameTour.register('robot', { name: 'Как работает робот', before: () => window.robotLesson.begin(), steps: [
-      { target: '#board [data-index="0"]', context: ['#sensors'], title: '1. Выбери участок', text: 'Цель — доставить три аптечки. Для этого научим робота выбирать проезд. Нажми на светящуюся дорогу.', event: 'robot:inspected', accept: d => d.index === 0 },
-      { target: '#probe', context: ['#sensors', '#sensorHint'], title: '2. Проверь грунт', text: 'Нажми «Проверить»: датчики покажут, выдержит ли грунт робота. ИИ этот ответ ещё не получил.', event: 'robot:probed' },
-      { target: '#safe', context: ['#sensorHint'], title: '3. Дай пример роботу', text: 'Проверка разрешила проезд. Нажми «Можно», чтобы добавить учебный пример.', event: 'robot:labeled', accept: d => d.label === 0 },
-      { target: '#board [data-index="10"]', context: ['#sensors'], title: '4. Найди опасный пример', text: 'Изучи светящуюся грязь. Один безопасный пример не научит отличать опасность.', event: 'robot:inspected', accept: d => d.index === 10 },
-      { target: '#probe', context: ['#sensors', '#sensorHint'], title: '5. Проверь причину', text: 'Нажми «Проверить». Влажность и неровность здесь вместе мешают проехать.', event: 'robot:probed' },
-      { target: '#unsafe', context: ['#sensorHint'], title: '6. Добавь запрет', text: 'Нажми «Нельзя». ИИ будет сравнивать новые участки с твоими примерами.', event: 'robot:labeled', accept: d => d.label === 1 },
-      { target: '#train', context: ['#samples', '#model'], title: '7. Обучи модель', text: 'Два примера появятся в модели. Посмотри, какие участки она уже узнаёт.', event: 'robot:trained', delay: 1200,
-        result: { target: '#boardStage', fit: '#boardStage', context: ['#predictionLegend'], text: 'Зелёный — ИИ разрешает проезд, красный — запрещает. Знак ? означает, что похожих примеров ещё нет.' } },
-      { target: '#missionTask', title: '8. Расширяй опыт робота', text: 'Ты учишь проезду, ИИ выбирает путь, робот везёт аптечки. Цель — доставить A, B и C без застревания. Всю карту размечать не нужно.' }
+    GameTour.register('robot', { name: 'Первый спасательный рейс', before: () => window.robotLesson.begin(), steps: [
+      { target: '#board [data-index="0"]', context: ['#sensors'], title: '1. Выбери участок', text: 'Три лагеря ждут аптечки. Робот поедет сам, а ты научишь его узнавать проезд. Нажми на дорогу под роботом.', event: 'robot:inspected', accept: d => d.index === 0 },
+      { target: '#labelChoices', context: ['#sensors'], title: '2. Сделай предположение', text: 'Дорога сухая, почти ровная и твёрдая. Как думаешь, робот проедет? Выбери свою гипотезу.', event: 'robot:guessed' },
+      { target: '#probe', context: ['#sensorHint'], title: '3. Испытай грунт', text: 'Испытание проверит гипотезу и сохранит настоящий результат. Робот узнает его после обучения.', event: 'robot:probed' },
+      { target: '#board [data-index="10"]', context: ['#sensors'], title: '4. Изучи другой грунт', text: 'Теперь исследуй грязь. Даже знакомое покрытие может оказаться опасным из-за своего состояния.', event: 'robot:inspected', accept: d => d.index === 10 },
+      { target: '#labelChoices', context: ['#sensors'], title: '5. Предскажи результат', text: 'Здесь мокро и много неровностей. Сделай предположение, что случится с роботом.', event: 'robot:guessed' },
+      { target: '#probe', context: ['#sensorHint'], title: '6. Проверь гипотезу', text: 'Испытай грунт. В памяти появятся проверенные примеры проезда и опасности.', event: 'robot:probed' },
+      { target: '#train', context: ['#samples', '#model'], title: '7. Обучи робота', text: 'Передай роботу проверенные примеры. Он сравнит новые участки с ними и построит путь к лагерям.', event: 'robot:trained', delay: 900,
+        result: { target: '#boardStage', fit: '#boardStage', text: 'Синяя линия — путь, выбранный роботом. Для первого рейса достаточно этих двух примеров.' } },
+      { target: '#run', context: ['#cargoPanel'], title: '8. Выполни первый рейс', text: 'У робота три аптечки. Отправь его в лагеря A, B и C. Первый рейс завершится, когда каждый лагерь получит помощь.', event: 'robot:finished', accept: d => d.delivered === 3, delay: 1200,
+        result: { target: '#campStatus', text: 'Все три лагеря получили помощь! Первый рейс пройден. В лесу будут новые покрытия: твои эксперименты пригодятся снова.' } }
     ] });
     $('robotTutorial').onclick = () => GameTour.start('robot');
     if (location.hash !== '#epidemic') GameTour.maybeStart('robot');

@@ -49,9 +49,9 @@
         const layout = robot.querySelector('.layout'), scene = layout.querySelector('section.card');
         scene.id = 'robotScene'; move($('weather'), $('taskSteps')); move($('robotTutorial'), document.querySelector('body > nav'));
         const controls = document.createElement('aside'); controls.id = 'robotControls'; controls.className = 'card';
-        const title = document.createElement('h2'); title.textContent = 'Доставка аптечек'; controls.append(title); layout.prepend(controls);
-        move($('run').parentElement, controls); move(scene.querySelector('.stats'), controls);
-        move($('deliveryTries'), controls); move($('nextMission'), controls); move($('terrainLegend'), controls);
+        const title = document.createElement('h2'); title.textContent = 'Спасательный рейс'; controls.append(title); layout.prepend(controls);
+        move($('cargoPanel'), controls); move($('campStatus'), controls); move($('run').parentElement, controls); move(scene.querySelector('.stats'), controls);
+        move($('deliveryTries'), controls); move($('nextMission'), controls); const caption=document.createElement('p'); caption.className='terrain-caption'; caption.textContent='Покрытия · энергия за шаг'; controls.append(caption); move($('terrainLegend'), controls);
         for (const detail of document.querySelectorAll('.training > details')) tools(detail);
         observer = new ResizeObserver(sizeBoard); observer.observe(scene.querySelector('.mission-frame')); sizeBoard();
       } else {
