@@ -48,9 +48,6 @@
 .monitor-layout.campaign-city .city-decisions fieldset{margin:6px 0;gap:5px}
 .monitor-layout.campaign-city .city-decisions legend{font-size:15px;margin-bottom:3px}
 .monitor-layout.campaign-city .city-goal{padding:4px 6px}
-.monitor-layout.campaign-city .city-map-area>.city-goals{grid-template-columns:repeat(3,minmax(0,1fr));flex:none}
-.monitor-layout.campaign-city .city-map-area>#cityGoalTitle{font-size:14px;flex:none;margin:0 0 4px}
-.monitor-layout.campaign-city .city-map-area>#cityNeeds{margin:4px 0 6px!important;flex:none}
 .monitor-layout.campaign-city .city-goal span{font-size:12px}.monitor-layout.campaign-city .city-goal strong{font-size:14px}
 .monitor-layout.campaign-city .city-start button{width:100%;font-size:14px}
 .monitor-layout.campaign-city #citizenStory{font-size:13px;margin:5px 0;line-height:1.25}
@@ -64,12 +61,25 @@
 .monitor-layout.campaign-city #cityProjects,.monitor-layout.campaign-city #cityReports{margin:0}
 .monitor-layout.campaign-city .monitor-dialog #cityBudget{display:block}
 @media(min-width:1000px) and (max-height:720px){
+ .monitor-layout.campaign-city .monitor-dialog .citizen-card{padding:14px}
+ .monitor-layout.campaign-city .monitor-dialog .citizen-card h3{font-size:20px;margin:0 0 6px}
+ .monitor-layout.campaign-city .monitor-dialog .citizen-card p{font-size:16px;line-height:1.3;margin:6px 0}
+ .monitor-layout.campaign-city .monitor-dialog .citizen-route li{padding:5px 8px;font-size:14px}
  .monitor-layout.campaign-city .mayor-title p{font-size:12px}
  .monitor-layout.campaign-city .city-round-brief{font-size:12px}
  .monitor-layout.campaign-city .city-rounds span{font-size:12px;padding:5px 7px}
+ .monitor-layout.campaign-city .city-decisions{padding:8px}
+ .monitor-layout.campaign-city .city-decisions #cityGoalTitle{font-size:14px;margin-bottom:4px}
  .monitor-layout.campaign-city .city-goals{gap:3px}
  .monitor-layout.campaign-city .city-goal{padding:3px 5px}
- .monitor-layout.campaign-city .city-decisions fieldset{margin:4px 0}
+ .monitor-layout.campaign-city .city-goal span{font-size:11px;line-height:1.15}
+ .monitor-layout.campaign-city .city-goal strong{font-size:13px}
+ .monitor-layout.campaign-city .city-needs{font-size:10.5px;margin:4px 0!important}
+ .monitor-layout.campaign-city .city-decisions fieldset{margin:3px 0}
+ .monitor-layout.campaign-city .city-decisions legend{font-size:14px;margin-bottom:2px}
+ .monitor-layout.campaign-city .city-choice{min-height:38px;font-size:12px;padding:5px 3px!important}
+ .monitor-layout.campaign-city .city-time-controls button{min-height:40px;padding:7px 5px}
+ .monitor-layout.campaign-city .city-time-controls #tryCity{font-size:14px}
  .monitor-layout.campaign-city .city-start{padding:7px;margin-bottom:6px}
  .monitor-layout.campaign-city .city-start p{display:none}
  .monitor-layout.campaign-city .city-start button{min-height:36px;padding:6px}
@@ -91,3 +101,4 @@
 }
 
 .campaign-intro #cityGoalTitle,.campaign-intro #cityGoalGrid,.campaign-intro #cityNeeds,.campaign-intro #mayorPolicies,.campaign-intro .city-time-controls{display:none!important}
+.campaign-completed #mayorPolicies,.campaign-lesson-finished .city-time-controls{display:none!important}

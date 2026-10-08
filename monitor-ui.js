@@ -76,7 +76,6 @@
       } else {
         const decisions = $('cityDecisions');
         move($('cityStart'), decisions, true); move($('mayorStatus'), city.querySelector('.city-map-area'));
-        move($('cityNeeds'), city.querySelector('.city-map-area'), true); move($('cityGoalGrid'), city.querySelector('.city-map-area'), true); move($('cityGoalTitle'), city.querySelector('.city-map-area'), true);
         move($('cityPeople'), city.querySelector('.mayor-title')); move(city.querySelector('.city-rules'), city.querySelector('.mayor-title'));
         move($('cityTutorial'), city.querySelector('.mayor-title'));
         move($('cityProjects'), city.querySelector('.mayor-title')); move($('cityReports'), city.querySelector('.mayor-title'));

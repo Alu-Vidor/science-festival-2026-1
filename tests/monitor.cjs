@@ -89,7 +89,7 @@ const server = http.createServer((req, res) => {
       await fits(frame,['.tour-card','#tourText']); await city.locator('#tryCity').click();
       await City.finishLesson(city,async()=>fits(frame,['.tour-card','#tourTitle','#tourText']));
       await City.maximum(city,async n=>{
-        await fits(frame,['#map','.city-choice','#tryCity','#pauseCity','#cityGoalGrid','#cityNeeds','#mayorStatus','#roundOutcome']);
+        await fits(frame,['#map',...(n<12?['.city-choice']:[]),'#tryCity','#pauseCity','#cityGoalGrid','#cityNeeds','#mayorStatus','#roundOutcome']);
         if(n%4===0)await page.screenshot({path:path.join(root,'test-artifacts',`city-round-${n/4}-${width}x${height}.png`)});
       });
       await fits(frame,['#map','#restartCity','#cityEffects','#cityNeeds','#mayorStatus']);
@@ -97,6 +97,7 @@ const server = http.createServer((req, res) => {
       await fits(page,['#epiView','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress']);
       await city.locator('.inhabitant[data-person="0"]').press('Enter'); await city.locator('.monitor-dialog[open]').waitFor();
       await fits(frame,['.monitor-dialog','#citizenChoice','#citizenPanel']);
+      if(width===1280&&height===640)await page.screenshot({path:path.join(root,'test-artifacts','city-citizen-compact.png')});
       await city.locator('.monitor-dialog > button').click(); await fits(frame,['#map','#cityEffects']);
       if(width===1366 && height===680) {
         await page.setViewportSize({width:768,height:900}); await page.locator('#robotTab').click();

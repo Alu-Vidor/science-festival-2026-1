@@ -125,6 +125,8 @@
     C.rounds.forEach((r, i) => { const tab = element('span', (i + 1) + '. ' + r.title + ' · ' + (campaign.results[i] ? campaign.results[i].score + '/' + r.max : 'до ' + r.max), nav); tab.title = r.brief; tab.setAttribute('data-current', i === Math.min(2, Math.floor(c.game.day / 4))); });
     $('cityRoundBrief').textContent = lesson ? 'Учебный день: посмотри на поездки и эмоции. Баллы начнутся в отдельном испытании.' : C.current(campaign).brief;
     document.body.classList.toggle('campaign-intro', !started && !lesson?.observed);
+    document.body.classList.toggle('campaign-completed', campaign.completed && !lesson);
+    document.body.classList.toggle('campaign-lesson-finished', !!lesson?.tested);
     $('cityStart').hidden = started && !lesson || lesson?.observed && !lesson.tested; $('observeCity').hidden = !!lesson?.observed;
     $('beginCity').hidden = !!lesson && !lesson.tested;
     $('observeCity').disabled = !!pending; $('beginCity').disabled = !!pending;
