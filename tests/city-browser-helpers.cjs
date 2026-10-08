@@ -11,8 +11,12 @@ async function finishLesson(scope, fits = async()=>{}) {
 async function day(scope) {
   const before = await scope.locator('body').evaluate(()=>cityCampaignGame.current().game.day);
   await scope.locator('#tryCity').click();
-  await scope.locator('body').evaluate(before=>new Promise(resolve=>{
-    const timer=setInterval(()=>{if(cityCampaignGame.current().game.day===before+1&&!cityCampaignGame.isPending()){clearInterval(timer);resolve();}},20);
+  await scope.locator('body').evaluate((_,before)=>new Promise((resolve,reject)=>{
+    const deadline=performance.now()+20000;
+    const timer=setInterval(()=>{
+      if(cityCampaignGame.current().game.day===before+1&&!cityCampaignGame.isPending()){clearInterval(timer);resolve();}
+      else if(performance.now()>deadline){clearInterval(timer);reject(new Error('Day did not finish: '+JSON.stringify({before,day:cityCampaignGame.current().game.day,pending:cityCampaignGame.isPending()})));}
+    },20);
   }),before);
   assert.equal(await scope.locator('body').evaluate(()=>cityCampaignGame.isPlaying()),false);
 }

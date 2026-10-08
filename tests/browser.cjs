@@ -140,7 +140,7 @@ const server = http.createServer((req, res) => {
     await cityFrame.locator('#mayor').waitFor(); await cityFrame.locator('#gameTour').waitFor();
     await tourFits(cityFrame); await startWatching('#map','.inhabitant',cityFrame);
     await cityFrame.locator('#observeCity').click();
-    await cityFrame.locator('.tour-watching').waitFor(); await tourFits(cityFrame);
+    await cityFrame.locator('.tour-watching').waitFor(); await tourFits(cityFrame); await lit(['#map','#citizenStory'],cityFrame);
     await page.screenshot({path:path.join(shots,'city-moving-iframe-tutorial.png')});
     await step('Помоги добраться',cityFrame);
     await watched(cityFrame);
@@ -155,10 +155,17 @@ const server = http.createServer((req, res) => {
     assert.equal(await cityFrame.locator('.citizen-emotion').count(),4,'A few representative reactions keep the map readable');
     await page.screenshot({path:path.join(shots,'city-three-rounds.png')});
     await cityFrame.locator('#restartCity').click();
+    await page.emulateMedia({reducedMotion:'no-preference'});
     await cityFrame.locator('#tryCity').click(); await cityFrame.locator('#pauseCity').click();
     assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().game.day),0);
     assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.isPlaying()),false);
+    const frozen=await cityFrame.locator('.inhabitant').evaluateAll(els=>els.map(e=>e.getAttribute('transform')));
     await page.waitForTimeout(250);
+    assert.deepEqual(await cityFrame.locator('.inhabitant').evaluateAll(els=>els.map(e=>e.getAttribute('transform'))),frozen,'Pause freezes the visible movement');
+    await cityFrame.locator('.inhabitant[data-person="0"]').press('Enter');
+    assert.equal(await cityFrame.locator('#citizenPanel .citizen-route li').count(),1,'A paused morning does not reveal future trips');
+    if(await cityFrame.locator('.monitor-dialog[open]').count())await cityFrame.locator('.monitor-dialog > button').click();
+    await page.emulateMedia({reducedMotion:'reduce'});
     assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().game.day),0,'A paused day cannot finish in the background');
     await City.day(cityFrame);
     for(let n=1;n<12;n++)await City.day(cityFrame);
@@ -264,7 +271,7 @@ const server = http.createServer((req, res) => {
     await page.locator('#epiTab').click();
     if(!await cityFrame.locator('#gameTour').count())await cityFrame.locator('#cityTutorial').click();
     await tourFits(cityFrame); await startWatching('#map','.inhabitant',cityFrame); await cityFrame.locator('#observeCity').click();
-    await cityFrame.locator('.tour-watching').waitFor(); await tourFits(cityFrame);
+    await cityFrame.locator('.tour-watching').waitFor(); await tourFits(cityFrame); await lit(['#map','#citizenStory'],cityFrame);
     await page.screenshot({path:path.join(shots,'city-moving-iframe-768.png')});
     await step('Помоги добраться',cityFrame); await watched(cityFrame); await cityFrame.locator('#tourSkip').click();
     await page.goto(url);

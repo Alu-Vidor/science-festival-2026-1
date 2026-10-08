@@ -32,10 +32,10 @@
     const mode = window.cityMode;
     const config = mode === 'mayor' ? { name: 'Город', steps: [
       { target: '#observeCity', context: ['#mayorMapSlot .mapscroll'], title: 'Сначала наблюдай', text: 'Нажми «Учебный день». Он бесплатный.', event: 'city:observed', delay: 350,
-        watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', context: ['#mayorMapSlot .legend'], text: 'Смотри на жителей и эмоции. Цвет одежды отдельно показывает симптомы.' } },
+        watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', context: ['#mayorMapSlot .legend', '#citizenStory'], text: 'Смотри на жителей и эмоции. Цвет одежды отдельно показывает симптомы.' } },
       { target: '#pick-bus-frequent', context: ['#choices-bus'], title: 'Помоги добраться', text: 'Жители пропускают поездки. Нажми «Больше рейсов».', event: 'city:choice', accept: d => d.key === 'bus' && d.value === 'frequent' },
       { target: '#tryCity', context: ['#mayorMapSlot .mapscroll'], title: 'Проверь своё решение', text: 'Проверь рейсы. После дня город остановится.', event: 'city:tested', delay: 350,
-        watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', context: ['#mayorMapSlot .legend'], text: 'Заметь, кто добрался. Нажатие на жителя объяснит его эмоцию.' } },
+        watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', context: ['#mayorMapSlot .legend', '#citizenStory'], text: 'Заметь, кто добрался. Нажатие на жителя объяснит его эмоцию.' } },
       { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'В испытании три раунда. Максимум — за все цели.' },
       { target: '#projectSummary', title: 'Планируй улучшения', text: 'На строительство — 200 монет. На все три улучшения не хватит.' }
     ] } : mode === 'contest' ? { name: 'Соревнование', steps: [

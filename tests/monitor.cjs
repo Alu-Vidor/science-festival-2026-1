@@ -18,6 +18,7 @@ const server = http.createServer((req, res) => {
       const context = await browser.newContext({viewport:{width,height},reducedMotion:'reduce'});
       await context.addInitScript(() => localStorage.setItem('festival-tours-v5', JSON.stringify(['robot','city-mayor'])));
       const page = await context.newPage();
+      page.on('pageerror',e=>console.error('Page error:',e.message));
       async function fits(scope, selectors) {
         const problems = await scope.evaluate(selectors => {
           const issues = [];
@@ -80,7 +81,7 @@ const server = http.createServer((req, res) => {
       assert.equal(await city.locator('#map').getAttribute('viewBox'),'0 0 1750 1080','Every building stays in the full city view');
       await city.locator('#cityTutorial').click(); await fits(frame,['.tour-card','#tourTitle','#tourText','#observeCity']);
       await city.locator('#observeCity').click(); await city.locator('#tryCity').waitFor({state:'visible'});
-      await city.locator('.tour-watching').waitFor(); await lit(frame,['#map']);
+      await city.locator('.tour-watching').waitFor(); await lit(frame,['#map','#citizenStory']);
       await page.screenshot({path:path.join(root,'test-artifacts',`city-lesson-monitor-${width}x${height}.png`)});
       await city.locator('#tryCity').evaluate(el => new Promise(resolve => { const timer=setInterval(()=>{if(!el.disabled){clearInterval(timer);resolve();}},20); }));
       await city.locator('#tourTitle').filter({hasText:'Помоги добраться'}).waitFor(); await fits(frame,['.tour-card','#tourText']);
