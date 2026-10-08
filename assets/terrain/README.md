@@ -1,6 +1,6 @@
-# Generated ground materials
+# Ground materials
 
-`materials.webp` is a 768 × 768 raster atlas generated with the built-in imagegen tool and encoded as WebP at quality 86. Each of its nine tiles is 256 × 256. The file is shared and cached across both games (about 225 KiB).
+`materials.webp` is a 768 × 768 raster atlas generated with the built-in imagegen tool and encoded as WebP at quality 86. Each of its nine tiles is 256 × 256. The city uses this cached file (about 225 KiB).
 
 | Row | Left | Center | Right |
 | --- | --- | --- | --- |
@@ -8,7 +8,24 @@
 | 2 | Mud | Sand | Water |
 | 3 | Stone wall | Rocky hills | Gravel road |
 
-The city uses cropped SVG patterns aligned to its existing ground projection. Base colors remain behind the images as a fallback. Lane markings, crossings, buildings and residents stay separate. The robot uses seven distinct atlas positions: asphalt for road, grass for grass, mud, sand, water, rocky hills and gravel. Its wall uses the masonry position. Authored `clay.svg` (terracotta fissures) and `ice.svg` (blue translucent fractures) complete the nine traversable surfaces. Legend swatches and map cells use the same CSS definitions. Path, prediction and selection indicators remain separate from the material image; the water's old background-position animation is disabled so it cannot scroll into another atlas tile.
+The city uses cropped SVG patterns aligned to its existing ground projection. Base colors remain behind the images as a fallback. Lane markings, crossings, buildings and residents stay separate.
+
+The robot uses separate authored SVG textures with distinct colors and large patterns readable on a 27-inch monitor:
+
+| Surface | Texture |
+| --- | --- |
+| Road | Dark asphalt with yellow lane markings (`road.svg`) |
+| Grass | Green blades (`grass.svg`) |
+| Sand | Golden waves (`sand.svg`) |
+| Mud | Brown puddles (`mud.svg`) |
+| Water | Blue ripples (`water.svg`) |
+| Hill | Purple rock contours (`hill.svg`) |
+| Gravel | Pale gray pebbles (`gravel.svg`) |
+| Clay | Orange fissures (`clay.svg`) |
+| Ice | Cyan fractures (`ice.svg`) |
+| Wall | Masonry blocks, impassable (`wall.svg`) |
+
+Legend swatches and map cells use the same textures. Material describes energy cost; sensor readings determine safety. Safe and dangerous variants share the same material texture. The solid blue planned route, yellow travelled route, white selection and optional small AI badges remain separate from material art. The city atlas is unchanged.
 
 Generation used the following prompt. Subsequent processing only resized the complete atlas and encoded WebP.
 
