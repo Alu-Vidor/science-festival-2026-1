@@ -24,6 +24,19 @@ for(const id of R.ids){
  console.log(id+': exact minimum '+o.energy+', alternatives '+[...energies].sort((a,b)=>a-b).join('/'));
 }
 assert.equal(signatures.size,4);
+for(const id of ['forest','gorge','rain']){
+ const m=R.create(id),optimal=R.optimum(m);
+ const examples=[...new Map(m.grid.filter(c=>c.type!=='wall').map(c=>{const f=R.features(c,m.rain);return [f.join(','),{f,y:+R.danger(f),type:c.type}];})).values()];
+ let detour=null;
+ for(const i of new Set(optimal.path)){
+  if(m.grid[i].object)continue;
+  const changed=R.features(m.grid[i],m.rain).join(','),model=examples.map(s=>s.f.join(',')===changed?{...s,y:1}:s),route=R.plan(m,model);
+  if(route&&route.energy>optimal.energy&&!route.path.some(j=>R.danger(R.features(m.grid[j],m.rain)))){detour=route;break;}
+ }
+ assert(detour,'Each map must offer a safe but longer automatic route after an overcautious learned decision');
+ assert(R.score({max:m.max,delivered:3,parcels:3,energy:detour.energy,optimal:optimal.energy,complete:true})<m.max);
+}
+
 const wet=R.tile('clay',0,[40,25,45,75]);assert(!R.danger(R.features(wet,false)));assert(R.danger(R.features(wet,true)));
 const broad=R.examples(), sparse=broad.filter(s=>['road','mud'].includes(s.type));
 for(const id of ['forest','gorge']){

@@ -107,6 +107,10 @@ const server = http.createServer((req, res) => {
     await page.locator('#expedition-training').click();await teachTraining(page);
     assert.equal(await page.evaluate(()=>samples.length),18,'Nine pairs suffice; no need to label every map cell');
     await page.locator('#nextMission').click();
+    await page.locator('[data-index="90"]').click();await page.locator('#unsafe').click();await page.locator('#train').click();
+    assert((await deliver(page)).includes('лишний обход'),'A wrong prohibition still permits a longer automatic delivery');
+    assert.equal(await page.locator('#overallScore').innerText(),'9','Only the optimized route receives ten points');
+    await page.locator('[data-index="90"]').click();await page.locator('#probe').click();await page.locator('#safe').click();await page.locator('#train').click();
     const original=await page.evaluate(()=>JSON.stringify(grid)),oldStart=await page.evaluate(()=>start);
     const destination=await page.evaluate(()=>benchmark.path.find(i=>!grid[i].object));
     await page.locator('#moveStart').click();await page.locator(`[data-index="${destination}"]`).click();

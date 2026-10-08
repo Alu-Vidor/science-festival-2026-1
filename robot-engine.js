@@ -92,9 +92,10 @@
     const goals=id==='training'?[45,93,141]:id==='forest'?[22,82,130]:id==='gorge'?[21,118,121]:[14,46,130];
     const guaranteed=new Set([start,...goals]);
     // Add traps only while the safe landscape still connects every usable cell.
-    // This creates loops and several alternatives, with no all-road escape lane.
+    // Keep traps sparse enough to preserve useful bypasses, not just a connected tree.
+    // Model mistakes can then cause a longer delivery rather than only block it.
     if(id!=='training')for(let i=0;i<144;i++){
-      if(grid[i].type==='wall'||guaranteed.has(i)||(i*17+seed)%5>1)continue;
+      if(grid[i].type==='wall'||guaranteed.has(i)||(i*17+seed)%7>0)continue;
       const before=grid[i];set(i,before.type,true);
       const seen=new Set([start]), queue=[start];
       for(let k=0;k<queue.length;k++)for(const j of neighbors(queue[k],grid))if(!seen.has(j)&&!danger(features(grid[j],rain))){seen.add(j);queue.push(j);}
