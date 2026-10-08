@@ -48,7 +48,7 @@ const server = http.createServer((req, res) => {
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
-      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#model','.training > details:not([hidden])','#status','#deliveryTries','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#sessionPace','#terrainLegend','#robotRules','#cargoPanel','#campStatus','#routeLayer','.terrain-note','.selection-key','.wall-key']);
+      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#terrainLimits','#sensors .sensor-number','#model','.training > details:not([hidden])','#status','#deliveryTries','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#sessionPace','#terrainLegend','#robotRules','#cargoPanel','#campStatus','#routeLayer','.terrain-note','.selection-key','.wall-key']);
       await page.mouse.wheel(0,700); await fits(page,['#boardStage','#model']);
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-monitor-${width}x${height}.png`)});
       async function lit(scope, selectors) {
@@ -70,10 +70,19 @@ const server = http.createServer((req, res) => {
       await fits(page,['#model','#train','#status','#nextMission','#expeditionNav']);
       for(let stage=1;stage<=3;stage++){
         await page.locator('#nextMission').click();
+        if(stage===1){
+          await page.locator('[data-index="100"]').click();await page.locator('#safe').click();await page.locator('#probe').click();
+          const right=['#sensors','#terrainLimits','#sensorHint','#transferForecast','#safe','#unsafe','#probe','#train','#model','.training > details:not([hidden])'];
+          await fits(page,right);await page.screenshot({path:path.join(root,'test-artifacts',`robot-wrong-label-${width}x${height}.png`)});
+          await page.locator('#train').click();await fits(page,right);
+          await page.locator('#run').click();await page.waitForFunction(()=>!running);assert.equal(await page.evaluate(()=>stuckCell),100);
+          await fits(page,[...right,'#status']);await page.screenshot({path:path.join(root,'test-artifacts',`robot-stalled-${width}x${height}.png`)});
+          await page.locator('#unsafe').click();await page.locator('#probe').click();await page.locator('#train').click();
+        }
         if(stage===2)await adaptGorge(page);
         if(stage===3)await adaptRain(page);
         await optimalDelivery(page);
-        await fits(page,['#boardStage','#model','#status','#deliveryTries','#autoRoute','#predict','#newParticipant','#transferForecast','#robotResearch','#robotRules','.training > details:not([hidden])']);
+        await fits(page,['#boardStage','#model','#status','#deliveryTries','#autoRoute','#predict','#newParticipant','#transferForecast','#terrainLimits','#sensors .sensor-number','#robotResearch','#robotRules','.training > details:not([hidden])']);
         if(stage<3)await fits(page,['#nextMission']);
         await page.screenshot({path:path.join(root,'test-artifacts',`robot-mission-${stage}-${width}x${height}.png`)});
       }
@@ -81,7 +90,7 @@ const server = http.createServer((req, res) => {
       // Check ordinary fallbacks without replacing the default-font checks above.
       for(const font of ['Arial, sans-serif','DejaVu Sans, sans-serif']){
         await page.locator('.training').evaluate((el,font)=>el.style.fontFamily=font,font);
-        await fits(page,['#sensors','#sensorHint','#transferForecast','#safe','#unsafe','#probe','#train','#model','.training > details:not([hidden])']);
+        await fits(page,['#sensors','#terrainLimits','#sensors .sensor-number','#sensorHint','#transferForecast','#safe','#unsafe','#probe','#train','#model','.training > details:not([hidden])']);
       }
       await page.locator('.training').evaluate(el=>el.style.fontFamily='');
       await page.locator('#robotRules > summary').click();await page.locator('.monitor-dialog[open]').waitFor();

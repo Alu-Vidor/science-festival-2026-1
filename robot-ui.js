@@ -1,4 +1,4 @@
-/* The learner makes a hypothesis; verified examples teach autonomous rescue delivery. */
+/* The learner's labels teach rescue delivery; physical tests never relabel them. */
 'use strict';
 const $=id=>document.getElementById(id), R=RobotEngine, N=12;
 let grid=[],start=0,robot=0,selected=-1,raining=false,samples=[],model=[],overlay=false,running=false,timer=null;
@@ -7,7 +7,7 @@ let best=Array(4).fill(null),checks=new Map(),guesses=new Map(),stuckCell=-1,tra
 let robotSession=window.FestivalSession?.id;let restoring=true,restoredRobot=false;let transferChecks=Array.from({length:4},()=>[]),transferMessage='';
 const features=i=>R.features(grid[i],raining), danger=f=>R.danger(f), key=f=>f.join(',');
 const say=text=>$('status').textContent=text;
-const learned=()=>model.some(s=>s.y===0)&&model.some(s=>s.y===1);
+const learned=()=>model.length>0;
 const campIndices=()=>grid.flatMap((c,i)=>c.object==='camp'?[i]:[]);
 const letter=i=>grid[i].camp;
 const pendingExamples=()=>samples.filter(s=>!model.some(m=>key(m.f)===key(s.f)&&m.y===s.y)).length;
@@ -23,7 +23,7 @@ function updateRouteInfo(){
  if(running){$('autoRoute').textContent=`Рейс идёт: помощь получили ${delivered} из ${mission.cargo} лагерей. Жёлтый след — уже пройденный путь.`;return;}
  if(trail.length){$('autoRoute').textContent=`Пройденный путь — жёлтый. Потрачено ${spent} энергии. Повторный рейс начнётся с базы с тремя аптечками.`;return;}
  const order=preview?[...new Set(preview.path.filter(i=>grid[i].object==='camp'))].map(letter).join(' → '):'';
- $('autoRoute').textContent=preview?`Робот выбрал путь: база → ${order}. Расход: ${preview.energy} энергии.`:model.length?'Пути ко всем лагерям пока нет: робот не узнаёт часть грунта. Разные проверенные примеры расширяют его опыт.':'Робот выберет путь после обучения на примерах проезда и опасности.';
+ $('autoRoute').textContent=preview?`Робот выбрал путь: база → ${order}. Расход: ${preview.energy} энергии.`:model.length?'Пути ко всем лагерям пока нет: робот не узнаёт часть грунта. Разные примеры расширяют его опыт.':'Робот выберет путь после обучения на твоих метках.';
 }
 function updateTask(){
  const complete=delivered===mission.cargo&&!running;
@@ -32,7 +32,7 @@ function updateTask(){
  $('taskHint').textContent=stage===0?'У робота три аптечки. Научи его отличать проезд от опасности и выполни пробный рейс. Обучение завершено, когда все лагеря получили помощь.':'Довези три аптечки без застревания и проверь перенос опыта: подтверди проезд и опасность на выбранных тобой участках. Экономия батареи даёт бонус.';
  if(complete)$('taskHint').textContent=stage===0?'Твой робот сам доставил все аптечки. Учебный рейс пройден — он без баллов. Впереди три спасательные экспедиции.':`Твой робот сам доставил все аптечки. За этот рейс: ${R.score({max:mission.max,delivered,camps:mission.cargo,energy:spent,optimal:benchmark.energy,complete:true})} / ${mission.max} баллов. `+(transferDone()?' Проверка переноса выполнена.':' Баллы войдут в общий счёт после двух проверок переноса.');
  $('run').textContent=trail.length?'↻ Повторить рейс':stage===0?'▶ Пробный рейс':'▶ Отвезти аптечки';
- $('run').title=pendingExamples()?'Сначала передай новые примеры роботу кнопкой «Обучить робота».':!preview?'Для пути к лагерям нужны проверенные примеры разных покрытий.':trail.length?'Робот начнёт новый рейс с базы с тремя аптечками.':'Робот сам поедет по синей линии.';
+ $('run').title=pendingExamples()?'Сначала передай новые примеры роботу кнопкой «Обучить робота».':!preview?'Для пути к лагерям нужны примеры разных покрытий.':trail.length?'Робот начнёт новый рейс с базы с тремя аптечками.':'Робот сам поедет по синей линии.';
 }
 function terrainLegend(){
  const legend=$('terrainLegend');legend.replaceChildren();
@@ -95,18 +95,19 @@ function draw(){
 function select(i){if(running)return;selected=i;inspect();draw();persist();window.GameTour?.signal('robot:inspected',{index:i});}
 const sensorWords=f=>R.sensorWords(f);
 function inspect(){
- const valid=selected>=0&&grid[selected].type!=='wall',f=valid?features(selected):null,guess=valid?guesses.get(key(f)):undefined,result=valid?checks.get(key(f)):undefined;
+ const valid=selected>=0&&grid[selected].type!=='wall',f=valid?features(selected):null,guess=valid?guesses.get(key(f)):undefined,result=valid?checks.get(key(f)):undefined,sample=valid?samples.find(s=>key(s.f)===key(f)):null;
  for(const id of ['safe','unsafe']){$(id).disabled=running||!valid;$(id).setAttribute('aria-pressed',String(guess===(id==='safe'?0:1)));}
  $('probe').disabled=running||!valid||guess===undefined;
  $('selectedName').textContent=valid?`${R.names[grid[selected].type]} · ряд ${(selected/N|0)+1}, клетка ${selected%N+1}`:'Выбери участок на карте';
  if(!valid){$('sensorHint').textContent=selected>=0?'Это преграда: через неё робот не проедет. Гипотезы проверяют на грунте.':'Здесь ты проверяешь свои предположения. Разные примеры учат робота узнавать новый грунт.';if(selected>=0)$('selectedName').textContent='Каменная преграда';}
- else if(result===undefined)$('sensorHint').textContent=guess===undefined?'Как думаешь, робот проедет здесь или застрянет? Сравни состояние грунта.':'Твоё предположение: '+(guess?'застрянет':'проедет')+'. Испытание покажет результат и сохранит проверенный пример.';
+ else if(result===undefined)$('sensorHint').textContent=guess===undefined?'Как думаешь, робот проедет здесь или застрянет? Сравни числа с границами проезда.':'Твой ответ: '+(guess?'застрянет':'проедет')+'. Испытание сохранит именно его, даже если он ошибочный.';
  else{
-  const reasons=[];if(f[0]>=70)reasons.push('слишком мокро');if(f[1]>=70)reasons.push('слишком крутой склон');if(f[0]+f[2]>=110)reasons.push('влажность и ямы вместе мешают проехать');if(f[3]<=30)reasons.push('грунт проваливается');
-  $('sensorHint').textContent=(+result===guess?'Гипотеза верна. ':'Получилось иначе. ')+(result?'Застрянет: '+reasons.join(', ')+'. ':'Проедет. ')+'Пример сохранён.';
+  const reason=f[3]<=R.limits.bearing?'грунт проваливается':f[0]>=R.limits.wet?'слишком мокро':f[1]>=R.limits.slope?'слишком круто':'влажность и ямы';
+  $('sensorHint').textContent='На испытании: '+(result?'застрянет — '+reason:'проедет')+'. '+(sample?'В примере: «'+(sample.y?'застрянет':'проедет')+'». '+(sample.y!==+result?'Ответ не исправлен.':''): 'Метка для этого участка ещё не сохранена.');
  }
  const words=valid?sensorWords(f):['—','—','—','—'];
- for(const [j,id]of ['wet','slope','rough','bearing'].entries()){$(id).textContent=words[j];$(id).title=valid?`Показание датчика: ${f[j]} из 100`:'';$(id+'Meter').value=valid?f[j]:0;}
+ for(const [j,id]of ['wet','slope','rough','bearing'].entries()){$(id).textContent=words[j];$(id+'Number').textContent=valid?f[j]:'—';$(id+'Number').title='Шкала от 0 до 100';}
+ $('terrainLimits').textContent=`Шкала 0–100. Проезд: влажность < ${R.limits.wet}; уклон < ${R.limits.slope}; твёрдость > ${R.limits.bearing}; влажность + неровности < ${R.limits.wetRough}. Нужны все условия.`;
  const forecast=valid?R.transfer(model,f).label:null;
  $('transferForecast').hidden=stage===0;
  $('transferForecast').textContent=valid?(guess===undefined?'Сначала твоя гипотеза, затем прогноз робота.':'Робот по другим примерам: '+(forecast===null?'пока не знает':forecast?'застрянет':'проедет')+'.'):'Выбери участок для проверки переноса.';
@@ -116,30 +117,29 @@ function label(y){if(running||selected<0||grid[selected].type==='wall')return;gu
 function probe(){
  if(selected<0||grid[selected].type==='wall'||running||!guesses.has(key(features(selected))))return;
  transferMessage='';
- const f=features(selected),y=+danger(f),transfer=R.transfer(model,f),guess=guesses.get(key(f)),sample={f,y,type:grid[selected].type},old=samples.findIndex(s=>key(s.f)===key(f));
+ const f=features(selected),y=+danger(f),transfer=R.transfer(model,f),guess=guesses.get(key(f)),sample={f,y:guess,observed:y,type:grid[selected].type},old=samples.findIndex(s=>key(s.f)===key(f));
  checks.set(key(f),!!y);if(old<0)samples.push(sample);else samples[old]=sample;
  if(stage&&!transferChecks[stage].some(check=>check.y===y)){
   if(transfer.label===y&&guess===y){
    transferChecks[stage].push({index:selected,f:[...f],type:grid[selected].type,y,near:transfer.near.map(({f,y,type})=>({f:[...f],y,type}))});
    transferMessage='Перенос подтверждён: ты и робот предсказали «'+(y?'застрянет':'проедет')+'», испытание подтвердило. Точного примера этого участка в опыте не было.';
-  }else transferMessage=transfer.label===null?'Для проверки переноса роботу нужны похожие примеры. Обучи его, затем проверь свой прогноз на выбранном участке.':guess!==y?'Гипотеза не подтвердилась. Ошибка — новый опыт: она не отнимает баллы. Проверь прогноз на другом участке.':'Робот ошибся. Добавь наблюдение, обучи его и проверь похожий грунт.';
+  }else transferMessage=guess!==y?'Гипотеза не подтвердилась. Твоя метка сохранена без исправления. Робот обучится на ней.':transfer.label===null?'Для проверки переноса нужны похожие примеры. Обучи робота, затем проверь свой прогноз.':'Робот ошибся. Исправь свои метки и переобучи его.';
  }
 
- inspect();updateLearning();controls();say(transferMessage||'Испытание проверило твою гипотезу. Сохранён результат, который можно передать роботу.');
- window.GameTour?.signal('robot:probed',{index:selected,label:y});
+ inspect();updateLearning();controls();say(transferMessage||'Сохранён твой ответ: «'+(guess?'застрянет':'проедет')+'». '+(guess!==y?'Испытание показало ошибку, но метка не исправлена.':'Испытание его подтвердило.'));
+ window.GameTour?.signal('robot:probed',{index:selected,label:guess,observed:y});
 }
 function explainSelected(){
  const box=$('predictionReason');box.replaceChildren();const p=document.createElement('p');box.appendChild(p);
  if(selected<0||grid[selected].type==='wall'){p.textContent='Выбери участок: здесь видно, с какими примерами робот сравнивает его датчики.';return;}
  const answer=R.explain(model,features(selected));p.textContent='Робот думает: '+(answer.label===null?'не знает':answer.label?'застрянет':'проедет')+'. '+answer.reason+'.';
- answer.near.forEach(s=>{const e=document.createElement('p');e.textContent=(R.names[s.type]||'Участок')+' · проверка: '+(s.y?'застрянет':'проедет')+' · показания '+s.f.join(' / ');box.appendChild(e);});
+ answer.near.forEach(s=>{const e=document.createElement('p');e.textContent=(R.names[s.type]||'Участок')+' · твоя метка: '+(s.y?'застрянет':'проедет')+' · показания '+s.f.join(' / ');box.appendChild(e);});
 }
 function updateLearning(){
- const pending=pendingExamples();$('samples').textContent=`Проверенные примеры: ${samples.length}`+(pending?` · новых: ${pending}`:'');
- $('train').disabled=running||!samples.some(s=>s.y===0)||!samples.some(s=>s.y===1);
- const missing=!samples.some(s=>s.y===0)?'проезда':!samples.some(s=>s.y===1)?'опасности':null;
- $('model').textContent=running?'Робот применяет твои примеры и едет сам.':pending?(missing?`Проверенных примеров: ${samples.length}. Для обучения ещё нужен пример ${missing}.`:'Можно проверить несколько участков, затем «Обучить робота» сразу на всех примерах.'):
-  !model.length?'Для обучения нужны проверенные примеры проезда и опасности.':trail.length?(delivered===mission.cargo?'Опыт сработал: робот добрался до всех лагерей.':'Рейс остановлен. Память робота сохранена.'):
+ const pending=pendingExamples();$('samples').textContent=`Твои примеры: ${samples.length}`+(pending?` · ждут обучения: ${pending}`:'');
+ $('train').disabled=running||!samples.length;
+ $('model').textContent=running?'Робот применяет твои метки и едет сам.':pending?'Робот ещё не получил новые метки. Обучение передаст твои ответы без исправлений.':
+  !model.length?'Сохрани свой ответ и обучи робота. Ошибочные метки тоже попадут в его память.':trail.length?(delivered===mission.cargo?'Опыт сработал: робот добрался до всех лагерей.':'Рейс остановлен. Исправь метку и переобучи робота.'):
   learningEffect?learningEffect+(preview?' Путь готов.':' Полного пути пока нет.'):
   preview?'Робот выбрал путь. Синяя линия показывает, куда он поедет.':'Пути пока нет: часть грунта незнакома роботу. Каждый новый пример помогает узнавать похожие участки.';
  const coverage=$('coverage');coverage.replaceChildren();
@@ -147,10 +147,10 @@ function updateLearning(){
  Object.keys(R.names).filter(type=>present.has(type)).forEach(type=>{
   const known=samples.filter(s=>s.type===type),b=document.createElement('button');b.dataset.coverage=type;
   const unknown=grid.filter(c=>c.type===type&&R.predict(model,R.features(c,raining))===null).length;
-  b.innerHTML=`<span class="terrain-swatch ${type}" aria-hidden="true"></span><span>${R.names[type]}<small>${known.length?'Проверенные состояния: '+new Set(known.map(s=>sensorWords(s.f).join(' · '))).size:'Проверенных состояний пока нет'}</small><small>${unknown?'Есть незнакомые показания на этой карте':'Робот узнаёт показания на этой карте'}</small></span>`;
+  b.innerHTML=`<span class="terrain-swatch ${type}" aria-hidden="true"></span><span>${R.names[type]}<small>${known.length?'Состояния в твоих примерах: '+new Set(known.map(s=>sensorWords(s.f).join(' · '))).size:'Примеров пока нет'}</small><small>${unknown?'Есть незнакомые показания на этой карте':'Робот узнаёт показания на этой карте'}</small></span>`;
   b.onclick=()=>{const cells=grid.flatMap((c,i)=>c.type===type?[i]:[]),i=cells.find(i=>!samples.some(s=>key(s.f)===key(features(i))))??cells[0];if(i!==undefined){$('learningNotebook').open=false;document.querySelector('.monitor-dialog[open]')?.close();select(i);}};coverage.appendChild(b);
  });
- const journal=$('exampleJournal');journal.replaceChildren();samples.forEach((s,i)=>{const p=document.createElement('p');p.textContent=`${i+1}. ${R.names[s.type]}: ${sensorWords(s.f).join(' · ')} → ${s.y?'застрянет':'проедет'} · ${model.some(m=>key(m.f)===key(s.f)&&m.y===s.y)?'в памяти робота':'ждёт обучения'}`;journal.appendChild(p);});
+ const journal=$('exampleJournal');journal.replaceChildren();samples.forEach((s,i)=>{const p=document.createElement('p');p.textContent=`${i+1}. ${R.names[s.type]}: ${s.f.join(' / ')} · ${sensorWords(s.f).join(' · ')} · твоя метка: ${s.y?'застрянет':'проедет'}`+(s.observed===undefined?'':` · испытание: ${s.observed?'застрянет':'проедет'}${s.y!==s.observed?' — метка ошибочная':''}`)+` · ${model.some(m=>key(m.f)===key(s.f)&&m.y===s.y)?'в памяти робота':'ждёт обучения'}`;journal.appendChild(p);});
  $('notebookSummary').textContent='Память робота · '+samples.length+' примеров';
  $('robotResearch').hidden=stage===0;
  $('transferSummary').textContent='Проверка переноса · '+(stage?transferChecks[stage].length:0)+'/2';
@@ -163,12 +163,12 @@ function resetTrip(){robot=start;remaining=mission.budget;delivered=steps=spent=
 function train(){
  if(running||$('train').disabled)return;
  const before=grid.map((c,i)=>c.type==='wall'?null:R.predict(model,features(i)));
- model=samples.map(s=>({...s,f:[...s.f]}));
+ model=samples.map(({f,y,type})=>({f:[...f],y,type}));
  const changes=grid.flatMap((c,i)=>c.type!=='wall'&&R.predict(model,features(i))!==null&&before[i]!==R.predict(model,features(i))?[i]:[]);
  const transferred=changes.find(i=>!samples.some(s=>key(s.f)===key(features(i))))??changes.find(i=>i!==selected);
  const changed=transferred??changes[0];
  const opinion=answer=>answer===null?'не знает':answer?'застрянет':'проедет';
- learningEffect=changed!==undefined?`${R.names[grid[changed].type]}: «${opinion(before[changed])}» → «${opinion(R.predict(model,features(changed)))}». `+(transferred!==undefined?'Опыт перенесён на похожий грунт.':'Проверенный ответ теперь в памяти робота.'):'Решения не изменились: эти показания уже знакомы.';
+ learningEffect=changed!==undefined?`${R.names[grid[changed].type]}: «${opinion(before[changed])}» → «${opinion(R.predict(model,features(changed)))}». `+(transferred!==undefined?'Опыт перенесён на похожий грунт.':'Твоя метка теперь в памяти робота.'):'Решения не изменились: эти показания уже знакомы.';
  resetTrip();recalculate();draw();inspect();updateLearning();controls();say(learningEffect+' '+(preview?'Робот построил путь к лагерям.':'Для пути к лагерям ещё нужны разные наблюдения.'));window.GameTour?.signal('robot:trained');
 }
 function stop(message=true){clearTimeout(timer);running=false;path=[];draw();controls();inspect();updateLearning();if(message)say('Рейс остановлен. Уже переданные аптечки остались в лагерях. Повторный рейс начнётся с базы с новым комплектом.');}
@@ -188,7 +188,7 @@ function run(){
   const next=path.shift();if(next===undefined){finish('Рейс завершён.');return;}
   const cost=R.costs[grid[next].type];if(remaining<cost){finish('Батарея разрядилась раньше окончания рейса.');return;}
   robot=next;remaining-=cost;spent+=cost;steps++;trail.push(next);
-  if(danger(features(next))){selected=stuckCell=next;finish('Робот застрял: похожие примеры дали ошибочное решение.');return;}
+  if(danger(features(next))){selected=stuckCell=next;checks.set(key(features(next)),true);finish('Робот застрял: его обучение разрешило опасный грунт. Исправь свою метку, сохрани пример и переобучи робота.');return;}
   if(targets.has(next)){targets.delete(next);delivered++;}draw();persist();
   if(!targets.size){finish('Все три лагеря получили аптечки!');return;}
   timer=setTimeout(tick,window.matchMedia('(prefers-reduced-motion: reduce)').matches?20:180);
@@ -233,6 +233,6 @@ if(restoredRobot){
   try{checks=new Map(trip.checks);guesses=new Map(trip.guesses);}catch{checks=new Map();guesses=new Map();}
   draw();inspect();updateLearning();controls();
  }
- say('Прогресс восстановлен. Память и результаты сохранены; прерванный рейс можно повторить с базы.');
+ say(stuckCell>=0?'Прогресс восстановлен. Робот застрял; ошибочная метка сохранена. Исправь её, сохрани пример и переобучи робота.':'Прогресс восстановлен. Память и результаты сохранены; прерванный рейс можно повторить с базы.');
 }
 restoring=false;publish();if(location.hash==='#epidemic')setTimeout(()=>switchLab(true),0);

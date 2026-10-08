@@ -143,9 +143,10 @@ const server = http.createServer((req, res) => {
     const before=await page.evaluate(()=>samples.length);await page.locator('#unsafe').click();
     assert.equal(await page.evaluate(()=>samples.length),before,'A hypothesis alone is not a teaching example');
     await page.locator('#probe').click();
-    assert((await page.locator('#sensorHint').innerText()).includes('Получилось иначе'));
-    assert.equal(await page.evaluate(()=>samples.find(s=>s.f.join(',')===features(8).join(',')).y),0,'An incorrect guess is corrected by the physical experiment');
-    assert(await page.locator('#run').isDisabled(),'New checked examples must be taught before the next trip');
+    assert((await page.locator('#sensorHint').innerText()).includes('Ответ не исправлен'));
+    assert.equal(await page.evaluate(()=>samples.find(s=>s.f.join(',')===features(8).join(',')).y),1,'The child label is preserved despite the physical experiment');
+    assert.equal(await page.evaluate(()=>samples.find(s=>s.f.join(',')===features(8).join(',')).observed),0,'Physical truth is recorded separately from the training label');
+    assert(await page.locator('#run').isDisabled(),'New child labels must be taught before the next trip');
     await page.locator('[data-index="100"]').click();const safeClay=await page.locator('#sensors').innerText();
     await page.locator('[data-index="102"]').click();const riskyClay=await page.locator('#sensors').innerText();
     assert.notEqual(safeClay,riskyClay,'Safe and risky clay have different readable sensor words');
@@ -156,6 +157,24 @@ const server = http.createServer((req, res) => {
     await page.locator('#nextMission').click();
     assert((await page.locator('#missionTask').innerText()).includes('без застревания'));
     const original=await page.evaluate(()=>JSON.stringify(grid)),oldStart=await page.evaluate(()=>start);
+    // A learner mislabels the muddy shortcut, trains, and actually stalls.
+    await page.locator('[data-index="100"]').click();
+    assert.deepEqual(await page.locator('#sensors .sensor-number').allTextContents(),['62','15','53','68']);
+    assert((await page.locator('#terrainLimits').innerText()).includes('влажность + неровности < 110'));
+    await page.locator('#safe').click();await page.locator('#probe').click();await page.locator('#train').click();
+    assert(await page.evaluate(()=>model.every(s=>!('observed' in s))),'Physical observations are not training inputs');
+    assert(!await page.evaluate(()=>transferChecks[stage].some(check=>check.y===1)),'An incorrect child answer earns no transfer confirmation');
+    assert.equal(await page.evaluate(()=>RobotEngine.predict(model,features(100))),0);
+    assert(await page.evaluate(()=>preview.path.includes(100)),'Wrong teaching selects the muddy shortcut');
+    const stalled=await deliver(page);assert(stalled.includes('Робот застрял'),stalled);
+    assert.equal(await page.evaluate(()=>stuckCell),100);assert.equal(await page.locator('#board .cell.stuck').count(),1);
+    assert.equal(await page.evaluate(()=>samples.find(s=>s.f.join(',')===features(100).join(',')).y),0,'A stall does not repair the example');
+    assert.equal(await page.evaluate(()=>RobotEngine.predict(model,features(100))),0,'A stall does not repair the model');
+    await page.reload();assert.equal(await page.evaluate(()=>stuckCell),100);assert.equal(await page.evaluate(()=>RobotEngine.predict(model,features(100))),0,'Incorrect teaching survives reload');
+    await page.locator('#learningNotebook > summary').click();assert((await page.locator('#exampleJournal').innerText()).includes('метка ошибочная'));await page.locator('.monitor-dialog > button').click();
+    await page.locator('#unsafe').click();assert.equal(await page.evaluate(()=>RobotEngine.predict(model,features(100))),0,'Selecting a correction is not training');
+    await page.locator('#probe').click();assert(await page.locator('#run').isDisabled());assert.equal(await page.evaluate(()=>RobotEngine.predict(model,features(100))),0,'Saving a correction is not training');
+    await page.locator('#train').click();assert.equal(await page.evaluate(()=>RobotEngine.predict(model,features(100))),1);assert(!await page.evaluate(()=>preview.path.includes(100)));
     await optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'10');
     assert.equal(await page.evaluate(()=>start),oldStart,'The rescue base stays fixed');
     assert.equal(await page.evaluate(()=>JSON.stringify(grid)),original,'Delivery updates camp status without changing their ground');
@@ -341,6 +360,27 @@ const server = http.createServer((req, res) => {
     await page.locator('#robotTab').click();
     assert.equal(await page.locator('#robotView').isVisible(), true);
     assert.deepEqual(errors, [], 'No JS errors or missing game assets');
+    // Wrong answers must be teachable inside the lesson, with a usable way back.
+    for(const width of [1920,2560]){
+      const mistaken=await browser.newContext({viewport:{width,height:width===1920?1080:1440},reducedMotion:'reduce'}),p=await mistaken.newPage();
+      p.on('pageerror',e=>errors.push(e.message));await p.goto(url);
+      const actions=[['1. Выбери','[data-index="0"]'],['2. Сделай','#unsafe'],['3. Испытай','#probe'],['4. Изучи','[data-index="10"]'],['5. Предскажи','#unsafe'],['6. Проверь','#probe'],['7. Обучи','#train']];
+      for(const [title,selector] of actions){await p.locator('#tourTitle').filter({hasText:title}).waitFor();await p.locator(selector).click();}
+      await p.locator('#tourTitle').filter({hasText:'8. Выполни'}).waitFor();
+      assert.deepEqual(await p.evaluate(()=>model.map(s=>s.y)),[1,1],'A single class, including an incorrect road label, can be trained');
+      assert(await p.locator('#run').isDisabled(),'Teaching the road as dangerous really blocks the delivery');
+      await p.locator('[data-index="0"]').click();await p.locator('#safe').click();await p.locator('#probe').click();
+      assert.equal(await p.evaluate(()=>RobotEngine.predict(model,features(0))),1,'The lesson does not silently correct the model');
+      await p.locator('#train').click();await p.locator('#run').click();await p.locator('#gameTour').waitFor({state:'detached'});
+      assert.equal(await p.evaluate(()=>trainingPassed),true,'The learner can correct bad teaching and finish without skipping the lesson');
+      await p.locator('#newParticipant').click();
+      // Even one saved answer can be taught; two classes are not compulsory.
+      await p.locator('#tourSkip').click();await p.locator('[data-index="0"]').click();await p.locator('#safe').click();await p.locator('#probe').click();
+      assert(await p.locator('#train').isEnabled());await p.locator('#train').click();assert.equal(await p.evaluate(()=>model.length),1);
+      assert(await p.locator('#run').isEnabled());await deliver(p);assert.equal(await p.evaluate(()=>delivered),3);
+      await mistaken.close();
+    }
+    assert.deepEqual(errors, [], 'No JS errors during incorrect teaching or recovery');
     console.log('Browser: glowing tutorials, actual learning quality, camp delivery, fixed base, hypothesis checks, nine surfaces, city reallocation, full 100/100, reset, citizens and Full HD/QHD layouts passed');
   } finally { await browser.close(); server.close(); }
 })().catch(error => { console.error(error); server.close(); process.exitCode = 1; });

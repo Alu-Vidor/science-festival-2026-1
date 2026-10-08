@@ -9,6 +9,14 @@ function reference(m){
  }return Infinity;
 }
 assert(R.danger([0,0,0,30]));assert(!R.danger([0,0,0,31]));
+// The displayed limits and the physical simulator agree at every boundary.
+assert.deepEqual(R.limits,{wet:70,slope:70,wetRough:110,bearing:30});
+for(const [safe,unsafe] of [
+ [[69,0,0,31],[70,0,0,31]],
+ [[0,69,0,31],[0,70,0,31]],
+ [[60,0,49,31],[60,0,50,31]],
+ [[0,0,0,31],[0,0,0,30]]
+]){assert(!R.danger(safe));assert(R.danger(unsafe));}
 const signatures=new Set();
 for(const id of R.ids){
  const m=R.create(id),o=R.optimum(m);assert(o);assert.equal(o.energy,reference(m));assert(o.energy<=m.budget);assert.equal(m.grid.length,144);assert.equal(m.cargo,3);assert.equal(m.grid.filter(c=>c.object==='camp').length,3);
@@ -41,6 +49,14 @@ for(const id of ['forest','gorge','rain']){
 
 const wet=R.tile('clay',0,[40,25,45,75]);assert(!R.danger(R.features(wet,false)));assert(R.danger(R.features(wet,true)));
 const broad=R.examples(), sparse=broad.filter(s=>['road','mud'].includes(s.type));
+{
+ const mission=R.create('forest'),mud=mission.grid[100],bad=broad.map(s=>({...s,observed:s.y,y:s.type==='mud'&&s.y===1?0:s.y}));
+ assert(R.danger(mud.f));assert.equal(R.predict(bad,mud.f),0,'The physical observation never overrides a child label');
+ const wrong=R.plan(mission,bad);assert(wrong.path.includes(100));assert(wrong.energy<R.optimum(mission).energy,'Wrong training tempts the model to take an unsafe shortcut');
+ const repaired=bad.map(s=>s.type==='mud'&&s.observed===1?{...s,y:1}:s);
+ assert.equal(R.predict(repaired,mud.f),1);assert(!R.plan(mission,repaired).path.includes(100));
+ assert.equal(R.plan(mission,repaired).energy,R.optimum(mission).energy);
+}
 for(const id of ['forest','gorge']){
  const m=R.create(id),optimal=R.optimum(m),trained=R.plan(m,id==='gorge'?[...broad,{f:m.grid[55].f,y:0,type:'gravel'}]:broad);
  assert(trained);assert.equal(trained.energy,optimal.energy,'Training examples generalize to unseen sensor readings');

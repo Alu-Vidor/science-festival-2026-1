@@ -18,7 +18,7 @@ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+(req
   assert.equal(await page.locator('#overallScore').innerText(),'0','Delivery alone does not verify learning');assert(await page.locator('#nextMission').isDisabled());assert.equal(await page.locator('#missionTask').getAttribute('data-state'),'checking');
   const dangerIndex=await page.evaluate(()=>grid.findIndex((c,i)=>c.type!=='wall'&&danger(features(i))&&RobotEngine.transfer(model,features(i)).label===1));
   await page.locator('[data-index="'+dangerIndex+'"]').click();await page.locator('#safe').click();assert((await page.locator('#transferForecast').innerText()).includes('застрянет'));
-  await page.locator('#probe').click();assert.equal(await page.evaluate(()=>transferChecks[stage].length),0,'A corrected physical answer alone is not a confirmed hypothesis');
+  await page.locator('#probe').click();assert.equal(await page.evaluate(()=>transferChecks[stage].length),0,'An incorrect saved label is not a confirmed hypothesis');
   await R.transferChecks(page);assert.equal(await page.locator('#overallScore').innerText(),'10');
   await page.reload();assert.equal(await page.evaluate(()=>transferChecks[stage].length),2);assert.equal(await page.locator('#overallScore').innerText(),'10');assert(await page.locator('#nextMission').isEnabled());
   await page.locator('#nextMission').click();await page.locator('#learningNotebook>summary').click();await page.locator('.monitor-dialog[open]').waitFor();
