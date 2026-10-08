@@ -1,7 +1,7 @@
 /* Lessons show the action and its context; only the requested action is interactive. */
 (function () {
   'use strict';
-  const tours = new Map(), storageKey = 'festival-tours-v4';
+  const tours = new Map(), storageKey = 'festival-tours-v5';
   let active = null, root, card, frames, shades, previousFocus, inertStates, fitStates, openedDetails, previousScroll, sequence = 0, advanceTimer = null, observer, resizeObserver, surfaces;
   function completed() { try { const value = JSON.parse(localStorage.getItem(storageKey) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } }
   function remember(id) { try { localStorage.setItem(storageKey, JSON.stringify([...new Set([...completed(), id])])); } catch {} }
@@ -149,7 +149,11 @@
     restoreFit();
     const token = sequence, step = currentStep(), target = targetOf(step), index = active.index;
     let ancestor = target;
-    while (ancestor) { if (ancestor.tagName === 'DETAILS' && !ancestor.open) { openedDetails.add(ancestor); ancestor.open = true; } ancestor = ancestor.parentElement; }
+    while (ancestor) {
+      const ownSummary = target?.tagName === 'SUMMARY' && ancestor === target.parentElement;
+      if (ancestor.tagName === 'DETAILS' && !ancestor.open && !ownSummary) { openedDetails.add(ancestor); ancestor.open = true; }
+      ancestor = ancestor.parentElement;
+    }
     limitInteraction(target, !!step.event);
     root.classList.toggle('tour-watching', !!active.phase);
     root.classList.toggle('tour-acting', !!step.event);
