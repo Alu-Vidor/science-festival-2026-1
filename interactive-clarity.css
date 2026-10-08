@@ -21,3 +21,22 @@
 .monitor-layout #cityConditionGrid strong{font-size:22px}
 .monitor-layout #roundOutcome{font-size:15px;line-height:1.4}
 @media(min-width:2300px){.monitor-layout #cityGoalTitle{font-size:22px}.monitor-layout #cityGoalGrid .city-goal b{font-size:19px}.monitor-layout #cityGoalGrid .city-goal small,.monitor-layout #cityNeeds{font-size:17px}}
+.session-pace{order:3;margin:0 0 0 auto;max-width:360px;color:#efdba2;font-size:14px;line-height:1.35;text-align:right}
+.awaiting-care strong{font-size:17px!important;color:#d4dfdf}
+.round-learning{margin:10px 0;padding:10px 12px;border:1px solid #47726e;background:#1a3d43;border-radius:10px}
+#roundLearning h3{font-size:17px;margin:0 0 6px;color:#e9dbab}
+#roundLearning p{font-size:14px;line-height:1.4;margin:6px 0}
+#cityExperiment{margin-top:6px}
+#alternativeResult table{border-collapse:collapse;width:100%;margin:12px 0}
+#alternativeResult th,#alternativeResult td{padding:6px 10px;border-bottom:1px solid #577075;text-align:left;font-size:16px}
+#alternativeResult th{color:#ecdfb9}
+#cityExperiment label{font-size:16px;margin:10px 0}
+#cityExperiment select{font-size:16px}
+#experimentChoices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+#experimentChoices select{display:block;width:100%;margin-top:6px}
+#experimentChoices label{margin:4px 0 10px}
+#cityExperiment p{margin:8px 0;line-height:1.4}
+#alternativeResult h3{margin:12px 0 8px;font-size:19px}
+#coverage button small{white-space:normal;font-size:14px;line-height:1.4}
+@media(min-width:2300px){.session-pace{max-width:450px;font-size:17px}#roundLearning h3{font-size:20px}#roundLearning p{font-size:17px}}
+.campaign-intro.campaign-day-paused .city-time-controls { display: flex !important; }

@@ -9,11 +9,15 @@
   function currentStep() { const step = active.steps[active.index]; return active.phase ? { ...step, ...step[active.phase], event: null } : step; }
   function highlighted(step) { return [...new Set([targetOf(step), ...(step.context || []).map(selector => document.querySelector(selector))].filter(Boolean))]; }
   function restoreInert() { inertStates?.forEach((value, el) => { el.inert = value; }); inertStates = new Map(); }
-  function limitInteraction(target, interactive) {
+  function allowedTargets(step) {
+    return [...new Set([...(step.event ? [targetOf(step)] : []), ...(step.interactive || []).flatMap(selector => [...document.querySelectorAll(selector)])].filter(Boolean))];
+  }
+  function limitInteraction(step) {
+    const allowed = allowedTargets(step);
     restoreInert();
     function visit(el) {
-      if (el === root || interactive && target && (el === target || target.contains(el))) return;
-      if (interactive && target && el.contains(target)) [...el.children].forEach(visit);
+      if (el === root || allowed.some(target => el === target || target.contains(el))) return;
+      if (allowed.some(target => el.contains(target))) [...el.children].forEach(visit);
       else { inertStates.set(el, el.inert); el.inert = true; }
     }
     [...document.body.children].forEach(visit);
@@ -141,10 +145,10 @@
       if (ancestor.tagName === 'DETAILS' && !ancestor.open && !ownSummary) { openedDetails.add(ancestor); ancestor.open = true; }
       ancestor = ancestor.parentElement;
     }
-    limitInteraction(target, !!step.event);
+    limitInteraction(step);
     root.classList.toggle('tour-watching', !!active.phase);
     root.classList.toggle('tour-acting', !!step.event);
-    card.setAttribute('aria-modal', step.event ? 'false' : 'true');
+    card.setAttribute('aria-modal', allowedTargets(step).length ? 'false' : 'true');
     root.querySelector('#tourCounter').textContent = `${index + 1} / ${active.steps.length} · ${active.name}`;
     root.querySelector('#tourTitle').textContent = step.title; root.querySelector('#tourText').textContent = step.text;
     root.querySelector('#tourTip').textContent = step.tip || ''; root.querySelector('#tourTip').hidden = !step.tip;
@@ -178,17 +182,17 @@
     build(); document.body.classList.add('tour-open'); active = { ...tour, steps, id, index: 0 };
     surfaces = [window]; try { for (let win = window; win !== win.parent; win = win.parent) { void win.parent.document; surfaces.push(win.parent); } } catch {}
     surfaces.forEach(win => { win.addEventListener('resize', place); win.addEventListener('scroll', place, true); });
-    observer = new MutationObserver(records => { if (active && records.some(r => !root.contains(r.target))) { limitInteraction(targetOf(currentStep()), !!currentStep().event); place(); } });
+    observer = new MutationObserver(records => { if (active && records.some(r => !root.contains(r.target))) { limitInteraction(currentStep()); place(); } });
     observer.observe(document.body, { childList: true, subtree: true });
     resizeObserver = new ResizeObserver(place); resizeObserver.observe(document.body);
     document.addEventListener('keydown', keys, true); show(0); return true;
   }
   function keys(e) {
-    if (!active) return;
+    if (!active || document.querySelector('.monitor-dialog[open]')) return;
     if (e.key === 'Escape') { e.preventDefault(); finish(true); return; }
     if (e.key !== 'Tab') return;
     const step = currentStep(), target = targetOf(step);
-    const allowed = step.event && target ? [target, ...target.querySelectorAll('button, a, input, select, [tabindex]')] : [];
+    const allowed = allowedTargets(step).flatMap(el => [el, ...el.querySelectorAll('button, a, input, select, [tabindex]')]);
     const items = [...allowed, ...card.querySelectorAll('button')].filter((el, i, all) => all.indexOf(el) === i && !el.disabled && !el.hidden && el.getClientRects().length && (el.matches('button, a, input, select, [tabindex]')));
     const current = items.indexOf(document.activeElement); e.preventDefault(); items[current < 0 ? (e.shiftKey ? items.length - 1 : 0) : (current + (e.shiftKey ? -1 : 1) + items.length) % items.length]?.focus();
   }

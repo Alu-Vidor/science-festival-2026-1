@@ -24,6 +24,9 @@ jobs:
       - name: Check real game screens and interactions
         if: success() || failure()
         run: node tests/browser.cjs
+      - name: Check reload, inspection and alternative plans
+        if: success() || failure()
+        run: node tests/session-browser.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -69,3 +69,20 @@ console.log('City campaign: three distinct 50/50 strategies, persistent resource
  let again=returned;for(let i=0;i<20;i++)again=C.refund(C.invest(again,'market'),'market');assert.equal(again.funds,200);assert.equal(again.game.cash,cash);
  assert.throws(()=>C.refund({...clinic,completed:true},'clinic'));
 }
+
+// Alternative plans share a checkpoint and never change the real campaign.
+{
+ const base=C.create(),before=JSON.stringify(base),a=C.compare(base,{school:'normal',bus:'normal',shops:'both'}),b=C.compare(base,{school:'shifts',bus:'frequent',shops:'both'});
+ assert(b.score>a.score);assert.equal(b.score,10);assert.equal(JSON.stringify(base),before);
+ const actions=[{kind:'invest',id:'bus'},{kind:'day',plan:{school:'shifts',bus:'normal',shops:'both'}},{kind:'refund',id:'bus'}];
+ const replay=C.replay(actions);assert.equal(replay.campaign.game.day,1);assert.equal(replay.campaign.funds,200);assert.equal(replay.starts[0].projects[0],'bus');
+ assert.throws(()=>C.replay([{kind:'day',plan:{school:'bogus',bus:'normal',shops:'both'}}]));
+ const stable={school:'shifts',bus:'frequent',shops:'both'};
+ const changes=[{kind:'day',plan:stable},{kind:'invest',id:'market'},{kind:'day',plan:stable},{kind:'refund',id:'market'},{kind:'day',plan:stable},{kind:'day',plan:stable}];
+ const changed=C.replay(changes),unchanged=JSON.stringify(changed.campaign);
+ assert.deepEqual(C.compare(changed.starts[0],stable,changes),changed.campaign.results[0],'Comparison repeats investments and refunds on the same days');
+ assert.equal(JSON.stringify(changed.campaign),unchanged);
+ assert.throws(()=>C.compare(base,stable,changes.slice(0,2)));
+ let c=C.create();for(let day=1;day<=9;day++)c=C.advance(c,{school:'shifts',bus:'frequent',shops:'both'});
+ assert.equal(C.measure(c,2).careRequests,0);assert(C.insights(c,2).some(s=>s.includes('Обращений за помощью пока не было')));
+}

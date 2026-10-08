@@ -1,0 +1,55 @@
+/* Reload and exploration checks use real controls, including the embedded city. */
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),http=require('node:http');
+const {chromium}=require('playwright'),R=require('./robot-browser-helpers.cjs'),City=require('./city-browser-helpers.cjs');
+const root=path.resolve(__dirname,'..');
+const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+(req.url.split('?')[0]==='/'?'/index.html':req.url.split('?')[0]));if(!file.startsWith(root+path.sep))return res.writeHead(403).end();fs.readFile(file,(e,data)=>{if(e)return res.writeHead(404).end();res.setHeader('Content-Type',({'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css','.svg':'image/svg+xml'})[path.extname(file)]||'application/octet-stream');res.end(data);});});
+(async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await chromium.launch();try{
+ for(const [width,height]of [[1920,1080],[2560,1440]]){
+  const context=await browser.newContext({viewport:{width,height},reducedMotion:'reduce'}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await context.addInitScript(()=>localStorage.setItem('festival-tours-v6',JSON.stringify(['robot','city-mayor'])));
+  await page.goto('http://127.0.0.1:'+server.address().port);assert((await page.locator('#sessionPace').innerText()).includes('12 робот · 12 город'));
+  await page.locator('#robotTutorial').click();await R.lesson(page);await R.teachTraining(page);await page.locator('#nextMission').click();
+  assert.equal(await page.locator('#terrainLegend .terrain-key').count(),5);
+  await page.emulateMedia({reducedMotion:'no-preference'});await page.locator('#run').click();await page.waitForFunction(()=>steps>0);
+  const trip=await page.evaluate(()=>({robot,spent,trail:[...trail]}));await page.reload();await page.locator('#robotControls').waitFor();
+  assert.deepEqual(await page.evaluate(()=>({robot,spent,trail:[...trail]})),trip);await page.emulateMedia({reducedMotion:'reduce'});
+  assert.equal(await page.evaluate(()=>robotExpedition.current().stage),1);assert.equal(await page.evaluate(()=>samples.length),18);assert.equal(await page.evaluate(()=>running),false);
+  assert.equal(await page.locator('#gameTour').count(),0);await R.optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'10');
+  await page.locator('#nextMission').click();await page.locator('#learningNotebook>summary').click();await page.locator('.monitor-dialog[open]').waitFor();
+  assert((await page.locator('#coverage [data-coverage="gravel"]').innerText()).includes('Есть незнакомые показания'));assert((await page.locator('#exampleJournal').innerText()).includes('Твёрдо'));
+  await page.locator('.monitor-dialog>button').click();await page.locator('[data-index="55"]').click();await page.locator('#safe').click();await page.locator('#probe').click();await page.reload();
+  assert.equal(await page.evaluate(()=>samples.length),19);assert.equal(await page.evaluate(()=>model.length),18);assert(await page.locator('#run').isDisabled());
+  await page.locator('#train').click();await R.optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'25');
+  await page.locator('#epiTab').click();const city=page.frameLocator('#epiView');await city.locator('#mayor').waitFor();await city.locator('#cityTutorial').click();
+  await page.emulateMedia({reducedMotion:'no-preference'});await city.locator('#observeCity').click();await city.locator('.tour-watching').waitFor();
+  await city.locator('.inhabitant[data-person="0"]').press('Enter');await city.locator('.monitor-dialog[open]').waitFor();
+  assert.equal(await city.locator('body').evaluate(()=>cityCampaignGame.isPlaying()),false);assert.equal(await city.locator('#citizenPanel .citizen-route li').count(),1);
+  // Escape closes the native dialog, preserving the lesson and allowing the day to resume.
+  await city.locator('#citizenChoice').press('Escape');await city.locator('.monitor-dialog[open]').waitFor({state:'hidden'});assert(await city.locator('#gameTour').count());
+  await page.emulateMedia({reducedMotion:'reduce'});await city.locator('#tryCity').click();await city.locator('#tourTitle').filter({hasText:'Помоги добраться'}).waitFor();
+  await city.locator('#pick-bus-frequent').click();await city.locator('#tryCity').click();await City.finishLesson(city);
+  await city.locator('#beginCity').click();await city.locator('#pick-school-shifts').click();await city.locator('#pick-bus-frequent').click();
+  await page.emulateMedia({reducedMotion:'no-preference'});await city.locator('#tryCity').click();await city.locator('#pauseCity').click();
+  const index=await city.locator('#cityCalendar').innerText();await page.reload();await city.locator('#mayor').waitFor();
+  assert.equal(await page.locator('#overallScore').innerText(),'25');assert.equal(await city.locator('#cityCalendar').innerText(),index);assert.equal(await city.locator('body').evaluate(()=>cityCampaignGame.isPlaying()),false);assert.equal(await city.locator('body').evaluate(()=>cityCampaignGame.isPending()),true);
+  assert.equal(await city.locator('#gameTour').count(),0);await page.emulateMedia({reducedMotion:'reduce'});await City.day(city);for(let day=2;day<=4;day++)await City.day(city);
+  assert((await city.locator('#roundWhy').innerText()).includes('Не добрались по дням:'));const before=await city.locator('body').evaluate(()=>JSON.stringify(cityCampaignGame.current()));
+  await city.locator('#cityExperiment>summary').click();await city.locator('.monitor-dialog[open]').waitFor();
+  assert.equal(await city.locator('#experiment-school').inputValue(),'shifts');assert.equal(await city.locator('#experiment-bus').inputValue(),'frequent');
+  await city.locator('#experiment-school').selectOption('normal');await city.locator('#experiment-bus').selectOption('normal');await city.locator('#experiment-shops').selectOption('both');await city.locator('#testAlternative').click();
+  const scores=await city.locator('#alternativeResult tr').nth(1).locator('td').allTextContents();assert.deepEqual(scores,['10','9']);assert.equal(await city.locator('body').evaluate(()=>JSON.stringify(cityCampaignGame.current())),before);
+  async function comparisonFits(){assert(await city.locator('.monitor-dialog[open]').evaluate(el=>el.scrollHeight<=el.clientHeight+1),'The full comparison and explanation must fit without scrolling');}
+  await comparisonFits();
+  await page.screenshot({path:path.join(root,'test-artifacts',`city-comparison-plans-${width}.png`)});await city.locator('.monitor-dialog>button').click();
+  await City.build(city,'market');await page.reload();await city.locator('#mayor').waitFor();assert.equal(await city.locator('body').evaluate(()=>cityCampaignGame.current().funds),120);await City.day(city);await City.refund(city,'market');await page.reload();await city.locator('#mayor').waitFor();assert.equal(await city.locator('body').evaluate(()=>cityCampaignGame.current().funds),200);
+  for(let day=6;day<=9;day++)await City.day(city);assert((await city.locator('#cityGoalGrid').innerText()).includes('Пока нет обращений'));assert(!(await city.locator('#cityGoalGrid').innerText()).includes('100.0%'));
+  for(let day=10;day<=12;day++)await City.day(city);
+  await city.locator('#cityExperiment>summary').click();await city.locator('.monitor-dialog[open]').waitFor();await city.locator('#experimentRound').selectOption('2');await city.locator('#testAlternative').click();await comparisonFits();await city.locator('.monitor-dialog>button').click();
+  await page.locator('#newParticipant').click();await page.locator('#gameTour').waitFor();await page.locator('#tourSkip').click();await page.reload();assert.equal(await page.locator('#overallScore').innerText(),'0');assert.equal(await page.evaluate(()=>samples.length),0);
+  await page.locator('#epiTab').click();await city.locator('#mayor').waitFor();assert.equal(await city.locator('body').evaluate(()=>cityCampaignGame.current().game.day),0);assert.equal(await city.locator('body').evaluate(()=>cityCampaignGame.current().funds),200);
+  if(await city.locator('#gameTour').count())await city.locator('#tourSkip').click();
+  await city.locator('#beginCity').click();await City.day(city);await page.reload();await city.locator('#mayor').waitFor();
+  assert.equal(await city.locator('body').evaluate(()=>cityCampaignGame.current().game.day),1);assert.equal(await city.locator('#gameTour').count(),0,'A restored participant never gets a forced city lesson');
+  assert.deepEqual(errors,[]);await context.close();console.log('Reload, tutorial inspection, fair plan comparisons and reset:',width,height);
+ }
+}finally{await browser.close();server.close();}})().catch(e=>{console.error(e);server.close();process.exitCode=1;});

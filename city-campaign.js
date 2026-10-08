@@ -54,7 +54,7 @@
     const care = days.reduce((sum, r) => sum + r.care, 0), treated = days.reduce((sum, r) => sum + r.treated, 0);
     const cases = c.game.history.filter(h => h.day > index * 4 && h.day <= index * 4 + 4).reduce((sum, h) => sum + h.exposures.length, 0);
     const expense = days.reduce((sum, r) => sum + r.expenses, 0);
-    return { days: days.length, cases, food: avg('food'), activity: avg('participation'), comfort: avg('happiness'), care: care ? treated / care * 100 : 100, expense };
+    return { days: days.length, cases, food: avg('food'), activity: avg('participation'), comfort: avg('happiness'), care: care ? treated / care * 100 : 100, careRequests: care, careServed: treated, expense };
   }
   function report(c, index) {
     const goal = rounds[index], stats = measure(c, index);
@@ -86,6 +86,50 @@
     out.completed = day === 12;
     return out;
   }
-  root.CityCampaign = { rounds, projects, projectFunds, choices, create, invest, refund, advance, current, measure, report };
+  function replay(actions) {
+    if (!Array.isArray(actions) || actions.length > 500) throw Error('Некорректная история города.');
+    let campaign = create(); const starts = [];
+    for (const action of actions) {
+      if (action.kind === 'invest') campaign = invest(campaign, action.id);
+      else if (action.kind === 'refund') campaign = refund(campaign, action.id);
+      else if (action.kind === 'day') {
+        for (const [key, values] of Object.entries(choices)) if (!values.some(([value]) => value === action.plan?.[key])) throw Error('Некорректный план.');
+        if (campaign.game.day % 4 === 0) starts[campaign.game.day / 4] = campaign;
+        campaign = advance(campaign, action.plan);
+      } else throw Error('Неизвестное действие.');
+    }
+    return { campaign, starts };
+  }
+  function compare(start, plan, actions) {
+    if (!start || start.game.day % 4 !== 0 || start.completed) throw Error('Нужен город в начале раунда.');
+    let alternative = start;
+    if (actions) {
+      let day = 0;
+      const first = start.game.day, end = first + 4;
+      for (const action of actions) {
+        if (action.kind === 'day') {
+          if (day >= first && day < end) alternative = advance(alternative, plan);
+          day++;
+        } else if (day > first && day < end) {
+          // Keep the actual infrastructure changes; only the operating plan differs.
+          alternative = action.kind === 'invest' ? invest(alternative, action.id) : refund(alternative, action.id);
+        }
+      }
+      if (alternative.game.day !== end) throw Error('Нужен завершённый раунд.');
+    } else for (let day = 0; day < 4; day++) alternative = advance(alternative, plan);
+    return alternative.results.at(-1);
+  }
+  function insights(c, index) {
+    const days = c.game.reports.slice(index * 4, index * 4 + 4), stats = measure(c, index);
+    if (!stats) return [];
+    const sum = key => days.reduce((total, day) => total + day[key], 0);
+    const missed = days.map(day => day.missed).join(' / '), queue = sum('queue');
+    const travel = 'Не добрались по дням: ' + missed + ' жителей. Учёба и работа: ' + stats.activity.toFixed(1) + '%.';
+    const supply = 'Еда: ' + stats.food.toFixed(1) + '%. ' + (queue ? 'Не обслужены в очередях магазинов: ' + queue + ' посещений.' : 'Очередей с отказом в магазинах не было.');
+    const care = stats.careRequests ? 'Помощь получили ' + stats.careServed + ' из ' + stats.careRequests + ' обращений.' : 'Обращений за помощью пока не было.';
+    const expense = 'Работа города: ' + stats.expense + ' монет за ' + days.length + ' дня; содержание улучшений: ' + sum('upkeep') + '.';
+    return index === 0 ? [travel, supply, expense] : index === 1 ? [supply, travel, expense] : [care, 'Заражений внутри города: ' + stats.cases + '.', expense];
+  }
+  root.CityCampaign = { rounds, projects, projectFunds, choices, create, invest, refund, advance, current, measure, report, replay, compare, insights };
   if (typeof module !== 'undefined') module.exports = root.CityCampaign;
 })(typeof window !== 'undefined' ? window : globalThis);

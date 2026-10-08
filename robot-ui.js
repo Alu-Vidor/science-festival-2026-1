@@ -4,13 +4,15 @@ const $=id=>document.getElementById(id), R=RobotEngine, N=12;
 let grid=[],start=0,robot=0,selected=-1,raining=false,samples=[],model=[],overlay=false,running=false,timer=null;
 let path=[],trail=[],targets=new Set(),delivered=0,steps=0,spent=0,remaining=240,stage=0,mission,benchmark,preview=null;
 let best=Array(4).fill(null),checks=new Map(),guesses=new Map(),stuckCell=-1,trainingPassed=false,learningEffect='';
+let robotSession=window.FestivalSession?.id;let restoring=true,restoredRobot=false;
 const features=i=>R.features(grid[i],raining), danger=f=>R.danger(f), key=f=>f.join(',');
 const say=text=>$('status').textContent=text;
 const learned=()=>model.some(s=>s.y===0)&&model.some(s=>s.y===1);
 const campIndices=()=>grid.flatMap((c,i)=>c.object==='camp'?[i]:[]);
 const letter=i=>grid[i].camp;
 const pendingExamples=()=>samples.filter(s=>!model.some(m=>key(m.f)===key(s.f)&&m.y===s.y)).length;
-function publish(){window.SessionScore?.robot(best.reduce((sum,r)=>sum+(r?.score||0),0),best.slice(1).every(r=>r?.complete),trainingPassed);}
+function persist(){if(!restoring)window.FestivalSession?.save('robot',{stage,samples,model,best,trainingPassed,trip:{trail,selected,checks:[...checks],guesses:[...guesses]}},robotSession);}
+function publish(){persist();window.SessionScore?.robot(best.reduce((sum,r)=>sum+(r?.score||0),0),best.slice(1).every(r=>r?.complete),trainingPassed);}
 function currentMission(){return {...mission,grid,start,rain:raining};}
 function recalculate(){
  benchmark=R.optimum(currentMission());preview=model.length?R.plan(currentMission(),model):null;
@@ -33,7 +35,8 @@ function updateTask(){
 }
 function terrainLegend(){
  const legend=$('terrainLegend');legend.replaceChildren();
- Object.entries(R.names).forEach(([type,name])=>{
+ const present=new Set(grid.map(cell=>cell.type));
+ Object.entries(R.names).filter(([type])=>present.has(type)).forEach(([type,name])=>{
   const b=document.createElement('div');b.className='terrain-key';b.dataset.terrain=type;
   b.innerHTML=`<span class="terrain-swatch ${type}" aria-hidden="true"></span><span>${name}<small>${R.costs[type]} / шаг</small></span>`;legend.appendChild(b);
  });
@@ -88,7 +91,7 @@ function draw(){
  $('campStatus').replaceChildren(...campIndices().map(i=>{const item=document.createElement('li');item.dataset.served=String(!targets.has(i));item.innerHTML=`<b>Лагерь ${letter(i)}</b><span>${targets.has(i)?'Ждёт аптечку':'✓ Помощь доставлена'}</span>`;return item;}));
  $('predict').textContent=overlay?'Скрыть мнение робота':'Что робот думает о грунте?';$('predict').setAttribute('aria-pressed',overlay);$('predictionLegend').hidden=!overlay;moveSprite();updateRouteInfo();
 }
-function select(i){if(running)return;selected=i;inspect();draw();window.GameTour?.signal('robot:inspected',{index:i});}
+function select(i){if(running)return;selected=i;inspect();draw();persist();window.GameTour?.signal('robot:inspected',{index:i});}
 const sensorWords=f=>R.sensorWords(f);
 function inspect(){
  const valid=selected>=0&&grid[selected].type!=='wall',f=valid?features(selected):null,guess=valid?guesses.get(key(f)):undefined,result=valid?checks.get(key(f)):undefined;
@@ -105,7 +108,7 @@ function inspect(){
  for(const [j,id]of ['wet','slope','rough','bearing'].entries()){$(id).textContent=words[j];$(id).title=valid?`Показание датчика: ${f[j]} из 100`:'';$(id+'Meter').value=valid?f[j]:0;}
  explainSelected();
 }
-function label(y){if(running||selected<0||grid[selected].type==='wall')return;guesses.set(key(features(selected)),y);checks.delete(key(features(selected)));inspect();window.GameTour?.signal('robot:guessed',{index:selected,label:y});}
+function label(y){if(running||selected<0||grid[selected].type==='wall')return;guesses.set(key(features(selected)),y);checks.delete(key(features(selected)));inspect();persist();window.GameTour?.signal('robot:guessed',{index:selected,label:y});}
 function probe(){
  if(selected<0||grid[selected].type==='wall'||running||!guesses.has(key(features(selected))))return;
  const f=features(selected),y=+danger(f),sample={f,y,type:grid[selected].type},old=samples.findIndex(s=>key(s.f)===key(f));
@@ -128,12 +131,14 @@ function updateLearning(){
   learningEffect?learningEffect+(preview?' Путь готов.':' Полного пути пока нет.'):
   preview?'Робот выбрал путь. Синяя линия показывает, куда он поедет.':'Пути пока нет: часть грунта незнакома роботу. Каждый новый пример помогает узнавать похожие участки.';
  const coverage=$('coverage');coverage.replaceChildren();
- Object.keys(R.names).forEach(type=>{
-  const seen=new Set(samples.filter(s=>s.type===type).map(s=>s.y)),b=document.createElement('button');b.dataset.coverage=type;
-  b.innerHTML=`<span class="terrain-swatch ${type}" aria-hidden="true"></span><span>${R.names[type]}<small>Проезд: ${seen.has(0)?'есть пример':'нет'} · опасность: ${seen.has(1)?'есть пример':'нет'}</small></span>`;
+ const present=new Set(grid.map(cell=>cell.type));
+ Object.keys(R.names).filter(type=>present.has(type)).forEach(type=>{
+  const known=samples.filter(s=>s.type===type),b=document.createElement('button');b.dataset.coverage=type;
+  const unknown=grid.filter(c=>c.type===type&&R.predict(model,R.features(c,raining))===null).length;
+  b.innerHTML=`<span class="terrain-swatch ${type}" aria-hidden="true"></span><span>${R.names[type]}<small>${known.length?'Проверенные состояния: '+new Set(known.map(s=>sensorWords(s.f).join(' · '))).size:'Проверенных состояний пока нет'}</small><small>${unknown?'Есть незнакомые показания на этой карте':'Робот узнаёт показания на этой карте'}</small></span>`;
   b.onclick=()=>{const cells=grid.flatMap((c,i)=>c.type===type?[i]:[]),i=cells.find(i=>!samples.some(s=>key(s.f)===key(features(i))))??cells[0];if(i!==undefined){$('learningNotebook').open=false;document.querySelector('.monitor-dialog[open]')?.close();select(i);}};coverage.appendChild(b);
  });
- const journal=$('exampleJournal');journal.replaceChildren();samples.forEach((s,i)=>{const p=document.createElement('p');p.textContent=`${i+1}. ${R.names[s.type]}: ${s.y?'застрянет':'проедет'} · ${model.some(m=>key(m.f)===key(s.f)&&m.y===s.y)?'в памяти робота':'ждёт обучения'}`;journal.appendChild(p);});
+ const journal=$('exampleJournal');journal.replaceChildren();samples.forEach((s,i)=>{const p=document.createElement('p');p.textContent=`${i+1}. ${R.names[s.type]}: ${sensorWords(s.f).join(' · ')} → ${s.y?'застрянет':'проедет'} · ${model.some(m=>key(m.f)===key(s.f)&&m.y===s.y)?'в памяти робота':'ждёт обучения'}`;journal.appendChild(p);});
  $('notebookSummary').textContent='Память робота · '+samples.length+' примеров';explainSelected();updateTask();
 }
 function resetTrip(){robot=start;remaining=mission.budget;delivered=steps=spent=0;trail=[];path=[];stuckCell=-1;targets=new Set(campIndices());}
@@ -166,7 +171,7 @@ function run(){
   const cost=R.costs[grid[next].type];if(remaining<cost){finish('Батарея разрядилась раньше окончания рейса.');return;}
   robot=next;remaining-=cost;spent+=cost;steps++;trail.push(next);
   if(danger(features(next))){selected=stuckCell=next;finish('Робот застрял: похожие примеры дали ошибочное решение.');return;}
-  if(targets.has(next)){targets.delete(next);delivered++;}draw();
+  if(targets.has(next)){targets.delete(next);delivered++;}draw();persist();
   if(!targets.size){finish('Все три лагеря получили аптечки!');return;}
   timer=setTimeout(tick,window.matchMedia('(prefers-reduced-motion: reduce)').matches?20:180);
  }
@@ -177,11 +182,33 @@ $('clear').onclick=()=>{samples=[];model=[];overlay=false;learningEffect='';rese
 $('predict').onclick=()=>{overlay=!overlay;draw();say(overlay?'Значки — мнение робота: ✓ проедет, × застрянет, ? не знает. Испытание грунта может показать, что он ошибся.':'Значки скрыты. Робот продолжает выбирать путь по своей памяти.');};
 $('run').onclick=run;$('stop').onclick=()=>stop();$('nextMission').onclick=()=>loadStage(stage+1);
 $('robotZoom').onclick=()=>{const on=$('boardStage').classList.toggle('enlarged');$('robotZoom').setAttribute('aria-pressed',on);$('robotZoom').textContent=on?'− Обычные клетки':'＋ Крупнее клетки';moveSprite();};
-window.resetRobotMission=()=>{stop(false);stage=0;best=Array(4).fill(null);samples=[];model=[];overlay=false;trainingPassed=false;initial();};
+window.resetRobotMission=()=>{robotSession=window.FestivalSession?.id;stop(false);stage=0;best=Array(4).fill(null);samples=[];model=[];overlay=false;trainingPassed=false;initial();};
 window.robotLesson={begin(){stop(false);stage=0;initial();return true;}};
-window.robotExpedition={current:()=>({stage,id:mission.id,start,spent,trainingPassed,onboard:mission.cargo-delivered,delivered,served:campIndices().filter(i=>!targets.has(i)),best:best.map(r=>r&&({...r})),optimal:benchmark.energy}),load:loadStage};
+window.robotExpedition={get restored(){return restoredRobot;},current:()=>({stage,id:mission.id,start,spent,trainingPassed,onboard:mission.cargo-delivered,delivered,served:campIndices().filter(i=>!targets.has(i)),best:best.map(r=>r&&({...r})),optimal:benchmark.energy}),load:loadStage};
 function switchLab(epi){stop(false);document.body.classList.toggle('city-active',epi);$('robotView').style.display=epi?'none':'';$('epiView').style.display=epi?'block':'none';for(const [id,on]of [['robotTab',!epi],['epiTab',epi]]){$(id).classList.toggle('active',on);$(id).setAttribute('aria-pressed',on);}if(epi)$('epiView').contentWindow.postMessage('city-active','*');else{$('epiView').contentWindow.postMessage('pause','*');window.GameTour?.maybeStart('robot');}location.hash=epi?'epidemic':'robot';}
 $('robotTab').onclick=()=>switchLab(false);$('epiTab').onclick=()=>switchLab(true);
 window.addEventListener('message',e=>{if(e.source===$('epiView').contentWindow&&e.data?.kind==='epidemic-height'&&Number.isFinite(e.data.height))$('epiView').style.height=Math.max(600,Math.min(10000,e.data.height))+'px';});
 new ResizeObserver(moveSprite).observe($('board'));
-initial();if(location.hash==='#epidemic')setTimeout(()=>switchLab(true),0);
+function recoverRobot(){
+ const saved=window.FestivalSession?.read('robot');if(!saved)return;
+ try{
+  const validExamples=xs=>Array.isArray(xs)&&xs.length<=500&&xs.every(s=>R.names[s.type]&&[0,1].includes(s.y)&&Array.isArray(s.f)&&s.f.length===4&&s.f.every(n=>Number.isFinite(n)&&n>=0&&n<=100));
+  if(!Number.isInteger(saved.stage)||saved.stage<0||saved.stage>3||!validExamples(saved.samples)||!validExamples(saved.model)||!Array.isArray(saved.best)||saved.best.length!==4||typeof saved.trainingPassed!=='boolean')return;
+  if(saved.best.some((r,i)=>r&&(!Number.isInteger(r.score)||r.score<0||r.score>R.create(R.ids[i]).max||typeof r.complete!=='boolean'||!Number.isFinite(r.energy)||r.energy<0)))return;
+  if(saved.stage===1&&!saved.trainingPassed||saved.stage>1&&!saved.best[saved.stage-1]?.complete)return;
+  stage=saved.stage;samples=saved.samples;model=saved.model;best=saved.best;trainingPassed=saved.trainingPassed;restoredRobot=true;
+ }catch{}
+}
+recoverRobot();initial();
+if(restoredRobot){
+ const trip=window.FestivalSession.read('robot')?.trip;
+ if(trip&&Array.isArray(trip.trail)&&trip.trail.length<=240&&trip.trail.every(i=>Number.isInteger(i)&&grid[i]&&grid[i].type!=='wall')){
+  trail=trip.trail;robot=trail.at(-1)??start;spent=trail.reduce((sum,i)=>sum+R.costs[grid[i].type],0);steps=trail.length;remaining=Math.max(0,mission.budget-spent);
+  targets=new Set(campIndices().filter(i=>!trail.includes(i)));delivered=mission.cargo-targets.size;stuckCell=trail.length&&danger(features(robot))?robot:-1;
+  selected=Number.isInteger(trip.selected)&&trip.selected>=0&&trip.selected<144?trip.selected:-1;
+  try{checks=new Map(trip.checks);guesses=new Map(trip.guesses);}catch{checks=new Map();guesses=new Map();}
+  draw();inspect();updateLearning();controls();
+ }
+ say('Прогресс восстановлен. Память и результаты сохранены; прерванный рейс можно повторить с базы.');
+}
+restoring=false;publish();if(location.hash==='#epidemic')setTimeout(()=>switchLab(true),0);

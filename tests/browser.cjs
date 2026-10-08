@@ -305,6 +305,7 @@ const server = http.createServer((req, res) => {
     for (const width of [1920, 2560]) {
       await page.setViewportSize({ width, height: width === 2560 ? 1440 : 1080 });
       for (const route of ['/', '/epidemic.html', '/epidemic.html?mode=contest', '/epidemic.html?mode=lab']) {
+        await page.evaluate(()=>sessionStorage.clear());
         await page.goto(url + route);
         await page.locator(route === '/' ? '#robotView' : route.includes('contest') ? '#contest' : route.includes('lab') ? '.lab-mode' : '#mayor').waitFor();
         if (await page.locator('#gameTour').count()) await page.locator('#tourSkip').click();
