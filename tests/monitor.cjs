@@ -28,7 +28,7 @@ const server = http.createServer((req, res) => {
             if(!r.width || !r.height || r.left<0 || r.top<0 || r.right>innerWidth+1 || r.bottom>innerHeight+1) issues.push(selector+': '+JSON.stringify({x:r.x,y:r.y,w:r.width,h:r.height}));
             for(let p=el.parentElement;p&&p!==document.body;p=p.parentElement) {
               const b=p.getBoundingClientRect(), css=getComputedStyle(p);
-              if((['hidden','auto','scroll','clip'].includes(css.overflowY)||p.matches('.training,.city-decisions')) && (r.top<b.top-1 || r.bottom>b.bottom+1)) issues.push(selector+' clipped by '+p.className);
+              if((['hidden','auto','scroll','clip'].includes(css.overflowY)||p.matches('.training,.city-decisions,#robotControls')) && (r.top<b.top-1 || r.bottom>b.bottom+1)) issues.push(selector+' (#'+el.id+') clipped by '+p.className+' at '+Math.round(r.bottom)+' / '+Math.round(b.bottom)+'; expedition '+(window.robotExpedition?.current().stage??'city'));
               if(p.scrollTop || p.scrollLeft) issues.push(selector+' panel scroll');
             }
           }
@@ -48,7 +48,7 @@ const server = http.createServer((req, res) => {
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
-      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#model','.training > details:not([hidden])','#status','#deliveryTries','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#sessionPace','#terrainLegend','#cargoPanel','#campStatus','#routeLayer','.terrain-note','.selection-key','.wall-key']);
+      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#model','.training > details:not([hidden])','#status','#deliveryTries','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#sessionPace','#terrainLegend','#robotRules','#cargoPanel','#campStatus','#routeLayer','.terrain-note','.selection-key','.wall-key']);
       await page.mouse.wheel(0,700); await fits(page,['#boardStage','#model']);
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-monitor-${width}x${height}.png`)});
       async function lit(scope, selectors) {
@@ -73,10 +73,20 @@ const server = http.createServer((req, res) => {
         if(stage===2)await adaptGorge(page);
         if(stage===3)await adaptRain(page);
         await optimalDelivery(page);
-        await fits(page,['#boardStage','#model','#status','#deliveryTries','#autoRoute','#predict','#newParticipant','#transferForecast','#robotResearch','.training > details:not([hidden])']);
+        await fits(page,['#boardStage','#model','#status','#deliveryTries','#autoRoute','#predict','#newParticipant','#transferForecast','#robotResearch','#robotRules','.training > details:not([hidden])']);
         if(stage<3)await fits(page,['#nextMission']);
         await page.screenshot({path:path.join(root,'test-artifacts',`robot-mission-${stage}-${width}x${height}.png`)});
       }
+      // System-font metrics vary between festival PCs and Linux CI.
+      // Check ordinary fallbacks without replacing the default-font checks above.
+      for(const font of ['Arial, sans-serif','DejaVu Sans, sans-serif']){
+        await page.locator('.training').evaluate((el,font)=>el.style.fontFamily=font,font);
+        await fits(page,['#sensors','#sensorHint','#transferForecast','#safe','#unsafe','#probe','#train','#model','.training > details:not([hidden])']);
+      }
+      await page.locator('.training').evaluate(el=>el.style.fontFamily='');
+      await page.locator('#robotRules > summary').click();await page.locator('.monitor-dialog[open]').waitFor();
+      await fits(page,['.monitor-dialog','#robotBenchmark']);
+      await page.locator('.monitor-dialog > button').click();
       await page.locator('#learningNotebook > summary').click();await page.locator('.monitor-dialog[open]').waitFor();
       await fits(page,['.monitor-dialog','#coverage']);
       await page.locator('.monitor-dialog > button').click();

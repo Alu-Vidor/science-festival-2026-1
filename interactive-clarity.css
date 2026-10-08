@@ -46,6 +46,14 @@
 @media(min-width:2300px){.city-learning-goal{font-size:17px}}
 
 @media(max-width:2299px){
- .monitor-layout #robotView .training .features{margin:6px 0}
+ .monitor-layout #robotView .training>p{margin:5px 0}
+ .monitor-layout #robotView .training #sensorHint{min-height:44px}
+ .monitor-layout #robotView .training .features{margin:6px 0;padding:6px 0}
+ .monitor-layout #robotView .training #model{padding:6px 8px}
  .monitor-layout #robotView .training>details{margin-top:3px}
 }
+
+/* Keep optional rules beside learning, leaving room for experiment results. */
+.monitor-layout > nav #robotRules{margin:0}
+.monitor-layout > nav #robotRules > summary{display:flex;align-items:center;padding:8px 12px;border:1px solid #4c6870;border-radius:9px;background:#1b333e;font-size:16px;min-height:44px}
+.monitor-layout.city-active > nav #robotRules{display:none}
