@@ -17,7 +17,7 @@ const root=path.resolve(__dirname,'..'),server=http.createServer((req,res)=>{con
  await p.locator('#restartRobot').click();await p.emulateMedia({reducedMotion:'reduce'});
  for(const route of H.schedule[0]){await H.run(p,route);await H.teach(p);}
  await H.orders(p,['G']);const learned=await p.evaluate(()=>robotExpedition.current().planning.route);assert.notDeepEqual(learned,naive,'Player experiments change the autonomous route');
- await p.screenshot({path:path.join(root,'test-artifacts','robot-learned-decision.png')});await H.run(p);assert.equal(await p.locator('#resultStars').innerText(),'★ +3');
+ await p.screenshot({path:path.join(root,'test-artifacts','robot-learned-decision.png')});await H.run(p);assert.equal(await p.locator('#resultStars').innerText(),'★ +3');assert.deepEqual(await p.locator('[data-node][data-delivered=true]').evaluateAll(es=>es.map(e=>e.dataset.node)),['G'],'Only selected recipients are marked delivered; transit junctions and unselected orders are not');
  const t=await p.evaluate(()=>robotExpedition.current().trips.at(-1));await p.reload();assert.deepEqual(await p.evaluate(()=>robotExpedition.current().trips.at(-1)),t);assert(await p.locator('#run').isHidden());
  // A whole no-learning campaign makes the trap and the fixed departure count observable in the UI.
  await p.locator('#restartRobot').click();
