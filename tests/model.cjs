@@ -42,9 +42,9 @@ for(const id of ['forest','gorge','rain']){
 const wet=R.tile('clay',0,[40,25,45,75]);assert(!R.danger(R.features(wet,false)));assert(R.danger(R.features(wet,true)));
 const broad=R.examples(), sparse=broad.filter(s=>['road','mud'].includes(s.type));
 for(const id of ['forest','gorge']){
- const m=R.create(id),optimal=R.optimum(m),trained=R.plan(m,broad);
+ const m=R.create(id),optimal=R.optimum(m),trained=R.plan(m,id==='gorge'?[...broad,{f:m.grid[55].f,y:0,type:'gravel'}]:broad);
  assert(trained);assert.equal(trained.energy,optimal.energy,'Training examples generalize to unseen sensor readings');
- assert(new Set(optimal.path.map(i=>m.grid[i].type)).size>=7,'The best path needs diverse terrain knowledge');
+ assert(new Set(optimal.path.map(i=>m.grid[i].type)).size>=(id==='forest'?5:9),'The best path needs diverse terrain knowledge');
  assert.equal(R.plan(m,[]),null);assert.equal(R.plan(m,sparse),null,'Two familiar surfaces cannot solve the mission');
  const moved={...m,start:optimal.path[2]};const image=JSON.stringify(m.grid);assert.equal(R.optimum(moved).energy,reference(moved));assert.equal(JSON.stringify(m.grid),image,'Moving the start must preserve terrain and cargo');
  const falseLabels=broad.map(s=>({...s,y:1-s.y}));const wrong=R.plan(m,falseLabels);assert(!wrong||wrong.path.some(i=>R.danger(R.features(m.grid[i],m.rain))),'Wrong teaching must cause a blocked or unsafe real route');
@@ -62,3 +62,11 @@ assert(additions<=9,'Rain can be corrected with a small set of real field exampl
 assert.equal(R.plan(rainy,fieldLearning).energy,reference(rainy),'No exhaustive labelling of the rain map is needed');
 const bad=[{f:[10,10,10,90],y:1},{f:[11,10,10,90],y:1},{f:[12,10,10,90],y:1}];assert(R.predict(bad,[10,10,10,90]),'Wrong labels must affect the real prediction');
 console.log('Robot: independent optimum, diverse solutions, safe attainable maximum, rain and wrong-label behavior passed');
+
+const gorge=R.create('gorge');assert.equal(R.plan(gorge,broad),null,'The rockfall requires a new field observation');
+const osyp=[...broad,{type:'gravel',f:gorge.grid[55].f,y:0}];assert.equal(R.plan(gorge,osyp).energy,reference(gorge),'One observed pass transfers to similar passes');
+for(const type of Object.keys(R.names)){const pair=broad.filter(s=>s.type===type);assert.notDeepEqual(R.sensorWords(pair[0].f),R.sensorWords(pair[1].f),'Sensor words distinguish safe and dangerous '+type);}
+
+const forest=R.create('forest'),smallForest=[...introductory];let forestAdditions=0;
+for(const type of ['road','sand','mud','gravel','grass'])for(const y of [0,1]){const c=forest.grid.find(c=>c.type===type&&+R.danger(c.f)===y);if(c&&R.predict(smallForest,c.f)!==y){smallForest.push({type,y,f:c.f});forestAdditions++;}}
+assert(forestAdditions<=6,'The forest can be learned with a few observations after the introduction');assert.equal(R.plan(forest,smallForest).energy,reference(forest));

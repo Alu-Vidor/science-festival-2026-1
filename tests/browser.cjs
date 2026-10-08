@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('playwright');
-const {lesson,teachMap,teachTraining,adaptRain,deliver,optimalDelivery}=require('./robot-browser-helpers.cjs');
+const {lesson,teachMap,teachTraining,adaptGorge,adaptRain,deliver,optimalDelivery}=require('./robot-browser-helpers.cjs');
 const City=require('./city-browser-helpers.cjs');
 const base = path.resolve(__dirname, '..'), shots = path.join(base, 'test-artifacts');
 const server = http.createServer((req, res) => {
@@ -146,8 +146,12 @@ const server = http.createServer((req, res) => {
     assert((await page.locator('#sensorHint').innerText()).includes('Получилось иначе'));
     assert.equal(await page.evaluate(()=>samples.find(s=>s.f.join(',')===features(8).join(',')).y),0,'An incorrect guess is corrected by the physical experiment');
     assert(await page.locator('#run').isDisabled(),'New checked examples must be taught before the next trip');
+    await page.locator('[data-index="100"]').click();const safeClay=await page.locator('#sensors').innerText();
+    await page.locator('[data-index="102"]').click();const riskyClay=await page.locator('#sensors').innerText();
+    assert.notEqual(safeClay,riskyClay,'Safe and risky clay have different readable sensor words');
+    assert(riskyClay.includes('Очень влажно'));
     await teachTraining(page);
-    assert.equal(await page.evaluate(()=>samples.length),18,'Eighteen representative examples suffice for both dry expeditions');
+    assert.equal(await page.evaluate(()=>samples.length),18,'Eighteen examples provide a foundation for the expeditions');
     assert((await page.locator('#routePlan').getAttribute('points')).length>0,'The planned route is a continuous blue line');
     await page.locator('#nextMission').click();
     assert((await page.locator('#missionTask').innerText()).includes('без застревания'));
@@ -157,7 +161,7 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.evaluate(()=>JSON.stringify(grid)),original,'Delivery updates camp status without changing their ground');
     assert.equal(await page.locator('#campStatus [data-served=true]').count(),3);
     assert.equal(await page.locator('#cargo').innerText(),'0');
-    await page.locator('#nextMission').click();await optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'25');
+    await page.locator('#nextMission').click();await adaptGorge(page);await optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'25');
     await page.locator('#nextMission').click();assert((await page.locator('#weather').innerText()).includes('дождя'));
     assert(await page.locator('#run').isDisabled(),'Rain leaves gaps in old experience; new experiments are needed');
     await adaptRain(page);await optimalDelivery(page);assert.equal(await page.locator('#overallScore').innerText(),'50');
@@ -183,6 +187,21 @@ const server = http.createServer((req, res) => {
     await step('Проверь своё',cityFrame); await startWatching('#map','.inhabitant',cityFrame); await cityFrame.locator('#tryCity').click();
     await step('Цели каждого',cityFrame); await watched(cityFrame); await City.finishLesson(cityFrame,tourFits);
     assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().game.day),0);
+    await cityFrame.locator('#cityPeople > summary').click();
+    await cityFrame.locator('.monitor-dialog[open]').waitFor();
+    assert.equal(await cityFrame.locator('#citizenChoice option').count(),90,'Menu works without selecting an avatar');
+    await cityFrame.locator('.monitor-dialog > button').click();
+    for(const [place,title]of [['park','Парк'],['gym','Спортцентр']]){
+      await cityFrame.locator('#cityBadges [data-place="'+place+'"]').press('Enter');
+      await cityFrame.locator('.monitor-dialog[open]').waitFor();
+      assert((await cityFrame.locator('#cityPlacePanel').innerText()).includes(title));
+      await cityFrame.locator('.monitor-dialog > button').click();
+      assert.equal(await cityFrame.locator('#cityPlaceInfo').isVisible(),false);
+    }
+    assert.equal(await cityFrame.locator('#cityGoalGrid .city-goal').count(),1);
+    await cityFrame.locator('#cityConditions > summary').click();await cityFrame.locator('.monitor-dialog[open]').waitFor();
+    assert.equal(await cityFrame.locator('#cityConditionGrid .city-goal').count(),5);
+    await cityFrame.locator('.monitor-dialog > button').click();
     await City.maximum(cityFrame,async n=>{if(n===4||n===8)assert((await page.locator('#missionProgress').innerText()).includes('2 / 3'),'City completes only after all three rounds');});
     await page.waitForFunction(()=>+document.getElementById('overallScore').textContent===100);
     assert((await page.locator('#missionProgress').innerText()).includes('3 / 3'));
@@ -197,7 +216,11 @@ const server = http.createServer((req, res) => {
     await City.refund(cityFrame,'market');await City.refund(cityFrame,'clinic');
     assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().funds),200);
     await page.emulateMedia({reducedMotion:'no-preference'});
-    await cityFrame.locator('#tryCity').click(); await cityFrame.locator('#pauseCity').click();
+    await cityFrame.locator('#tryCity').click();
+    await cityFrame.locator('.inhabitant[data-person="0"]').press('Enter');
+    await cityFrame.locator('.monitor-dialog[open]').waitFor();
+    assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.isPlaying()),false,'Clicking a moving inhabitant pauses the day');
+    await cityFrame.locator('.monitor-dialog > button').click();
     assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().game.day),0);
     assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.isPlaying()),false);
     const frozen=await cityFrame.locator('.inhabitant').evaluateAll(els=>els.map(e=>e.getAttribute('transform')));
@@ -210,7 +233,10 @@ const server = http.createServer((req, res) => {
     assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().game.day),0,'A paused day cannot finish in the background');
     await City.day(cityFrame);
     for(let n=1;n<12;n++)await City.day(cityFrame);
-    assert.equal(await cityFrame.locator('#cityLocalScore').innerText(),'50 / 50','A weaker replay preserves the best');
+    assert.equal(await cityFrame.locator('#cityBestScore').innerText(),'50 / 50','A weaker replay preserves the best');
+    assert.equal(await cityFrame.locator('#cityLocalScore').innerText(),'36 / 50','The current replay shows its own score');
+    assert((await cityFrame.locator('#roundOutcome').innerText()).includes('Не выполнено:'));
+    assert.equal(await page.locator('#overallScore').innerText(),'100','Overall score keeps the best result');
     assert.equal(await cityFrame.locator('#cityAttempts span').count(),2);
     assert.equal(await cityFrame.locator('#tryCity').isEnabled(),false);
     assert((await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().score))<50);

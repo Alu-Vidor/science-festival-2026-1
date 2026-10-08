@@ -5,11 +5,11 @@
   const S = root.GameScore || require('./game-score.js');
   const clone = value => JSON.parse(JSON.stringify(value));
   const rounds = [
-    { id: 'travel', title: 'Утренний час пик', brief: 'Дальним кварталам нужны поездки. Сравни расписание, рейсы и расходы.', max: 10,
+    { id: 'travel', focus: 'activity', task: 'Помоги жителям добраться на занятия и работу', title: 'Утренний час пик', brief: 'Дальним кварталам нужны поездки. Сравни расписание, рейсы и расходы.', max: 10,
       cases: 2, food: 95, activity: 90, comfort: 75, expense: 440, weights: [3, 2, 3, 0, 1, 1] },
-    { id: 'supply', title: 'Задержка поставок', brief: 'Четыре дня в магазинах меньше продуктов. Домашние запасы переходят из прошлого раунда.', max: 15,
+    { id: 'supply', focus: 'food', task: 'Обеспечь жителей продуктами', title: 'Задержка поставок', brief: 'Четыре дня в магазинах меньше продуктов. Домашние запасы переходят из прошлого раунда.', max: 15,
       cases: 2, food: 95, activity: 90, comfort: 75, expense: 510, weights: [4, 4, 3, 0, 1, 3] },
-    { id: 'care', title: 'Холод и помощь', brief: 'После поездки вернутся заболевшие. Симптомы появятся позже. Подготовь помощь и следи за поездками.', max: 25,
+    { id: 'care', focus: 'care', task: 'Организуй помощь заболевшим', title: 'Холод и помощь', brief: 'После поездки вернутся заболевшие. Симптомы появятся позже. Подготовь помощь и следи за поездками.', max: 25,
       cases: 4, food: 95, activity: 90, comfort: 75, care: 90, expense: 470, weights: [6, 4, 4, 6, 2, 3] }
   ];
   const projects = ['bus', 'market', 'clinic'];
