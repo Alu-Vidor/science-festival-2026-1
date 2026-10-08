@@ -25,7 +25,7 @@ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+(req
   assert.equal(await page.evaluate(()=>robotExpedition.current().trips.at(-1).interrupted),true);assert(await page.locator('#nextRound').isVisible());
   assert.equal(await page.evaluate(()=>robotExpedition.current().score.stars),0,'An interrupted delivery consumes a departure without rewarding unfinished orders');
   await page.locator('#newParticipant').click();await page.emulateMedia({reducedMotion:'reduce'});await R.complete(page);await page.reload();assert.equal(await page.locator('#overallScore').innerText(),'50');
-  assert.equal(await page.evaluate(()=>robotExpedition.current().stage),2);assert.equal(await page.evaluate(()=>robotExpedition.current().score.stars),18);
+  assert.equal(await page.evaluate(()=>robotExpedition.current().stage),2);assert.equal(await page.evaluate(()=>robotExpedition.current().score.stars),17);
   await page.locator('#epiTab').click();const city=page.frameLocator('#epiView');await city.locator('#mayor').waitFor();if(!await city.locator('#gameTour').count())await city.locator('#cityTutorial').click();
   await page.emulateMedia({reducedMotion:'no-preference'});await city.locator('#observeCity').click();await city.locator('.tour-watching').waitFor();
   await city.locator('.inhabitant[data-person="0"]').press('Enter');await city.locator('.monitor-dialog[open]').waitFor();

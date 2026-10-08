@@ -37,3 +37,17 @@ dialog{width:min(1000px,90vw);max-height:88vh;border:1px solid #b8ac7b;border-ra
 @media(max-width:2199px){.robot-console{gap:9px}.order-card{min-height:60px;padding:7px 10px}.order-card strong{font-size:15px}.order-card small{font-size:12px;margin-top:3px}.order-icon{width:20px}#orderCards{gap:6px}#ordersPanel>.muted{font-size:13px;margin:6px 0}.robot-condition{padding:10px}.charge-heading strong{font-size:22px}.wheels-row{gap:6px}#wheelPicture{height:37px;width:60px}#surfaceEffect{font-size:13px;min-height:0;margin-top:6px}.forecast-card,.result-card{padding:11px}#forecastCard>strong{font-size:25px;margin:6px 0}#forecastCard p{font-size:13px}#forecastCard small{font-size:12px;margin-top:6px}.learning-action{gap:6px;padding-top:8px}.learning-action h3{font-size:16px}#learningEffect{min-height:0;font-size:12px}.terrain-key{min-height:44px}.route-scene{gap:9px}#status{min-height:59px}.comparison{margin:8px 0}#tripOutcome,#mistakeExplanation{font-size:14px}}
 #texture-water path{animation:water-light 3s ease-in-out infinite alternate}@keyframes water-light{from{stroke-opacity:.55}to{stroke-opacity:1}}#robotSprite.moving .robot-wheels{stroke-dasharray:5 2;animation:wheel-roll .25s linear infinite}@keyframes wheel-roll{to{stroke-dashoffset:-7}}
 @media(prefers-reduced-motion:reduce){#texture-water path,#robotSprite.moving .robot-wheels{animation:none}}
+
+/* Four readable choices and a three-slot cargo hold on festival monitors. */
+.route-layout{grid-template-columns:minmax(0,1fr) 460px}
+#orderCards{grid-template-columns:1fr 1fr;gap:7px}
+.order-card{display:grid;grid-template-columns:1fr auto;gap:5px 6px;min-height:72px;padding:10px}
+.order-card strong{font-size:15px}.order-card small{margin:0;font-size:13px}.order-card>b{font-size:16px}.order-check{font-size:18px;line-height:1}
+.order-card.capacity-blocked{border-style:dashed}.order-card.capacity-blocked small{color:#efc6a4}
+.cargo{display:flex;align-items:center;gap:12px;margin-top:9px;font-size:14px;color:#d9ddc0}
+#cargoSlots{display:flex;gap:5px}.cargo-slot{display:grid;place-items:center;width:34px;height:30px;border:1px dashed #90aa8e;border-radius:5px;background:#193a30}.cargo-slot.filled{border-style:solid;background:#766043;color:#fff1c9;font-weight:bold}.cargo-slot[data-package="1"]{background:#526d79}.cargo-slot[data-package="2"]{background:#72576e}.cargo-slot[data-package="3"]{background:#486e53}
+#deliveryProgress{font-size:14px;color:#f4d386;margin:8px 0}
+#modelInfo{min-height:44px;padding:4px 7px;font-size:12px}.learning-action #modelInfo{width:auto}
+@media(min-width:2200px){.route-layout{grid-template-columns:minmax(0,1fr) 480px}.order-card{min-height:91px;padding:13px}.order-card strong{font-size:18px}.order-card small,.cargo,#deliveryProgress{font-size:17px}.order-card>b{font-size:20px}.cargo-slot{width:42px;height:36px}#modelInfo{font-size:15px;min-height:44px}}
+
+.route-return{stroke:#d9b5f5;stroke-width:5;stroke-dasharray:9 7;fill:none;stroke-linejoin:round;pointer-events:none}.line.return{border-color:#d9b5f5;border-top-style:dashed}

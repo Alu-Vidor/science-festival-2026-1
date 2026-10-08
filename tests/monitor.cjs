@@ -51,11 +51,14 @@ const server = http.createServer((req, res) => {
       const selectors=['#status','#qualitySummary','#routeMap','#terrainLegend','#routeText','#scoreRules','#newParticipant','#missionGoal','#remaining','#wheelPicture','#wheelState','#surfaceEffect','#stars','#roundLabel'];
       async function robotFits(){
         const conditional=[];
-        for(const id of ['run','train','nextRound','undo','stop','forecastEnergy','forecastOutcome','forecastConfidence','tripOutcome','lastPrediction','lastActual','learningEffect','campaignResult'])if(await page.locator('#'+id).isVisible())conditional.push('#'+id);
+        for(const id of ['run','train','nextRound','undo','stop','forecastEnergy','forecastOutcome','forecastConfidence','tripOutcome','lastPrediction','lastActual','learningEffect','campaignResult','cargoSlots','cargoSummary','deliveryProgress','modelInfo'])if(await page.locator('#'+id).isVisible())conditional.push('#'+id);
         await fits(page,[...selectors,...conditional]);
         const clipped=await page.locator('.robot-console').evaluate(panel=>[...panel.children].filter(e=>!e.hidden).filter(e=>e.getBoundingClientRect().bottom>panel.getBoundingClientRect().bottom-5).map(e=>e.id||e.className));
         assert.deepEqual(clipped,[],'Every robot panel action must fit inside its panel');
+        const labels=await page.locator('#routeMap').evaluate(map=>{const bounds=map.getBoundingClientRect(),names=[...map.querySelectorAll('.node-name')],boxes=names.map(e=>e.getBoundingClientRect()),issues=[];boxes.forEach((a,i)=>{if(a.left<bounds.left||a.right>bounds.right||a.top<bounds.top||a.bottom>bounds.bottom)issues.push('Outside map: '+names[i].textContent);for(let j=i+1;j<boxes.length;j++){const b=boxes[j];if(Math.min(a.right,b.right)>Math.max(a.left,b.left)&&Math.min(a.bottom,b.bottom)>Math.max(a.top,b.top))issues.push('Overlapping names: '+names[i].textContent+' / '+names[j].textContent);}});return issues;});assert.deepEqual(labels,[],'All recipient names must remain readable');
+        const cards=await page.locator('.order-card:visible').evaluateAll(es=>es.flatMap(e=>{const b=e.getBoundingClientRect();return [...e.children].filter(x=>{const r=x.getBoundingClientRect();return r.left<b.left||r.right>b.right||r.bottom>b.bottom;}).map(x=>x.textContent);}));assert.deepEqual(cards,[],'Order names, cargo sizes and rewards must fit');
       }
+      for(const font of ['Arial, sans-serif','DejaVu Sans, sans-serif','Noto Sans, sans-serif']){await page.locator('body').evaluate((el,font)=>el.style.fontFamily=font,font);await robotFits();}await page.locator('body').evaluate(el=>el.style.fontFamily='');
       await robotFits();
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-routes-${width}.png`)});
       await Robot.complete(page,async phase=>{await robotFits();if(phase==='audit')await fits(page,['#robotDialog','#dialogBody']);else await page.screenshot({path:path.join(root,'test-artifacts',`robot-${phase}-${width}.png`)});});
