@@ -127,6 +127,11 @@ const server = http.createServer((req, res) => {
     if(monitor)await page.locator('.monitor-dialog > button').click();else await page.locator('#robotEditor > summary').click();
     assert((await deliver(page)).includes('Свободный опыт'));
     assert.equal(await page.locator('#overallScore').innerText(),'50');
+    await page.locator('#robotTutorial').click();await page.locator('#tourSkip').click();
+    await page.locator('#clear').click();
+    assert(await page.locator('#expedition-forest').isDisabled());
+    assert(await page.locator('#nextMission').isDisabled());
+    assert.equal(await page.locator('#overallScore').innerText(),'50','Clearing the training data keeps previous mission results');
     const robotScore=50;
     await noOverflow();
     await page.locator('#epiTab').click();

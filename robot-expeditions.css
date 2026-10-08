@@ -40,3 +40,6 @@
  .monitor-layout .training #model { font-size:13px; }
 }
 @media(max-width:650px) { .expedition-nav { display:grid; grid-template-columns:1fr 1fr; }.expedition-nav button { font-size:13px; } }
+@media(min-width:1000px) and (min-height:721px) {
+ .monitor-layout .expedition-nav button,.monitor-layout #nextMission { min-height:44px; }
+}
