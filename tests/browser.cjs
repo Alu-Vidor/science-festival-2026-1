@@ -205,7 +205,7 @@ const server = http.createServer((req, res) => {
     await City.maximum(cityFrame,async n=>{if(n===4||n===8)assert((await page.locator('#missionProgress').innerText()).includes('2 / 3'),'City completes only after all three rounds');});
     await page.waitForFunction(()=>+document.getElementById('overallScore').textContent===100);
     assert((await page.locator('#missionProgress').innerText()).includes('3 / 3'));
-    assert.equal(await cityFrame.locator('#cityAttempts span').count(),1);
+    assert.equal(await cityFrame.locator('#cityAttempts span').count(),1);assert.equal(await cityFrame.locator('#cityAttempts span').textContent(),'Город 1: 50/50');
     assert.equal(await cityFrame.locator('.citizen-emotion').count(),4,'A few representative reactions keep the map readable');
     await page.screenshot({path:path.join(shots,'city-three-rounds.png')});
     await cityFrame.locator('#restartCity').click();
@@ -234,7 +234,7 @@ const server = http.createServer((req, res) => {
     await City.day(cityFrame);
     for(let n=1;n<12;n++)await City.day(cityFrame);
     assert.equal(await cityFrame.locator('#cityBestScore').innerText(),'50 / 50','A weaker replay preserves the best');
-    assert.equal(await cityFrame.locator('#cityLocalScore').innerText(),'36 / 50','The current replay shows its own score');
+    assert.equal(await cityFrame.locator('#cityLocalScore').innerText(),'22 / 50','The current replay shows its own score');
     assert((await cityFrame.locator('#roundOutcome').innerText()).includes('Не выполнено:'));
     assert.equal(await page.locator('#overallScore').innerText(),'100','Overall score keeps the best result');
     assert.equal(await cityFrame.locator('#cityAttempts span').count(),2);

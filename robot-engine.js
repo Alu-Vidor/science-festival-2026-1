@@ -33,6 +33,9 @@
     return { label: risk > .35 && risk < .65 ? null : +(risk >= .5), near, reason: risk > .35 && risk < .65 ? 'Похожие примеры противоречат друг другу' : 'Сравнение с тремя ближайшими примерами', risk };
   }
   function predict(model, f) { return explain(model,f).label; }
+  function transfer(model, f) {
+    return explain(model.filter(sample => sample.f.some((value, i) => value !== f[i])), f);
+  }
   function shortest(grid, start, goal, { rain = false, model = [], mode = 'energy', oracle = false, useAI = true } = {}) {
     const dist = Array(144).fill(Infinity), prev = Array(144).fill(-1), done = new Set(); dist[start] = 0;
     for (let k = 0; k < 144; k++) {
@@ -131,6 +134,6 @@
     // Every nonoptimal complete path scores strictly below the maximum.
     return Math.min(max - 1, Math.max(delivery, Math.floor(max * (.6 + .4 * optimal / energy))));
   }
-  root.RobotEngine = { N, costs, danger, sensorWords, tile, features, predict, explain, shortest, plan, optimum, permutations, create, examples, names, icons, profiles, score, ids: ['training', 'forest', 'gorge', 'rain'] };
+  root.RobotEngine = { N, costs, danger, sensorWords, tile, features, predict, explain, transfer, shortest, plan, optimum, permutations, create, examples, names, icons, profiles, score, ids: ['training', 'forest', 'gorge', 'rain'] };
   if (typeof module !== 'undefined') module.exports = root.RobotEngine;
 })(typeof window !== 'undefined' ? window : globalThis);

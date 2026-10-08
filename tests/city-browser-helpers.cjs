@@ -34,6 +34,11 @@ async function maximum(scope, afterDay = async()=>{}) {
     if(n===9){await build(scope,'clinic');await scope.locator('#pick-shops-both').click();}
     await day(scope); await afterDay(n);
   }
+  assert.equal(await scope.locator('#cityLocalScore').innerText(),'45 / 50','Rounds alone leave the research task unfinished');
+  await scope.locator('#cityExperiment>summary').click();await scope.locator('.monitor-dialog[open]').waitFor();
+  await scope.locator('#experimentRound').selectOption('0');await scope.locator('#experiment-school').selectOption('normal');await scope.locator('#testAlternative').click();
+  assert((await scope.locator('#experimentState').innerText()).includes('Улучшение подтверждено'));
+  await scope.locator('.monitor-dialog>button').click();
   assert.equal(await scope.locator('#cityLocalScore').innerText(),'50 / 50');
 }
 async function refund(scope, project) {

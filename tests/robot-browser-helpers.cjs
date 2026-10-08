@@ -36,10 +36,20 @@ async function adaptRain(page){
  });
 }
 async function deliver(page){await page.locator('#run').click();await page.waitForFunction(()=>!running);return page.locator('#status').innerText();}
-async function optimalDelivery(page){const text=await deliver(page);assert(text.includes('Минимум энергии найден!'),text);}
+async function transferChecks(page){
+ for(const y of [0,1]){
+  if(await page.evaluate(y=>transferChecks[stage].some(check=>check.y===y),y))continue;
+  const candidate=await page.evaluate(y=>grid.findIndex((c,i)=>c.type!=='wall'&&+danger(features(i))===y&&RobotEngine.transfer(model,features(i)).label===y),y);
+  assert(candidate>=0,'The model offers an independently verifiable transfer example for '+y);
+  await page.locator('[data-index="'+candidate+'"]').click();await page.locator(y?'#unsafe':'#safe').click();await page.locator('#probe').click();
+ }
+ assert.equal(await page.evaluate(()=>transferChecks[stage].length),2);
+ if(await page.locator('#run').isDisabled()&&!await page.evaluate(()=>delivered===mission.cargo))await page.locator('#train').click();
+}
+async function optimalDelivery(page){if(await page.locator('#run').isDisabled())await page.locator('#train').click();const text=await deliver(page);assert(text.includes('Минимум энергии найден!'),text);await transferChecks(page);}
 async function adaptGorge(page){
  assert(await page.locator('#run').isDisabled(),'Dry lab examples alone cannot solve the rockfall');
  await page.locator('[data-index="55"]').click();await page.locator('#safe').click();await page.locator('#probe').click();await page.locator('#train').click();
  assert((await page.locator('#model').innerText()).includes('Опыт перенесён'),'Training shows its actual effect');
 }
-module.exports={lesson,teachMap,teachTraining,adaptGorge,adaptRain,deliver,optimalDelivery};
+module.exports={lesson,teachMap,teachTraining,adaptGorge,adaptRain,deliver,optimalDelivery,transferChecks};

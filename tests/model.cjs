@@ -70,3 +70,25 @@ for(const type of Object.keys(R.names)){const pair=broad.filter(s=>s.type===type
 const forest=R.create('forest'),smallForest=[...introductory];let forestAdditions=0;
 for(const type of ['road','sand','mud','gravel','grass'])for(const y of [0,1]){const c=forest.grid.find(c=>c.type===type&&+R.danger(c.f)===y);if(c&&R.predict(smallForest,c.f)!==y){smallForest.push({type,y,f:c.f});forestAdditions++;}}
 assert(forestAdditions<=6,'The forest can be learned with a few observations after the introduction');assert.equal(R.plan(forest,smallForest).energy,reference(forest));
+
+// A transfer check cannot claim success through an exact copy of the tested readings.
+{
+ const f=[12,8,12,90],copy={type:'road',f,y:0};
+ assert.equal(R.transfer([copy],f).label,null);
+ const neighbor={type:'road',f:[13,8,12,90],y:0};
+ assert.equal(R.transfer([copy,neighbor],f).label,0);
+ assert.equal(R.transfer([{...copy,y:1},neighbor],f).label,0,'The held-out exact answer never leaks into the transfer forecast');
+ assert.deepEqual([copy,neighbor],[{type:'road',f,y:0},neighbor]);
+}
+
+// The new learning goal remains attainable with a small evolving dataset.
+// These are child-observable field samples, not full-map labels or oracle routing.
+const modest=[...introductory];
+for(const id of ['forest','gorge','rain']){
+ const mission=R.create(id),types=id==='forest'?['mud','gravel','sand']:id==='gorge'?['water','gravel','hill']:['mud','hill','gravel'];
+ for(const type of types){const cell=mission.grid.find(c=>c.type===type&&!R.danger(R.features(c,mission.rain))&&R.predict(modest,R.features(c,mission.rain))!==0);assert(cell);modest.push({type,f:R.features(cell,mission.rain),y:0});}
+ if(id==='rain'){const cell=mission.grid.find(c=>c.type==='grass'&&R.danger(R.features(c,true)));modest.push({type:'grass',f:R.features(cell,true),y:1});}
+ assert.equal(R.plan(mission,modest).energy,reference(mission));
+ for(const y of [0,1])assert(mission.grid.some(c=>c.type!=='wall'&&+R.danger(R.features(c,mission.rain))===y&&R.transfer(modest,R.features(c,mission.rain)).label===y),'Both transfer checks are possible with few observations in '+id);
+}
+assert.equal(modest.length,12,'No exhaustive labelling is needed for delivery and transfer');

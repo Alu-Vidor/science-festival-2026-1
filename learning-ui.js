@@ -12,7 +12,7 @@
       { target: '#train', context: ['#samples', '#model'], title: '7. Обучи робота', text: 'Передай роботу проверенные примеры. Он сравнит новые участки с ними и построит путь к лагерям.', event: 'robot:trained', delay: 900,
         result: { target: '#boardStage', fit: '#boardStage', text: 'Синяя линия — путь, выбранный роботом. Для первого рейса достаточно этих двух примеров.' } },
       { target: '#run', context: ['#cargoPanel'], title: '8. Выполни первый рейс', text: 'У робота три аптечки. Отправь его в лагеря A, B и C. Первый рейс завершится, когда каждый лагерь получит помощь.', event: 'robot:finished', accept: d => d.delivered === 3, delay: 1200,
-        result: { target: '#campStatus', text: 'Все три лагеря получили помощь! Первый рейс пройден. В лесу будут новые покрытия: твои эксперименты пригодятся снова.' } }
+        result: { target: '#campStatus', text: 'Все три лагеря получили помощь! В экспедициях доставь аптечки и подтверди перенос опыта: проезд и опасность на выбранных тобой участках.' } }
     ] });
     $('robotTutorial').onclick = () => GameTour.start('robot');
     if (location.hash !== '#epidemic' && !window.robotExpedition.restored) GameTour.maybeStart('robot');
@@ -30,7 +30,7 @@
       { target: '#pick-bus-frequent', context: ['#choices-bus'], title: 'Помоги добраться', text: 'Жители пропускают поездки. Нажми «Больше рейсов».', event: 'city:choice', accept: d => d.key === 'bus' && d.value === 'frequent' },
       { target: '#tryCity', context: ['#mayorMapSlot .mapscroll'], title: 'Проверь своё решение', text: 'Проверь рейсы. После дня город остановится.', event: 'city:tested', delay: 350,
         watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', interactive: ['#map', '#tryCity', '#pauseCity', '#cityPeople', '.monitor-dialog'], context: ['#mayorMapSlot .legend', '#citizenStory', '.city-time-controls'], text: 'Заметь, кто добрался. Можно нажать на жителя и прочитать его историю. После осмотра закрой карточку и продолжи день.' } },
-      { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'На карте показана главная задача раунда. В «Условиях успеха» — остальные требования. Галочка означает, что условие пока выполнено. Максимум дают за все условия после четырёх дней.' },
+      { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'Победа — три решённые задачи и проверенное улучшение плана. Раунды дают до 45 баллов, сравнение одного решения — ещё 5. Для максимума нужны все «Условия успеха».' },
       { target: '#projectSummary', title: 'Планируй улучшения', text: 'Распредели 200 монет. Между днями можно вернуть улучшение и вложить монеты в другое. Прошедшие дни не изменятся.' }
     ] } : mode === 'contest' ? { name: 'Соревнование', steps: [
       { target: '.round-clock', title: 'Семь минут на попытки', text: 'Таймер начнётся после первой проверки. Во время обучения он стоит.' },

@@ -9,7 +9,7 @@
       cases: 2, food: 95, activity: 90, comfort: 75, expense: 440, weights: [3, 2, 3, 0, 1, 1] },
     { id: 'supply', focus: 'food', task: 'Обеспечь жителей продуктами', title: 'Задержка поставок', brief: 'Четыре дня в магазинах меньше продуктов. Домашние запасы переходят из прошлого раунда.', max: 15,
       cases: 2, food: 95, activity: 90, comfort: 75, expense: 510, weights: [4, 4, 3, 0, 1, 3] },
-    { id: 'care', focus: 'care', task: 'Организуй помощь заболевшим', title: 'Холод и помощь', brief: 'После поездки вернутся заболевшие. Симптомы появятся позже. Подготовь помощь и следи за поездками.', max: 25,
+    { id: 'care', focus: 'care', task: 'Организуй помощь заболевшим', title: 'Холод и помощь', brief: 'После поездки вернутся заболевшие. Симптомы появятся позже. Подготовь помощь и следи за поездками.', max: 20,
       cases: 4, food: 95, activity: 90, comfort: 75, care: 90, expense: 470, weights: [6, 4, 4, 6, 2, 3] }
   ];
   const projects = ['bus', 'market', 'clinic'];
@@ -66,8 +66,10 @@
       Math.min(1, stats.activity / goal.activity), goal.care ? Math.min(1, stats.care / goal.care) : 1,
       Math.min(1, stats.comfort / goal.comfort), Math.min(1, goal.expense / expense)];
     const full = met.every(Boolean);
-    const raw = Math.floor(goal.weights.reduce((sum, weight, i) => sum + weight * ratios[i], 0) + 1e-9);
-    return { index, ...stats, score: full ? goal.max : Math.min(goal.max - 1, raw), full, met };
+    const primaryMet = stats[goal.focus] >= goal[goal.focus];
+    const raw = Math.floor(goal.max * goal.weights.reduce((sum, weight, i) => sum + weight * ratios[i], 0) / goal.weights.reduce((sum, weight) => sum + weight, 0) + 1e-9);
+    const cap = primaryMet ? goal.max - 1 : Math.floor(goal.max / 2);
+    return { index, ...stats, score: full ? goal.max : Math.min(cap, raw), full, primaryMet, met };
   }
   function advance(c, plan) {
     if (c.completed) throw Error('Город завершён. Начни новое прохождение.');
@@ -130,6 +132,14 @@
     const expense = 'Работа города: ' + stats.expense + ' монет за ' + days.length + ' дня; содержание улучшений: ' + sum('upkeep') + '.';
     return index === 0 ? [travel, supply, expense] : index === 1 ? [supply, travel, expense] : [care, 'Заражений внутри города: ' + stats.cases + '.', expense];
   }
-  root.CityCampaign = { rounds, projects, projectFunds, choices, create, invest, refund, advance, current, measure, report, replay, compare, insights };
+  function experiment(actual, alternative, original, proposed) {
+    const changed = Object.keys(choices).filter(key => original[key] !== proposed[key]);
+    const directions = { cases: -1, food: 1, activity: 1, care: 1, comfort: 1, expense: -1 };
+    const improvements = Object.entries(directions).filter(([key, sign]) => sign * (alternative[key] - actual[key]) > .01).map(([key]) => key);
+    return { changed, improvements, success: changed.length === 1 && alternative.full && improvements.length > 0 };
+  }
+  function cityScore(c, researched) { return c.score + (researched ? 5 : 0); }
+  function succeeded(c, researched) { return c.completed && c.results.every(result => result.primaryMet) && researched; }
+  root.CityCampaign = { rounds, projects, projectFunds, choices, create, invest, refund, advance, current, measure, report, replay, compare, insights, experiment, cityScore, succeeded };
   if (typeof module !== 'undefined') module.exports = root.CityCampaign;
 })(typeof window !== 'undefined' ? window : globalThis);
