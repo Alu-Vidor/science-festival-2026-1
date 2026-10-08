@@ -80,9 +80,10 @@ const server = http.createServer((req, res) => {
       await fits(frame,['#map','#map .building-sprite','#observeCity','#beginCity','#mayorStatus','#cityLocalScore','#cityRounds','#projectSummary']);
       assert.equal(await city.locator('#map').getAttribute('viewBox'),'0 0 1750 1080','Every building stays in the full city view');
       await city.locator('#cityTutorial').click(); await fits(frame,['.tour-card','#tourTitle','#tourText','#observeCity']);
-      await city.locator('#observeCity').click(); await city.locator('#tryCity').waitFor({state:'visible'});
+      await city.locator('#observeCity').click();
       await city.locator('.tour-watching').waitFor(); await lit(frame,['#map','#citizenStory']);
       await page.screenshot({path:path.join(root,'test-artifacts',`city-lesson-monitor-${width}x${height}.png`)});
+      await city.locator('#tryCity').waitFor({state:'visible'});
       await city.locator('#tryCity').evaluate(el => new Promise(resolve => { const timer=setInterval(()=>{if(!el.disabled){clearInterval(timer);resolve();}},20); }));
       await city.locator('#tourTitle').filter({hasText:'Помоги добраться'}).waitFor(); await fits(frame,['.tour-card','#tourText']);
       await city.locator('#pick-bus-frequent').click(); await city.locator('#tourTitle').filter({hasText:'Проверь своё'}).waitFor();
