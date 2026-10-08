@@ -73,6 +73,10 @@
 @media(min-width:1000px) and (max-height:820px){
  .monitor-layout:has(#robotView)>header{height:52px}
  .monitor-layout:has(#robotView) .mission-bar{height:52px}
+ .monitor-layout:has(#robotView) .overall-result{line-height:1.2}
+ .monitor-layout:has(#robotView) .overall-result strong{display:flex;align-items:center;gap:4px;line-height:1.2}
+ .monitor-layout:has(#robotView) .overall-result b{display:block;font-size:26px;line-height:1.2}
+ .monitor-layout:has(#robotView) .overall-result small{font-size:12px}
  .monitor-layout:has(#robotView)>nav button{min-height:36px;font-size:14px;padding:4px 10px}
  .monitor-layout:has(#robotView) .expedition-nav button{min-height:30px;font-size:13px;padding:3px 8px}
  .monitor-layout .training{padding:9px}
