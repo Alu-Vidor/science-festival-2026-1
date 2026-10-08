@@ -2,15 +2,17 @@
 (function(root){
   'use strict';
   const R=typeof module!=='undefined'?require('./robot-engine.js'):root.RobotEngine;
-  const VERSION=R.VERSION,ROUNDS=3,EXPERIMENTS=2;
+  const VERSION=R.VERSION,ROUNDS=3,EXPERIMENTS=2,CAPACITY=3,MAX_STARS=17;
   function district(round){
     const m=R.create(round===1?1:0);m.stage=round;m.title=['Лесная долина','Каменный перевал','Озёрный край'][round];
-    m.budget=[54,60,56][round];
+    m.budget=[68,68,58][round];m.capacity=CAPACITY;
     if(round===2)for(const [i,type,length]of [[0,'water',2],[1,'gravel',5],[2,'mud',2],[3,'hill',1],[4,'sand',2],[5,'road',3],[6,'hill',2],[7,'road',3],[8,'water',1],[9,'gravel',2],[10,'sand',2],[11,'water',1],[12,'road',3],[13,'mud',2],[14,'hill',2],[15,'road',4],[16,'hill',2],[17,'road',4]])Object.assign(m.edges[i],{type,length});
-    const targets=[['U','N','G'],['L','T','G'],['V','N','G']][round];
-    const titles=[['Лесники','Метеостанция','Дальний лагерь'],['Геологи','Альпинисты','Горный лагерь'],['Биологи','Смотритель озера','Островной лагерь']][round];
-    m.orders=targets.map((node,i)=>({id:node,node,title:titles[i],stars:i+1,icon:['⌂','⚑','✚'][i]}));return m;
+    const targets=[['L','M','Y','G'],['X','L','Y','M'],['T','Y','U','G']][round];
+    const titles=[['Лесники','Метеостанция','Связисты','Дальний лагерь'],['Геологи','Смотрители','Альпинисты','Спасатели'],['Причал','Биологи','Смотрители','Озёрный лагерь']][round];
+    m.orders=targets.map((node,i)=>({id:node,node,code:'1234'[i],title:titles[i],size:[1,1,2,2][i],stars:[2,2,3,4][i],icon:['⌂','⚑','✚','✚'][i]}));return m;
   }
+  function cargo(map,selected){return map.orders.filter(o=>selected.includes(o.id)).reduce((n,o)=>n+o.size,0);}
+  function validSelection(map,selected){return Array.isArray(selected)&&selected.length>0&&new Set(selected).size===selected.length&&selected.every(id=>map.orders.some(o=>o.id===id))&&cargo(map,selected)<=map.capacity;}
   function laboratory(){return {...R.create(0),title:'Твой полигон',budget:36};}
   function steps(map,route){
     if(!Array.isArray(route)||route[0]!=='S'||route.length>61)throw Error('Некорректный маршрут');
@@ -24,17 +26,19 @@
   function simulate(map,route){return R.journey(steps(map,route),R.physical,map.budget);}
   // Dijkstra searches node × predicted wheel state × delivered orders. It cannot call physical().
   function plan(map,selected,model){
+    if(!validSelection(map,selected))return null;
     const targets=map.orders.filter(o=>selected.includes(o.id)),full=(1<<targets.length)-1;
+    const transitions=new Map();
+    function crossing(e,state){const id=e.id+':'+Number(state.dirty)+':'+state.wet;if(transitions.has(id))return transitions.get(id);let cost=0,stalled=false;for(let n=0;n<e.length;n++){const p=R.predictStep(model,e.type,state);cost+=p.energy;state=p.after;if(p.stalled){stalled=true;break;}}const r={state,cost,stalled};transitions.set(id,r);return r;}
     if(!targets.length)return null;
     const queue=[{node:'S',state:R.fresh(),mask:0,energy:0,route:['S']}],seen=new Set();
     while(queue.length){
       queue.sort((a,b)=>a.energy-b.energy||a.route.join('').localeCompare(b.route.join('')));
       const c=queue.shift(),key=c.node+':'+Number(c.state.dirty)+':'+c.state.wet+':'+c.mask;
       if(seen.has(key))continue;seen.add(key);
-      if(c.mask===full)return {...c,prediction:forecast(map,c.route,model),withinBudget:c.energy<=map.budget};
+      if(c.mask===full&&c.node===map.start)return {...c,prediction:forecast(map,c.route,model),withinBudget:c.energy<=map.budget};
       for(const e of map.edges.filter(e=>e.a===c.node||e.b===c.node)){
-        let state={...c.state},energy=c.energy,stalled=false;
-        for(let n=0;n<e.length;n++){const p=R.predictStep(model,e.type,state);energy+=p.energy;state=p.after;if(p.stalled){stalled=true;break;}}
+        const {state,cost,stalled}=crossing(e,c.state),energy=c.energy+cost;
         if(stalled)continue;
         const node=e.a===c.node?e.b:e.a,mask=c.mask|targets.reduce((v,t,i)=>v|(t.node===node?1<<i:0),0);
         queue.push({node,state,energy,mask,route:[...c.route,node]});
@@ -44,8 +48,9 @@
   function outcome(map,selected,result,interrupted=false){
     const arrived=new Set(['S',...result.observations.filter(o=>o.fraction===1&&!o.stalled).map(o=>o.to)]);
     const delivered=map.orders.filter(o=>selected.includes(o.id)&&arrived.has(o.node)).map(o=>o.id);
-    const success=!interrupted&&selected.length>0&&delivered.length===selected.length&&result.finished;
-    return {success,delivered,stars:success?map.orders.filter(o=>selected.includes(o.id)).reduce((s,o)=>s+o.stars,0):0,reserve:success?map.budget-result.spent:0};
+    const returned=result.observations.at(-1)?.to===map.start&&result.observations.at(-1)?.fraction===1&&!result.observations.at(-1)?.stalled;
+    const success=!interrupted&&validSelection(map,selected)&&delivered.length===selected.length&&result.finished&&returned;
+    return {success,delivered,returned,stars:success?map.orders.filter(o=>selected.includes(o.id)).reduce((s,o)=>s+o.stars,0):0,reserve:success?map.budget-result.spent:0};
   }
   function measured(t){const m=t.kind==='experiment'?laboratory():district(t.round);return simulate(m,t.route).observations.slice(0,t.steps);}
   function model(trips){return R.train(trips.filter(t=>t.taught).flatMap(measured));}
@@ -55,7 +60,7 @@
   }
   function score(trips){return trips.filter(t=>t.kind==='delivery'&&t.ended).reduce((s,t)=>{const r=outcome(district(t.round),t.selected,actual(t),t.interrupted);return {stars:s.stars+r.stars,reserve:s.reserve+r.reserve,deliveries:s.deliveries+(r.success?1:0)};},{stars:0,reserve:0,deliveries:0});}
   function validate(s){
-    if(!s||s.rules!==VERSION||!Number.isInteger(s.round)||s.round<0||s.round>=ROUNDS||!['lab','district'].includes(s.view)||!Array.isArray(s.trips)||s.trips.length>9||!Array.isArray(s.selected)||!s.selected.every(id=>district(s.round).orders.some(o=>o.id===id))||new Set(s.selected).size!==s.selected.length)return false;
+    if(!s||s.rules!==VERSION||!Number.isInteger(s.round)||s.round<0||s.round>=ROUNDS||!['lab','district'].includes(s.view)||!Array.isArray(s.trips)||s.trips.length>9||!Array.isArray(s.selected)||!s.selected.every(id=>district(s.round).orders.some(o=>o.id===id))||new Set(s.selected).size!==s.selected.length||cargo(district(s.round),s.selected)>CAPACITY)return false;
     try{
       if(s.route.length>7) return false;steps(laboratory(),s.route);
       let round=0,experiments=0,previousCount=0;
@@ -64,7 +69,7 @@
         const m=t.kind==='experiment'?laboratory():district(round);
         if(t.kind==='experiment'){if(++experiments>EXPERIMENTS||t.route.length>7||t.route.length<2)return false;}
         else{
-          if(!Array.isArray(t.selected)||!t.selected.length||new Set(t.selected).size!==t.selected.length||!t.selected.every(id=>m.orders.some(o=>o.id===id)))return false;
+          if(!validSelection(m,t.selected)||t.route.at(-1)!==m.start)return false;
         }
         const full=simulate(m,t.route);if(t.steps<0||t.steps>full.observations.length||(t.ended&&!t.interrupted&&t.steps!==full.observations.length)||(!t.ended&&t!==s.trips.at(-1))||t.taught&&!t.ended)return false;
         // Freeze the training boundary for each trip; later teaching must not rewrite its decision.
@@ -83,6 +88,6 @@
       return true;
     }catch{return false;}
   }
-  const api={VERSION,ROUNDS,EXPERIMENTS,district,laboratory,steps,forecast,simulate,plan,outcome,measured,model,actual,score,validate};root.RobotDelivery=api;
+  const api={VERSION,ROUNDS,EXPERIMENTS,CAPACITY,MAX_STARS,cargo,validSelection,district,laboratory,steps,forecast,simulate,plan,outcome,measured,model,actual,score,validate};root.RobotDelivery=api;
   if(typeof module!=='undefined')module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
