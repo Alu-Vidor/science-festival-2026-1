@@ -14,12 +14,7 @@ assert(noFood.food < 80 && noFood.score <= 25, 'Avoiding infections cannot compe
 assert(noTrips.activity < 70 && noTrips.score <= 25, 'Avoiding infections cannot compensate for inaccessible school/work');
 assert.deepEqual(S.cityRun(good.plan),good, 'Every attempt starts with identical initial conditions');
 assert.throws(()=>S.cityRun({school:'invented',bus:'normal',shops:'both'}));
-const fullModel = S.robotChecks.flatMap(f=>[0,.1,.2].map(delta=>({f:f.map(v=>v+delta),y:+S.danger(f)})));
-assert.equal(S.robotQuality(fullModel).score,20);
-assert.equal(S.robotQuality([]).ready,false);
-assert.equal(S.robotQuality(fullModel.slice(0,5)).ready,false);
-assert(S.robotQuality(fullModel.map(s=>({...s,y:1-s.y}))).score<20, 'Wrong examples must damage the score');
-assert.equal(S.total({training:20,delivery:30,city:50}),100);
-assert.equal(S.total({training:999,delivery:-1,city:999}),70);
+assert.equal(S.total({robot:50,city:50}),100);
+assert.equal(S.total({robot:999,city:-1}),50);
 assert.equal(S.total(),0);
-console.log('Scores: fixed conditions, meaningful tradeoffs, eight new robot checks, limits and total passed');
+console.log('Scores: unchanged city tradeoffs, repeatability and robot/city score limits passed');

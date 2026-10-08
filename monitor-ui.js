@@ -48,7 +48,9 @@
         const controls = document.createElement('aside'); controls.id = 'robotControls'; controls.className = 'card';
         const title = document.createElement('h2'); title.textContent = 'Испытание'; controls.append(title); layout.prepend(controls);
         move($('run').parentElement, controls); move(scene.querySelector('.stats'), controls);
+        move($('routeControls'), controls);
         move($('deliveryTries'), controls); move($('status'), controls); move($('robotEditor'), controls);
+        move($('nextMission'), controls);
         const editorGrid = document.createElement('div'); editorGrid.className = 'monitor-editor-grid';
         for (const node of [...$('robotEditor').children]) if (node.tagName !== 'SUMMARY') move(node, editorGrid);
         $('robotEditor').append(editorGrid);
