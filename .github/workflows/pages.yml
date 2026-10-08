@@ -25,7 +25,7 @@ jobs:
       - name: Prepare public files
         run: |
           mkdir _site
-          cp interactive-clarity.css index.html epidemic.html city-game.css city-campaign.css learning-redesign.css city-campaign.js robot-game.css robot-rescue.css robot-expeditions.css robot-engine.js robot-ui.js epidemic.js mayor.js mayor-ui.js contest.js contest-ui.js student-ui.css monitor-ui.css monitor-ui.js game-tour.js learning-ui.js city-mode.js game-score.js mission-ui.js _site/
+          cp session-store.js interactive-clarity.css index.html epidemic.html city-game.css city-campaign.css learning-redesign.css city-campaign.js robot-game.css robot-rescue.css robot-expeditions.css robot-engine.js robot-ui.js epidemic.js mayor.js mayor-ui.js contest.js contest-ui.js student-ui.css monitor-ui.css monitor-ui.js game-tour.js learning-ui.js city-mode.js game-score.js mission-ui.js _site/
           cp -R assets _site/
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3

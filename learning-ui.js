@@ -15,21 +15,21 @@
         result: { target: '#campStatus', text: 'Все три лагеря получили помощь! Первый рейс пройден. В лесу будут новые покрытия: твои эксперименты пригодятся снова.' } }
     ] });
     $('robotTutorial').onclick = () => GameTour.start('robot');
-    if (location.hash !== '#epidemic') GameTour.maybeStart('robot');
+    if (location.hash !== '#epidemic' && !window.robotExpedition.restored) GameTour.maybeStart('robot');
   }
   function cityStartLearning() {
     if (window.cityFreshLesson) { if (GameTour.start('city-mayor')) window.cityFreshLesson = false; }
-    else GameTour.maybeStart('city-' + window.cityMode);
+    else if (!window.cityRestored) GameTour.maybeStart('city-' + window.cityMode);
   }
   function registerCity() {
     if (window.cityLearningRegistered) return; window.cityLearningRegistered = true;
     const mode = window.cityMode;
     const config = mode === 'mayor' ? { name: 'Город', steps: [
       { target: '#observeCity', context: ['#mayorMapSlot .mapscroll'], title: 'Сначала наблюдай', text: 'Нажми «Учебный день». Он бесплатный.', event: 'city:observed', delay: 350,
-        watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', context: ['#mayorMapSlot .legend', '#citizenStory'], text: 'Смотри на жителей и эмоции. Цвет одежды отдельно показывает симптомы.' } },
+        watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', interactive: ['#map', '#tryCity', '#pauseCity', '#cityPeople', '.monitor-dialog'], context: ['#mayorMapSlot .legend', '#citizenStory', '.city-time-controls'], text: 'Смотри на поездки и эмоции. Нажатие на жителя остановит день и откроет карточку. Затем нажми «Продолжить день».' } },
       { target: '#pick-bus-frequent', context: ['#choices-bus'], title: 'Помоги добраться', text: 'Жители пропускают поездки. Нажми «Больше рейсов».', event: 'city:choice', accept: d => d.key === 'bus' && d.value === 'frequent' },
       { target: '#tryCity', context: ['#mayorMapSlot .mapscroll'], title: 'Проверь своё решение', text: 'Проверь рейсы. После дня город остановится.', event: 'city:tested', delay: 350,
-        watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', context: ['#mayorMapSlot .legend', '#citizenStory'], text: 'Заметь, кто добрался. Нажатие на жителя объяснит его эмоцию.' } },
+        watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', interactive: ['#map', '#tryCity', '#pauseCity', '#cityPeople', '.monitor-dialog'], context: ['#mayorMapSlot .legend', '#citizenStory', '.city-time-controls'], text: 'Заметь, кто добрался. Можно нажать на жителя и прочитать его историю. После осмотра закрой карточку и продолжи день.' } },
       { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'На карте показана главная задача раунда. В «Условиях успеха» — остальные требования. Галочка означает, что условие пока выполнено. Максимум дают за все условия после четырёх дней.' },
       { target: '#projectSummary', title: 'Планируй улучшения', text: 'Распредели 200 монет. Между днями можно вернуть улучшение и вложить монеты в другое. Прошедшие дни не изменятся.' }
     ] } : mode === 'contest' ? { name: 'Соревнование', steps: [
@@ -45,7 +45,7 @@
     ] };
     config.before = () => window.cityTourHooks?.before?.(); config.after = () => window.cityTourHooks?.after?.();
     GameTour.register('city-' + mode, config); $('cityTutorial').onclick = () => GameTour.start('city-' + mode);
-    window.cityFreshLesson = mode === 'mayor' && new URLSearchParams(location.search).has('session');
+    window.cityFreshLesson = mode === 'mayor' && new URLSearchParams(location.search).has('session') && !window.cityRestored;
     try { if (window === parent || window.frameElement?.getBoundingClientRect().width > 0) cityStartLearning(); } catch {}
   }
   if ($('robotView')) registerRobot();

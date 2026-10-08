@@ -48,7 +48,7 @@ const server = http.createServer((req, res) => {
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
-      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#model','.training > details','#status','#deliveryTries','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#terrainLegend','#cargoPanel','#campStatus','#routeLayer','.terrain-note','.selection-key','.wall-key']);
+      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#model','.training > details','#status','#deliveryTries','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#sessionPace','#terrainLegend','#cargoPanel','#campStatus','#routeLayer','.terrain-note','.selection-key','.wall-key']);
       await page.mouse.wheel(0,700); await fits(page,['#boardStage','#model']);
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-monitor-${width}x${height}.png`)});
       async function lit(scope, selectors) {
@@ -100,7 +100,7 @@ const server = http.createServer((req, res) => {
       await City.finishLesson(city,async()=>fits(frame,['.tour-card','#tourTitle','#tourText']));
       await City.maximum(city,async n=>{
         await readableCity(frame);
-        await fits(frame,['#map',...(n<12?['.city-choice']:[]),'#tryCity','#pauseCity','#cityGoalGrid','#cityNeeds','#mayorStatus','#roundOutcome']);
+        await fits(frame,['#map',...(n<12?['.city-choice']:[]),'#tryCity','#pauseCity','#cityGoalGrid','#cityNeeds','#mayorStatus','#roundOutcome',...(n>=4?['#roundLearning','#cityExperiment']:[])]);
         if(n%4===0)await page.screenshot({path:path.join(root,'test-artifacts',`city-round-${n/4}-${width}x${height}.png`)});
       });
       await fits(frame,['#map','#restartCity','#cityEffects','#cityNeeds','#mayorStatus']);

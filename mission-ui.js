@@ -3,8 +3,12 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const state = { robot: 0, city: 0, trainingDone: false, deliveryDone: false, cityDone: false };
-  let session = 'initial', nextSession = 0;
+  let session = window.FestivalSession?.id || 'initial';
+  const saved = window.FestivalSession?.read('score');
+  if (saved && ['robot','city'].every(key=>Number.isInteger(saved[key])&&saved[key]>=0&&saved[key]<=50) && ['trainingDone','deliveryDone','cityDone'].every(key=>typeof saved[key]==='boolean')) Object.assign(state,saved);
+  if (session !== 'initial') $('epiView').src = 'epidemic.html?session=' + encodeURIComponent(session);
   function draw() {
+    window.FestivalSession?.save('score',state,session);
     $('overallScore').textContent = GameScore.total(state);
     const done = [state.trainingDone, state.deliveryDone, state.cityDone].filter(Boolean).length;
     $('missionProgress').textContent = `Задания: ${done} / 3`;
@@ -22,9 +26,9 @@
     state.city = Math.max(state.city, e.data.score); state.cityDone ||= e.data.completed; draw();
   });
   $('newParticipant').onclick = () => {
-    GameTour.finish(false); window.resetRobotMission();
+    GameTour.finish(false); session = window.FestivalSession?.reset() || String(Date.now()); window.resetRobotMission();
     for (const key of Object.keys(state)) state[key] = typeof state[key] === 'boolean' ? false : 0;
-    session = String(++nextSession); $('epiView').src = 'epidemic.html?session=' + session;
+    $('epiView').src = 'epidemic.html?session=' + session;
     $('robotTab').click(); draw(); GameTour.start('robot');
   };
   draw();
