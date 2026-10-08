@@ -12,7 +12,7 @@ const server = http.createServer((req, res) => {
   if (!file.startsWith(base + path.sep)) { res.writeHead(403).end(); return; }
   fs.readFile(file, (error, data) => {
     if (error) { res.writeHead(404).end(); return; }
-    res.setHeader('Content-Type', ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.webp': 'image/webp' })[path.extname(file)] || 'application/octet-stream');
+    res.setHeader('Content-Type', ({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.svg': 'image/svg+xml', '.webp': 'image/webp' })[path.extname(file)] || 'application/octet-stream');
     res.end(data);
   });
 });
@@ -100,13 +100,31 @@ const server = http.createServer((req, res) => {
     await page.screenshot({path:path.join(shots,'robot-glow-tutorial.png')});
     await lesson(page,tourFits);
     assert.equal(await page.locator('#overallScore').innerText(),'0','Learning is free');
+    assert.equal(await page.locator('#suggestSample').count(),0,'The concept must not introduce next-cell guidance');
+    assert((await page.locator('#missionTask').innerText()).includes('Не нужно размечать каждую клетку'));
+    assert.equal(await page.locator('#terrainLegend .terrain-key').count(),9);
+    const materials=await page.evaluate(async()=>{
+      const result=[];
+      for(const swatch of document.querySelectorAll('.terrain-swatch')){
+        const type=swatch.classList[1],cell=document.querySelector('#board .cell.'+type);
+        const style=getComputedStyle(swatch),tile=getComputedStyle(cell);
+        const url=style.backgroundImage.match(/url\("?(.*?)"?\)/)[1];
+        const loaded=await new Promise(resolve=>{const img=new Image();img.onload=()=>resolve(img.naturalWidth>0);img.onerror=()=>resolve(false);img.src=url;});
+        result.push({type,loaded,signature:style.backgroundImage+'|'+style.backgroundPosition,matches:style.backgroundImage===tile.backgroundImage&&style.backgroundPosition===tile.backgroundPosition});
+      }
+      return result;
+    });
+    assert(materials.every(m=>m.loaded&&m.matches),'All legend textures must load and match the map: '+JSON.stringify(materials));
+    assert.equal(new Set(materials.map(m=>m.signature)).size,9,'Every surface needs a distinct texture');
     assert(await page.locator('#board .unknown').count()>0,'The model distinguishes unfamiliar surfaces');
     await page.locator('#nextMission').click();
     const sparse=await deliver(page);assert(sparse.includes('не нашёл путь'),sparse);
     assert.equal(await page.locator('#overallScore').innerText(),'0','A tiny dataset cannot solve the real mission');
     await page.locator('#expedition-training').click();await teachTraining(page);
     assert.equal(await page.evaluate(()=>samples.length),18,'Nine pairs suffice; no need to label every map cell');
+    assert(await page.locator('#board .planned').count()>0,'Learned delivery is visible before launch');
     await page.locator('#nextMission').click();
+    assert((await page.locator('#missionTask').innerText()).includes('без застревания'));
     await page.locator('[data-index="90"]').click();await page.locator('#unsafe').click();await page.locator('#train').click();
     assert((await deliver(page)).includes('лишний обход'),'A wrong prohibition still permits a longer automatic delivery');
     assert.equal(await page.locator('#overallScore').innerText(),'9','Only the optimized route receives ten points');

@@ -15,10 +15,6 @@
 #board .cell.unknown{border:2px dashed #edcc8b}
 #board .cell.unknown:not([data-visible-object=parcel])::after{content:'?';position:absolute;right:2px;top:0;font-size:clamp(11px,1vw,20px);color:#fff4c6;background:#132c35cc;border-radius:3px;z-index:4;padding:0 2px}
 #board .cell.launch-position{outline:2px solid #b2f4ff;outline-offset:-3px}
-#board .cell.gravel{background:repeating-conic-gradient(#75818a 0% 25%,#404e58 0% 50%) 0/12px 12px;color:#e2ebed}
-#board .cell.grass{background:repeating-linear-gradient(75deg,#426957 0 5px,#365344 5px 8px);color:#cce6a5}
-#board .cell.clay{background:repeating-linear-gradient(20deg,#a37555 0 9px,#8b604a 9px 11px);color:#f2ddbb}
-#board .cell.ice{background:linear-gradient(135deg,#97c5d5,#467d99);color:#eefcff}
 #sessionFooter{display:flex;align-items:center;justify-content:center;gap:12px;padding:5px 12px;flex:none}
 #sessionFooter button{min-height:44px;padding:5px 12px;font-size:13px;background:#1a303c}
 #sessionFooter span{font-size:12px}
@@ -74,5 +70,78 @@
  .monitor-layout.campaign-city .city-goal b{font-size:11px}.monitor-layout.campaign-city .city-goal small{font-size:10px}.monitor-layout.campaign-city .city-goal strong{font-size:12px}
  .monitor-layout.campaign-city .city-map-area>#cityGoalTitle{font-size:13px}.monitor-layout.campaign-city .city-map-area>#cityNeeds{font-size:10px}
 }
+@media(min-width:1000px) and (max-height:820px){
+ .monitor-layout:has(#robotView)>header{height:52px}
+ .monitor-layout:has(#robotView) .mission-bar{height:52px}
+ .monitor-layout:has(#robotView) .overall-result{line-height:1.2}
+ .monitor-layout:has(#robotView) .overall-result strong{display:flex;align-items:center;gap:4px;line-height:1.2}
+ .monitor-layout:has(#robotView) .overall-result b{display:block;font-size:26px;line-height:1.2}
+ .monitor-layout:has(#robotView) .overall-result small{font-size:12px}
+ .monitor-layout:has(#robotView)>nav button{min-height:36px;font-size:14px;padding:4px 10px}
+ .monitor-layout:has(#robotView) .expedition-nav button{min-height:30px;font-size:13px;padding:3px 8px}
+ .monitor-layout .training{padding:9px}
+ .monitor-layout .training>h2{font-size:19px;margin-bottom:5px}
+ .monitor-layout .training>p{font-size:12px;line-height:1.25;margin:4px 0}
+ .monitor-layout .training .learning-steps{font-size:11px;margin:0 0 4px}
+ .monitor-layout .training .features{font-size:12px;line-height:18px;gap:1px 8px;margin:4px 0;padding:3px 0}
+ .monitor-layout .training .features>span{line-height:18px}
+ .monitor-layout .training .features b{font-size:14px;padding:0;line-height:18px}
+ .monitor-layout #robotView .training #selectedName{font-size:12px;padding:3px 8px}
+ .monitor-layout .training #sensorHint{font-size:12px;min-height:0}
+ .monitor-layout #labelChoices button{min-height:34px;font-size:12px}
+ .monitor-layout .training #train{min-height:36px;font-size:13px;padding:5px 3px;margin-top:4px}
+ .monitor-layout .training #model{font-size:12px;line-height:1.2;padding:4px 6px}
+ .monitor-layout .training summary{min-height:24px;line-height:18px;padding:2px 0;font-size:12px}
+ .monitor-layout .training summary::before{font-size:16px;line-height:1}
+ .monitor-layout .training details{margin-top:2px}
+}
 @media(max-width:999px){.layout{display:flex;flex-direction:column}.training{width:100%}#sessionFooter{flex-wrap:wrap}}
 @media(max-width:600px){#coverage,#exampleJournal{grid-template-columns:1fr 1fr}}
+
+/* The goal and roles are visible independently of the learning journal. */
+#missionTask{display:grid;grid-template-columns:auto 1fr;gap:4px 20px;padding:10px 16px;border:1px solid #66877b;border-radius:10px;background:#193c40;margin:8px 12px}
+#missionTask h3{font-size:17px;color:#fff0c8;margin:0 0 8px;line-height:1.25}
+#taskSteps{display:flex;gap:5px;flex-wrap:wrap}
+#taskSteps span{font-size:12px;padding:3px 6px;background:#102d33;border-radius:4px;color:#bce9d8}
+#taskHint{grid-column:1/-1;font-size:14px;line-height:1.4;margin:0;color:#d4e4df}
+#terrainLegend{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px 8px}
+.terrain-key{display:flex;gap:6px;align-items:center;min-width:0;font-size:12px;color:#e2eae2;line-height:1.15}
+.terrain-key small{display:block;font-size:10px;color:#acbfba;margin-top:2px;white-space:nowrap}
+.terrain-swatch{display:block;flex:none;width:28px;height:28px;border:1px solid #abbeb599;border-radius:4px;box-shadow:inset 0 0 0 1px #10273233}
+.terrain-note{margin:4px 0;font-size:12px;line-height:1.3;color:#bccfc7}
+#board .cell.planned{outline:2px dashed #ffe396;outline-offset:-4px}
+#board .cell.selected{outline:3px solid white;outline-offset:-3px}
+.monitor-layout #missionTask{padding:6px 12px;margin:2px 12px;flex:none}
+.monitor-layout #missionTask h3{font-size:16px;margin:0}
+.monitor-layout #taskHint{font-size:13px;line-height:1.35;margin:0}
+.monitor-layout #taskSteps{gap:4px}
+.monitor-layout #taskSteps span{font-size:11px;padding:2px 4px}
+.monitor-layout #robotView #taskSteps #weather{font-size:11px;padding:1px 6px;line-height:16px}
+.monitor-layout #terrainLegend,.monitor-layout .terrain-note{flex:none}
+.monitor-layout #robotControls #terrainLegend{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:12px;gap:8px 4px}
+.monitor-layout #robotControls .terrain-key{font-size:10px;gap:4px}
+.monitor-layout #robotControls .terrain-key small{font-size:9px}
+.monitor-layout #robotControls .terrain-swatch{width:20px;height:26px}
+.monitor-layout #missionBrief{display:none}
+.monitor-layout .mission-heading{white-space:nowrap;font-size:11px}
+.monitor-layout #robotControls #run{grid-column:1/-1}
+.monitor-layout #robotControls #stop:disabled{display:none}
+.monitor-layout #robotScene>.row{display:none}
+.monitor-layout .terrain-note{display:none}
+@media(min-width:1000px) and (max-height:720px){
+ .monitor-layout #missionTask{padding:5px 10px}
+ .monitor-layout #missionTask h3{font-size:14px;margin:0}
+ .monitor-layout #taskHint{font-size:12px;line-height:1.3;margin:0}
+ .monitor-layout .terrain-swatch{width:24px;height:24px}
+ .monitor-layout .terrain-key{font-size:11px;gap:4px}
+ .monitor-layout .terrain-note{font-size:11px;margin:2px 0}
+ .monitor-layout #robotControls #terrainLegend{margin-top:0;gap:3px 4px}
+ .monitor-layout #robotControls .terrain-swatch{height:24px}
+ .monitor-layout .training .features{margin:3px 0}
+ .monitor-layout .training #model,.monitor-layout .training #samples{margin:2px 0}
+}
+@media(max-width:600px){
+ #missionTask{grid-template-columns:1fr;gap:6px}
+ #terrainLegend{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+ #taskSteps span{font-size:11px}
+}

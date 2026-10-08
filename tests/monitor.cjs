@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, '..');
 const server = http.createServer((req, res) => {
   const file = path.resolve(root, '.' + (req.url.split('?')[0] === '/' ? '/index.html' : req.url.split('?')[0]));
   if (!file.startsWith(root + path.sep)) return res.writeHead(403).end();
-  fs.readFile(file, (e, data) => { if(e) return res.writeHead(404).end(); res.setHeader('Content-Type', ({'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css'})[path.extname(file)] || 'application/octet-stream'); res.end(data); });
+  fs.readFile(file, (e, data) => { if(e) return res.writeHead(404).end(); res.setHeader('Content-Type', ({'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css','.svg':'image/svg+xml'})[path.extname(file)] || 'application/octet-stream'); res.end(data); });
 });
 (async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -28,7 +28,7 @@ const server = http.createServer((req, res) => {
             if(!r.width || !r.height || r.left<0 || r.top<0 || r.right>innerWidth+1 || r.bottom>innerHeight+1) issues.push(selector+': '+JSON.stringify({x:r.x,y:r.y,w:r.width,h:r.height}));
             for(let p=el.parentElement;p&&p!==document.body;p=p.parentElement) {
               const b=p.getBoundingClientRect(), css=getComputedStyle(p);
-              if(['hidden','auto','scroll'].includes(css.overflowY) && (r.top<b.top-1 || r.bottom>b.bottom+1)) issues.push(selector+' clipped by '+p.className);
+              if(['hidden','auto','scroll','clip'].includes(css.overflowY) && (r.top<b.top-1 || r.bottom>b.bottom+1)) issues.push(selector+' clipped by '+p.className);
               if(p.scrollTop || p.scrollLeft) issues.push(selector+' panel scroll');
             }
           }
@@ -38,7 +38,7 @@ const server = http.createServer((req, res) => {
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
-      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#model','.training > details','#status','#deliveryTries','#moveStart','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress']);
+      await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#model','.training > details','#status','#deliveryTries','#moveStart','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#terrainLegend']);
       await page.mouse.wheel(0,700); await fits(page,['#boardStage','#model']);
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-monitor-${width}x${height}.png`)});
       async function lit(scope, selectors) {

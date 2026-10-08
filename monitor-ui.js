@@ -22,7 +22,10 @@
   function sizeBoard() {
     if (!active || !$('boardStage')) return;
     const frame = document.querySelector('.mission-frame');
-    const size = Math.floor(Math.min(frame.clientWidth - 36, frame.clientHeight - 52, 860));
+    const heading = frame.querySelector('.mission-heading'), css = getComputedStyle(frame), label = getComputedStyle(heading);
+    const number = value => parseFloat(value) || 0;
+    const inset = number(css.paddingTop) + number(css.paddingBottom) + heading.offsetHeight + number(label.marginTop) + number(label.marginBottom) + 4;
+    const size = Math.floor(Math.min(frame.clientWidth - number(css.paddingLeft) - number(css.paddingRight) - 4, frame.clientHeight - inset, 860));
     if (size > 0) $('boardStage').style.width = size + 'px';
   }
   function setup() {
@@ -44,11 +47,11 @@
         $('boardStage').classList.remove('enlarged');
         $('robotZoom').setAttribute('aria-pressed', 'false'); $('robotZoom').textContent = '＋ Крупнее клетки';
         const layout = robot.querySelector('.layout'), scene = layout.querySelector('section.card');
-        scene.id = 'robotScene'; move($('robotTutorial'), document.querySelector('body > nav'));
+        scene.id = 'robotScene'; move($('weather'), $('taskSteps')); move($('robotTutorial'), document.querySelector('body > nav'));
         const controls = document.createElement('aside'); controls.id = 'robotControls'; controls.className = 'card';
-        const title = document.createElement('h2'); title.textContent = 'Испытание'; controls.append(title); layout.prepend(controls);
+        const title = document.createElement('h2'); title.textContent = 'Доставка аптечек'; controls.append(title); layout.prepend(controls);
         move($('run').parentElement, controls); move(scene.querySelector('.stats'), controls);
-        move($('deliveryTries'), controls); move($('nextMission'), controls);
+        move($('deliveryTries'), controls); move($('nextMission'), controls); move($('terrainLegend'), controls);
         for (const detail of document.querySelectorAll('.training > details')) tools(detail);
         observer = new ResizeObserver(sizeBoard); observer.observe(scene.querySelector('.mission-frame')); sizeBoard();
       } else {

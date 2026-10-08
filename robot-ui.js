@@ -14,25 +14,40 @@ function currentMission(){return {...mission,grid,start,rain:raining};}
 function recalculate(){
  benchmark=R.optimum(currentMission());preview=model.length?R.plan(currentMission(),model):null;
  const order=preview?[...new Set(preview.path.filter(i=>grid[i].object==='parcel'))].map(letter).join(' → '):'';
- $('autoRoute').textContent=preview?`Решение ИИ: ${order} · ${preview.energy} энергии.`:model.length?'ИИ пока не может связать все грузы. Добавь примеры незнакомого грунта.':'ИИ сам выберет порядок грузов и путь после обучения.';
+ $('autoRoute').textContent=preview?`План доставки: ${order} · ${preview.energy} энергии.`:model.length?'Маршрута пока нет: ИИ не узнаёт часть грунта. Разные примеры помогают открыть проезд.':'ИИ построит маршрут по твоим примерам.';
+}
+function updateTask(){
+ $('taskTitle').textContent=stage===0?'Полигон: подготовь робота к доставке':'Цель — доставить 3 аптечки спасателям';
+ $('taskHint').textContent=stage===0?'Примеры проезда и опасности учат робота узнавать новый грунт. В экспедициях он сам доставит аптечки. Не нужно размечать каждую клетку.':'Успех — аптечки A, B и C доставлены без застревания. Меньше энергии — больше баллов. Робот использует твои примеры с полигона.';
+ $('run').textContent=stage===0?'▶ Проверить доставку':'▶ Доставить аптечки';
+ $('run').title=!learned()?'Для тестовой доставки модели нужны примеры «Можно» и «Нельзя».':'Робот сам выбирает маршрут по обученной модели.';
+}
+function terrainLegend(){
+ const legend=$('terrainLegend');legend.replaceChildren();
+ Object.entries(R.names).forEach(([type,name])=>{
+  const b=document.createElement('div');b.className='terrain-key';b.dataset.terrain=type;
+  b.innerHTML=`<span class="terrain-swatch ${type}" aria-hidden="true"></span><span>${name}<small>${R.costs[type]} эн. / шаг</small></span>`;
+  legend.appendChild(b);
+ });
 }
 function controls(){
  const nav=$('expeditionNav');nav.replaceChildren();
  R.ids.forEach((id,i)=>{const b=document.createElement('button');b.id='expedition-'+id;b.textContent=(i?i+'. ':'')+R.create(id).title+(best[i]?.complete?' ✓':'');b.setAttribute('aria-current',stage===i?'step':'false');b.disabled=running||(i===1?!learned():i>1&&!best[i-1]?.complete);b.onclick=()=>loadStage(i);nav.appendChild(b);});
  $('missionName').textContent=mission.title.toUpperCase();$('missionBrief').textContent=mission.brief;
  $('nextMission').hidden=stage===3;$('nextMission').disabled=running||(stage===0?!learned():!best[stage]?.complete);
- $('nextMission').textContent=stage===0?'Начать экспедиции →':'Следующая миссия →';
- $('deliveryTries').textContent=stage===0?'Учебная карта · ошибки бесплатны':`Цель: все грузы за ${benchmark.energy} энергии. Лучший: ${best[stage]?.score||0}/${mission.max}`;
+ $('nextMission').textContent=stage===0?'К спасательной миссии →':'Следующая миссия →';
+ $('deliveryTries').textContent=stage===0?'Полигон без баллов · пробная доставка · ошибки бесплатны':`3 аптечки · минимум ${benchmark.energy} энергии. Лучший: ${best[stage]?.score||0}/${mission.max}`;
  $('run').disabled=running||!learned();$('stop').disabled=!running;
  for(const id of ['moveStart','predict','clear','robotTutorial','newParticipant'])$(id).disabled=running;
  $('boardStage').classList.toggle('rolling',running);$('moveStart').setAttribute('aria-pressed',placingStart);
+ updateTask();
  publish();
 }
 function initial(){
  clearTimeout(timer);running=false;mission=R.create(R.ids[stage]);grid=mission.grid;start=robot=mission.start;raining=mission.rain;
  selected=stuckCell=-1;placingStart=false;path=[];trail=[];spent=delivered=steps=0;remaining=mission.budget;targets=new Set(parcelIndices());checks=new Map();
  $('weather').textContent=raining?'После дождя · влажность +25':'Без осадков';$('boardStage').classList.toggle('rainy',raining);
- recalculate();draw();inspect();updateLearning();controls();say(mission.brief);
+ recalculate();terrainLegend();draw();inspect();updateLearning();controls();say(mission.brief);
 }
 function loadStage(index){if(running||index<0||index>3||index===1&&!learned()||index>1&&!best[index-1]?.complete)return;stage=index;initial();}
 function moveSprite(){const w=$('board').getBoundingClientRect().width,cell=(w-33)/12,sp=$('robotSprite');sp.style.width=sp.style.height=cell+'px';sp.style.transform=`translate(${robot%N*(cell+3)}px,${(robot/N|0)*(cell+3)}px)`;}
@@ -40,12 +55,13 @@ function draw(){
  const frag=document.createDocumentFragment();
  grid.forEach((c,i)=>{
   const b=document.createElement('button');b.className='cell '+c.type+(selected===i?' selected':'')+(i===stuckCell?' stuck':'')+(path.includes(i)||trail.includes(i)?' path':'');
-  b.dataset.index=i;let text=c.object==='parcel'&&targets.has(i)?'📦':R.icons[c.type];
+  b.dataset.index=i;let text=c.object==='parcel'&&targets.has(i)?'📦':'';
+  if(!running&&!trail.length&&preview?.path.includes(i))b.classList.add('planned');
   if(c.object==='parcel'){b.dataset.parcel=letter(i);b.dataset.visibleObject=targets.has(i)?'parcel':'';}
   if(i===start)b.classList.add('launch-position');
   const sample=samples.find(s=>key(s.f)===key(features(i)));if(sample)b.dataset.label=sample.y?'unsafe':'safe';
   let title=`${(i/N|0)+1}:${i%N+1} · ${R.names[c.type]||'Стена'}`;
-  if(c.object==='parcel')title+=' · груз '+letter(i);
+  if(c.object==='parcel')title+=' · аптечка '+letter(i);
   if(overlay&&c.type!=='wall'){
    const answer=R.predict(model,features(i));b.classList.add(answer===null?'unknown':answer?'bad':'good');
    b.dataset.prediction=answer===null?'unknown':answer?'unsafe':'safe';title+=' · ИИ: '+(answer===null?'не знает':answer?'нельзя':'можно');
@@ -79,6 +95,7 @@ function inspect(){
  }
  for(const [j,id]of ['wet','slope','rough','bearing'].entries()){$(id).textContent=valid?features(selected)[j]+'%':'—';$(id+'Meter').value=valid?features(selected)[j]:0;}
  explainSelected();
+ updateTask();
 }
 function probe(){if(selected<0||grid[selected].type==='wall'||running)return;checks.set(key(features(selected)),danger(features(selected)));inspect();window.GameTour?.signal('robot:probed',{index:selected});}
 function explainSelected(){
@@ -90,10 +107,9 @@ function explainSelected(){
 function updateLearning(){
  const trained=new Set(model.map(s=>key(s.f)+':'+s.y)), pending=samples.filter(s=>!trained.has(key(s.f)+':'+s.y)).length;
  const wrong=samples.filter(s=>checks.has(key(s.f))&&+checks.get(key(s.f))!==s.y).length;
- $('samples').textContent=`Твоих примеров: ${samples.length}`+(pending?` · новых: ${pending}`:'')+(wrong?` · меток не совпало с проверкой: ${wrong}`:'');
+ $('samples').textContent=`Примеры: ${samples.length}`+(pending?` · новых: ${pending}`:'')+(wrong?` · расхождений с проверкой: ${wrong}`:'');
  $('train').disabled=running||!samples.some(s=>s.y===0)||!samples.some(s=>s.y===1);
- const count=grid.filter(c=>c.type!=='wall'&&R.predict(model,R.features(c,raining))!==null).length,total=grid.filter(c=>c.type!=='wall').length;
- $('model').textContent=!model.length?'Добавь примеры «можно» и «нельзя», затем обучи ИИ.':pending?'Новые метки ещё не в модели. Нажми «Обучить».':`ИИ узнаёт ${count} из ${total} участков. Остальные отмечены знаком ?.`;
+ $('model').textContent=!model.length?'Дай роботу пример проезда и пример опасности, затем обучи.':pending?'Новые метки ещё не в модели. Нажми «Обучить».':preview?'ИИ построил доставку. Испытай её: его решения могут быть ошибочными.':'ИИ не узнаёт часть грунта. Доставка пока недоступна.';
  const types=Object.keys(R.names),coverage=$('coverage');coverage.replaceChildren();
  types.forEach(type=>{
   const seen=new Set(samples.filter(s=>s.type===type).map(s=>s.y)),b=document.createElement('button');
@@ -101,7 +117,7 @@ function updateLearning(){
   b.title='Найти пример: '+R.names[type];b.onclick=()=>{const cells=grid.flatMap((c,i)=>c.type===type?[i]:[]);const i=cells.find(i=>!samples.some(s=>key(s.f)===key(features(i))));if(i!==undefined){$('learningNotebook').open=false;document.querySelector('.monitor-dialog[open]')?.close();select(i);}else say('Все варианты этого покрытия на карте уже размечены. Можно изменить любую метку.');};coverage.appendChild(b);
  });
  const journal=$('exampleJournal');journal.replaceChildren();samples.forEach((s,i)=>{const p=document.createElement('p');p.textContent=`${i+1}. ${R.names[s.type]}: ${s.y?'нельзя':'можно'} · ${s.f.join(' / ')} · ${trained.has(key(s.f)+':'+s.y)?'в модели':'ждёт обучения'}`;journal.appendChild(p);});
- $('notebookSummary').textContent='Примеры и решения ИИ · '+samples.length;explainSelected();
+ $('notebookSummary').textContent='Примеры и решения ИИ · '+samples.length;explainSelected();updateTask();
 }
 function label(y){
  if(running||selected<0||grid[selected].type==='wall')return;

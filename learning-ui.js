@@ -2,8 +2,8 @@
   'use strict';
   const $ = id => document.getElementById(id);
   function registerRobot() {
-    GameTour.register('robot', { name: 'Школа робота', before: () => window.robotLesson.begin(), steps: [
-      { target: '#board [data-index="0"]', context: ['#sensors'], title: '1. Выбери участок', text: 'Нажми на светящуюся клетку. Одинаковые покрытия могут иметь разные свойства.', event: 'robot:inspected', accept: d => d.index === 0 },
+    GameTour.register('robot', { name: 'Как работает робот', before: () => window.robotLesson.begin(), steps: [
+      { target: '#board [data-index="0"]', context: ['#sensors'], title: '1. Выбери участок', text: 'Цель — доставить три аптечки. Для этого научим робота выбирать проезд. Нажми на светящуюся дорогу.', event: 'robot:inspected', accept: d => d.index === 0 },
       { target: '#probe', context: ['#sensors', '#sensorHint'], title: '2. Проверь грунт', text: 'Нажми «Проверить»: датчики покажут, выдержит ли грунт робота. ИИ этот ответ ещё не получил.', event: 'robot:probed' },
       { target: '#safe', context: ['#sensorHint'], title: '3. Дай пример роботу', text: 'Проверка разрешила проезд. Нажми «Можно», чтобы добавить учебный пример.', event: 'robot:labeled', accept: d => d.label === 0 },
       { target: '#board [data-index="10"]', context: ['#sensors'], title: '4. Найди опасный пример', text: 'Изучи светящуюся грязь. Один безопасный пример не научит отличать опасность.', event: 'robot:inspected', accept: d => d.index === 10 },
@@ -11,7 +11,7 @@
       { target: '#unsafe', context: ['#sensorHint'], title: '6. Добавь запрет', text: 'Нажми «Нельзя». ИИ будет сравнивать новые участки с твоими примерами.', event: 'robot:labeled', accept: d => d.label === 1 },
       { target: '#train', context: ['#samples', '#model'], title: '7. Обучи модель', text: 'Два примера появятся в модели. Посмотри, какие участки она уже узнаёт.', event: 'robot:trained', delay: 1200,
         result: { target: '#boardStage', fit: '#boardStage', context: ['#predictionLegend'], text: 'Зелёный — ИИ разрешает проезд, красный — запрещает. Знак ? означает, что похожих примеров ещё нет.' } },
-      { target: '#notebookSummary', title: '8. Расширяй опыт робота', text: 'В «Примерах» — девять покрытий. Добавляй разные безопасные и опасные примеры. Затем ИИ сам выберет всю доставку.' }
+      { target: '#missionTask', title: '8. Расширяй опыт робота', text: 'Ты учишь проезду, ИИ выбирает путь, робот везёт аптечки. Цель — доставить A, B и C без застревания. Всю карту размечать не нужно.' }
     ] });
     $('robotTutorial').onclick = () => GameTour.start('robot');
     if (location.hash !== '#epidemic') GameTour.maybeStart('robot');
