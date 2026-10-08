@@ -53,6 +53,12 @@ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+(req
   for(let day=6;day<=9;day++)await City.day(city);assert((await city.locator('#cityGoalGrid').innerText()).includes('Пока нет обращений'));assert(!(await city.locator('#cityGoalGrid').innerText()).includes('100.0%'));
   for(let day=10;day<=12;day++)await City.day(city);
   await city.locator('#cityExperiment>summary').click();await city.locator('.monitor-dialog[open]').waitFor();await city.locator('#experimentRound').selectOption('2');await city.locator('#testAlternative').click();await comparisonFits();await city.locator('.monitor-dialog>button').click();
+  // Upgrade only the robot: a completed city and its research points remain valid.
+  const oldCityScore=await page.evaluate(()=>FestivalSession.read('score').city);
+  const oldCityCheckpoint=await city.locator('body').evaluate(()=>JSON.stringify(FestivalSession.read('city')));
+  await page.evaluate(()=>{const saved=JSON.parse(sessionStorage.getItem('festival-session-v1'));saved.data.robot={samples:[],model:[]};delete saved.data.score.robotRules;sessionStorage.setItem('festival-session-v1',JSON.stringify(saved));});
+  await page.reload();await city.locator('#mayor').waitFor();assert.equal(await page.locator('#overallScore').innerText(),String(oldCityScore),'An old robot score cannot survive the new mechanics');
+  assert.equal(await city.locator('body').evaluate(()=>JSON.stringify(FestivalSession.read('city'))),oldCityCheckpoint,'Robot migration preserves city research and progress');
   const cityActions=await city.locator('body').evaluate(()=>FestivalSession.read('city').actions);
   await page.evaluate(()=>{const saved=JSON.parse(sessionStorage.getItem('festival-session-v1'));saved.data.robot.rules='old';saved.data.city.rules='old';saved.data.score.rules='old';saved.data.score.robot=50;saved.data.score.city=50;saved.data.score.deliveryDone=saved.data.score.cityDone=true;sessionStorage.setItem('festival-session-v1',JSON.stringify(saved));});
   await page.reload();await city.locator('#mayor').waitFor();assert.equal(await page.evaluate(()=>robotExpedition.current().stage),0,'Incompatible old robot experiments restart');assert.equal(await page.evaluate(()=>robotExpedition.current().model.length),0);
