@@ -91,6 +91,7 @@ const server = http.createServer((req, res) => {
       await City.finishLesson(city,async()=>fits(frame,['.tour-card','#tourTitle','#tourText']));
       await City.maximum(city,async n=>{
         await fits(frame,['#map',...(n<12?['.city-choice']:[]),'#tryCity','#pauseCity','#cityGoalGrid','#cityNeeds','#mayorStatus','#roundOutcome']);
+        if(width===1280&&height===640&&n===2)await page.screenshot({path:path.join(root,'test-artifacts','city-day-2-compact.png')});
         if(n%4===0)await page.screenshot({path:path.join(root,'test-artifacts',`city-round-${n/4}-${width}x${height}.png`)});
       });
       await fits(frame,['#map','#restartCity','#cityEffects','#cityNeeds','#mayorStatus']);

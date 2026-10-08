@@ -90,7 +90,7 @@
       element('strong', stats ? (key === 'food' || key === 'activity' || key === 'comfort' || key === 'care' ? stats[key].toFixed(1) : stats[key]) + unit : '—', item);
       if (stats && target !== null) item.setAttribute('data-met', sign === '≤' ? stats[key] <= target : stats[key] >= target);
     });
-    $('cityNeeds').textContent = 'Проценты — средние; заражения и расходы — сумма за раунд.';
+    $('cityNeeds').textContent = 'За раунд: % — среднее; заражения и расходы — сумма.';
   }
   function projects() {
     $('projectSummary').textContent = 'Улучшения · ' + campaign.funds;
