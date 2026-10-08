@@ -93,3 +93,14 @@
  .monitor-layout #robotScene #status,.monitor-layout #robotScene .auto-route,.monitor-layout #robotScene .legend,.monitor-layout #predictionLegend{font-size:19px}
  .camp-letter{font-size:19px}.ai-mark{font-size:16px;min-width:20px;height:20px}
 }
+
+/* Explain the scene and reflect the actual trip result. */
+#missionTask[data-state=complete]{border-color:#91efd0;background:#184338}
+.selection-key::before,.wall-key::before{content:'';display:inline-block;box-sizing:border-box;width:17px;height:17px;vertical-align:middle;margin-right:5px;border:2px solid #fff;border-radius:3px}
+.wall-key::before{border-color:#71808a;background:url('assets/terrain/wall.svg') center/cover}
+.monitor-layout #robotScene .terrain-note{display:block;font-size:15px;line-height:1.3;margin:4px 0;color:#d2dfdd}
+@media(min-width:2300px) and (min-height:1200px){.monitor-layout #robotScene .terrain-note{font-size:19px;margin:6px 0}}
+
+#board .cell.selected:not(.stuck){outline:3px solid #fff;outline-offset:-3px}
+.base-label{position:absolute;bottom:1px;left:50%;transform:translateX(-50%);z-index:4;padding:0 3px;border-radius:3px;background:#174961;color:#d4f2ff;font-size:10px;font-weight:800;line-height:1.15;text-shadow:none;pointer-events:none}
+@media(min-width:2300px) and (min-height:1200px){.base-label{font-size:14px}}

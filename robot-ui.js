@@ -14,14 +14,22 @@ function publish(){window.SessionScore?.robot(best.reduce((sum,r)=>sum+(r?.score
 function currentMission(){return {...mission,grid,start,rain:raining};}
 function recalculate(){
  benchmark=R.optimum(currentMission());preview=model.length?R.plan(currentMission(),model):null;
+ updateRouteInfo();
+}
+function updateRouteInfo(){
+ if(running){$('autoRoute').textContent=`Рейс идёт: помощь получили ${delivered} из ${mission.cargo} лагерей. Жёлтый след — уже пройденный путь.`;return;}
+ if(trail.length){$('autoRoute').textContent=`Пройденный путь — жёлтый. Потрачено ${spent} энергии. Повторный рейс начнётся с базы с тремя аптечками.`;return;}
  const order=preview?[...new Set(preview.path.filter(i=>grid[i].object==='camp'))].map(letter).join(' → '):'';
  $('autoRoute').textContent=preview?`Робот выбрал путь: база → ${order}. Расход: ${preview.energy} энергии.`:model.length?'Пути ко всем лагерям пока нет: робот не узнаёт часть грунта. Разные проверенные примеры расширяют его опыт.':'Робот выберет путь после обучения на примерах проезда и опасности.';
 }
 function updateTask(){
- $('taskTitle').textContent=stage===0?'Первый рейс: помоги трём учебным лагерям':'Довези аптечки в три лагеря спасателей';
+ const complete=delivered===mission.cargo&&!running;
+ $('missionTask').dataset.state=complete?'complete':running?'running':'preparing';
+ $('taskTitle').textContent=complete?'Победа! Все три лагеря получили помощь':stage===0?'Первый рейс: помоги трём учебным лагерям':'Довези аптечки в три лагеря спасателей';
  $('taskHint').textContent=stage===0?'У робота три аптечки. Научи его отличать проезд от опасности и выполни пробный рейс. Обучение завершено, когда все лагеря получили помощь.':'Робот выезжает с тремя аптечками: по одной для A, B и C. Победа — помощь всем лагерям без застревания. Экономия батареи даёт дополнительные баллы.';
- $('run').textContent=stage===0?'▶ Пробный рейс':'▶ Отвезти аптечки';
- $('run').title=pendingExamples()?'Сначала передай новые примеры роботу кнопкой «Обучить робота».':!preview?'Для пути к лагерям нужны проверенные примеры разных покрытий.':'Робот сам поедет по синей линии.';
+ if(complete)$('taskHint').textContent=stage===0?'Твой робот сам доставил все аптечки. Учебный рейс пройден — он без баллов. Впереди три спасательные экспедиции.':`Твой робот сам доставил все аптечки. За этот рейс: ${R.score({max:mission.max,delivered,camps:mission.cargo,energy:spent,optimal:benchmark.energy,complete:true})} / ${mission.max} баллов. Лучший результат сохраняется.`;
+ $('run').textContent=trail.length?'↻ Повторить рейс':stage===0?'▶ Пробный рейс':'▶ Отвезти аптечки';
+ $('run').title=pendingExamples()?'Сначала передай новые примеры роботу кнопкой «Обучить робота».':!preview?'Для пути к лагерям нужны проверенные примеры разных покрытий.':trail.length?'Робот начнёт новый рейс с базы с тремя аптечками.':'Робот сам поедет по синей линии.';
 }
 function terrainLegend(){
  const legend=$('terrainLegend');legend.replaceChildren();
@@ -67,7 +75,7 @@ function draw(){
    title+=` · Лагерь ${letter(i)}: `+(targets.has(i)?'ждёт аптечку':'получил аптечку');
    if(!targets.has(i)){const mark=document.createElement('span');mark.className='camp-served';mark.textContent='✓';b.appendChild(mark);}
   }
-  if(i===start){b.classList.add('launch-position');title+=' · База: старт робота с аптечками';}
+  if(i===start){b.classList.add('launch-position');title+=' · База: старт робота с аптечками';const base=document.createElement('span');base.className='base-label';base.textContent='База';b.appendChild(base);}
   if(overlay&&c.type!=='wall'){
    const answer=R.predict(model,features(i));b.dataset.prediction=answer===null?'unknown':answer?'unsafe':'safe';
    const mark=document.createElement('span');mark.className='ai-mark '+b.dataset.prediction;mark.textContent=answer===null?'?':answer?'×':'✓';b.appendChild(mark);
@@ -78,7 +86,7 @@ function draw(){
  $('board').replaceChildren(frag);$('delivered').textContent=delivered+' / '+campIndices().length;$('remaining').textContent=Math.round(remaining/mission.budget*100)+'%';$('remaining').title=remaining+' из '+mission.budget+' энергии';$('steps').textContent=steps;$('cargo').textContent=mission.cargo-delivered;
  $('cargoHold').replaceChildren(...Array.from({length:mission.cargo},(_,i)=>{const img=document.createElement('img');img.src='assets/medkit.svg';img.alt=i<delivered?'Аптечка передана лагерю':'Аптечка на борту';img.classList.toggle('unloaded',i<delivered);return img;}));
  $('campStatus').replaceChildren(...campIndices().map(i=>{const item=document.createElement('li');item.dataset.served=String(!targets.has(i));item.innerHTML=`<b>Лагерь ${letter(i)}</b><span>${targets.has(i)?'Ждёт аптечку':'✓ Помощь доставлена'}</span>`;return item;}));
- $('predict').textContent=overlay?'Скрыть мнение робота':'Что робот думает о грунте?';$('predict').setAttribute('aria-pressed',overlay);$('predictionLegend').hidden=!overlay;moveSprite();
+ $('predict').textContent=overlay?'Скрыть мнение робота':'Что робот думает о грунте?';$('predict').setAttribute('aria-pressed',overlay);$('predictionLegend').hidden=!overlay;moveSprite();updateRouteInfo();
 }
 function select(i){if(running)return;selected=i;inspect();draw();window.GameTour?.signal('robot:inspected',{index:i});}
 function sensorWords(f){return [f[0]>=70?'Мокро':f[0]>=40?'Влажно':'Сухо',f[1]>=70?'Круто':f[1]>=35?'Наклон':'Ровно',f[2]>=50?'Много ям':f[2]>=25?'Неровно':'Гладко',f[3]<=30?'Проваливается':f[3]<=65?'Мягко':'Твёрдо'];}
@@ -114,7 +122,10 @@ function explainSelected(){
 function updateLearning(){
  const pending=pendingExamples();$('samples').textContent=`Проверенные примеры: ${samples.length}`+(pending?` · новых: ${pending}`:'');
  $('train').disabled=running||!samples.some(s=>s.y===0)||!samples.some(s=>s.y===1);
- $('model').textContent=!model.length?'Для обучения нужны примеры проезда и опасности.':pending?'Новые примеры ещё не у робота. «Обучить робота» передаст их в его память.':preview?'Робот выбрал путь. Синяя линия показывает, куда он поедет.':'Робот не знает, как добраться до всех лагерей. Его памяти не хватает разных примеров.';
+ const missing=!samples.some(s=>s.y===0)?'проезда':!samples.some(s=>s.y===1)?'опасности':null;
+ $('model').textContent=running?'Робот применяет твои примеры и едет сам.':pending?(missing?`Проверенных примеров: ${samples.length}. Для обучения ещё нужен пример ${missing}.`:'Проверенные примеры готовы. «Обучить робота» передаст их в его память.'):
+  !model.length?'Для обучения нужны проверенные примеры проезда и опасности.':trail.length?(delivered===mission.cargo?'Опыт сработал: робот добрался до всех лагерей.':'Рейс остановлен. Память робота сохранена.'):
+  preview?'Робот выбрал путь. Синяя линия показывает, куда он поедет.':'Пути пока нет: часть грунта незнакома роботу. Каждый новый пример помогает узнавать похожие участки.';
  const coverage=$('coverage');coverage.replaceChildren();
  Object.keys(R.names).forEach(type=>{
   const seen=new Set(samples.filter(s=>s.type===type).map(s=>s.y)),b=document.createElement('button');b.dataset.coverage=type;
@@ -129,7 +140,7 @@ function train(){
  if(running||$('train').disabled)return;
  model=samples.map(s=>({...s,f:[...s.f]}));resetTrip();recalculate();draw();updateLearning();controls();say(preview?'Робот запомнил твои проверенные примеры и построил синий путь к лагерям.':'Робот запомнил примеры. На этой карте ещё есть незнакомый для него грунт.');window.GameTour?.signal('robot:trained');
 }
-function stop(message=true){clearTimeout(timer);running=false;controls();inspect();updateLearning();if(message)say('Рейс остановлен. Уже переданные аптечки остались в лагерях. Повторный рейс начнётся с базы с новым комплектом.');}
+function stop(message=true){clearTimeout(timer);running=false;path=[];draw();controls();inspect();updateLearning();if(message)say('Рейс остановлен. Уже переданные аптечки остались в лагерях. Повторный рейс начнётся с базы с новым комплектом.');}
 function run(){
  if(running||$('run').disabled)return;resetTrip();recalculate();running=true;path=[...preview.path];controls();inspect();updateLearning();
  function finish(message){

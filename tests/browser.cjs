@@ -101,7 +101,18 @@ const server = http.createServer((req, res) => {
     await lesson(page,tourFits);
     assert.equal(await page.locator('#overallScore').innerText(),'0','Learning is free');
     assert.equal(await page.locator('#suggestSample').count(),0,'The concept must not introduce next-cell guidance');
-    assert((await page.locator('#missionTask').innerText()).includes('все лагеря получили помощь'));
+    assert.equal(await page.locator('#missionTask').getAttribute('data-state'),'complete');
+    assert((await page.locator('#taskTitle').innerText()).startsWith('Победа!'));
+    assert((await page.locator('#taskHint').innerText()).includes('без баллов'));
+    assert.equal(await page.locator('#run').innerText(),'↻ Повторить рейс');
+    assert.equal(await page.locator('#routePlan').getAttribute('points'),'');
+    assert((await page.locator('#autoRoute').innerText()).includes('Пройденный путь — жёлтый'));
+    assert(!(await page.locator('#model').innerText()).includes('куда он поедет'));
+    assert(await page.locator('.terrain-note').isVisible());
+    assert((await page.locator('.terrain-note').innerText()).includes('один пример работает для похожих показаний'));
+    assert(await page.locator('.selection-key').isVisible());
+    assert(await page.locator('.wall-key').isVisible());
+    assert.equal(await page.locator('#board .base-label').innerText(),'База');
     assert.equal(await page.locator('#campStatus [data-served=true]').count(),3);
     assert.equal(await page.locator('#cargo').innerText(),'0');
     assert((await page.locator('#trainingMission').innerText()).startsWith('✓'));
@@ -124,6 +135,8 @@ const server = http.createServer((req, res) => {
     assert(await page.locator('#board [data-prediction=unknown]').count()>0,'Unknown terrain is explicit when displaying the robot opinion');
     await page.locator('#nextMission').click();
     assert(await page.locator('#run').isDisabled(),'Unknown terrain blocks a route rather than announcing readiness');
+    assert.equal(await page.locator('#missionTask').getAttribute('data-state'),'preparing');
+    assert.equal(await page.locator('#run').innerText(),'▶ Отвезти аптечки');
     assert.equal(await page.locator('#overallScore').innerText(),'0');
     await page.locator('#expedition-training').click();
     await page.locator('[data-index="8"]').click();
