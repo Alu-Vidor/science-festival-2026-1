@@ -30,7 +30,7 @@
       { target: '#pick-bus-frequent', context: ['#choices-bus'], title: 'Помоги добраться', text: 'Жители пропускают поездки. Нажми «Больше рейсов».', event: 'city:choice', accept: d => d.key === 'bus' && d.value === 'frequent' },
       { target: '#tryCity', context: ['#mayorMapSlot .mapscroll'], title: 'Проверь своё решение', text: 'Проверь рейсы. После дня город остановится.', event: 'city:tested', delay: 350,
         watch: { event: 'city:started', target: '#mayorMapSlot .mapscroll', context: ['#mayorMapSlot .legend', '#citizenStory'], text: 'Заметь, кто добрался. Нажатие на жителя объяснит его эмоцию.' } },
-      { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'В каждой строке: задача, твой результат и цель. Зелёная галочка — цель пока выполнена. Для максимума выполни все цели за четыре дня.' },
+      { target: '#cityGoalGrid', title: 'Цели каждого раунда', text: 'На карте показана главная задача раунда. В «Условиях успеха» — остальные требования. Галочка означает, что условие пока выполнено. Максимум дают за все условия после четырёх дней.' },
       { target: '#projectSummary', title: 'Планируй улучшения', text: 'Распредели 200 монет. Между днями можно вернуть улучшение и вложить монеты в другое. Прошедшие дни не изменятся.' }
     ] } : mode === 'contest' ? { name: 'Соревнование', steps: [
       { target: '.round-clock', title: 'Семь минут на попытки', text: 'Таймер начнётся после первой проверки. Во время обучения он стоит.' },

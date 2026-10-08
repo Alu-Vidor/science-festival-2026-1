@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
 const { chromium } = require('playwright');
-const {lesson,teachMap,teachTraining,adaptRain,deliver,optimalDelivery}=require('./robot-browser-helpers.cjs');
+const {lesson,teachMap,teachTraining,adaptGorge,adaptRain,deliver,optimalDelivery}=require('./robot-browser-helpers.cjs');
 const City=require('./city-browser-helpers.cjs');
 const root = path.resolve(__dirname, '..');
 const server = http.createServer((req, res) => {
@@ -36,6 +36,16 @@ const server = http.createServer((req, res) => {
         },selectors);
         if(problems.length) failures.push(width+'×'+height+' '+scope.url()+': '+JSON.stringify([...new Set(problems)]));
       }
+      async function readableCity(scope){
+        const problems=await scope.evaluate(()=>{
+          const result=[],map=document.querySelector('#map').getBoundingClientRect(),groups=[...document.querySelectorAll('#cityBadges>g')],boxes=groups.map(g=>g.querySelector('rect').getBoundingClientRect());
+          groups.forEach((g,i)=>{
+            const box=boxes[i];if(box.left<map.left||box.right>map.right||box.top<map.top||box.bottom>map.bottom)result.push('Label outside map: '+g.getAttribute('aria-label'));
+            [...g.querySelectorAll('text')].forEach((t,j)=>{const font=parseFloat(getComputedStyle(t).fontSize)*Math.abs(t.getScreenCTM().a),r=t.getBoundingClientRect();if(font<(j?12:14)-.05)result.push('Unreadable label: '+t.textContent+' '+font);if(r.left<box.left||r.right>box.right||r.top<box.top||r.bottom>box.bottom)result.push('Clipped label: '+t.textContent);});
+            for(let j=i+1;j<boxes.length;j++){const b=boxes[j];if(Math.min(box.right,b.right)-Math.max(box.left,b.left)>1&&Math.min(box.bottom,b.bottom)-Math.max(box.top,b.top)>1)result.push('Labels overlap: '+g.getAttribute('aria-label')+' / '+groups[j].getAttribute('aria-label'));}
+          });return result;
+        });assert.deepEqual(problems,[],'City labels must be readable at their actual screen size');
+      }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
       await fits(page,['#board .cell','#run','#predict','#safe','#unsafe','#train','#probe','#sensors','#model','.training > details','#status','#deliveryTries','#newParticipant','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress','#missionTask','#terrainLegend','#cargoPanel','#campStatus','#routeLayer','.terrain-note','.selection-key','.wall-key']);
@@ -56,9 +66,11 @@ const server = http.createServer((req, res) => {
       await page.screenshot({path:path.join(root,'test-artifacts',`robot-glow-${width}x${height}.png`)});
       await lesson(page,async()=>fits(page,['.tour-card','#tourTitle','#tourText']));
       await teachTraining(page);
+      await fits(page,['#bearing','#wet','#slope','#rough','#sensorHint']);
       await fits(page,['#model','#train','#status','#nextMission','#expeditionNav']);
       for(let stage=1;stage<=3;stage++){
         await page.locator('#nextMission').click();
+        if(stage===2)await adaptGorge(page);
         if(stage===3)await adaptRain(page);
         await optimalDelivery(page);
         await fits(page,['#boardStage','#model','#status','#deliveryTries','#autoRoute','#predict','#newParticipant']);
@@ -73,6 +85,7 @@ const server = http.createServer((req, res) => {
       await city.locator('#mayor').waitFor();
       const frame=page.frames().find(f=>f.url().includes('epidemic.html'));
       if(await city.locator('.tour-card').count()) await city.locator('.tour-card').press('Escape');
+      await readableCity(frame);
       await fits(frame,['#map','#map .building-sprite','#observeCity','#beginCity','#mayorStatus','#cityLocalScore','#cityRounds','#projectSummary']);
       assert.equal(await city.locator('#map').getAttribute('viewBox'),'0 0 1750 1080','Every building stays in the full city view');
       await city.locator('#cityTutorial').click(); await fits(frame,['.tour-card','#tourTitle','#tourText','#observeCity']);
@@ -86,6 +99,7 @@ const server = http.createServer((req, res) => {
       await fits(frame,['.tour-card','#tourText']); await city.locator('#tryCity').click();
       await City.finishLesson(city,async()=>fits(frame,['.tour-card','#tourTitle','#tourText']));
       await City.maximum(city,async n=>{
+        await readableCity(frame);
         await fits(frame,['#map',...(n<12?['.city-choice']:[]),'#tryCity','#pauseCity','#cityGoalGrid','#cityNeeds','#mayorStatus','#roundOutcome']);
         if(n%4===0)await page.screenshot({path:path.join(root,'test-artifacts',`city-round-${n/4}-${width}x${height}.png`)});
       });

@@ -37,4 +37,9 @@ async function adaptRain(page){
 }
 async function deliver(page){await page.locator('#run').click();await page.waitForFunction(()=>!running);return page.locator('#status').innerText();}
 async function optimalDelivery(page){const text=await deliver(page);assert(text.includes('Минимум энергии найден!'),text);}
-module.exports={lesson,teachMap,teachTraining,adaptRain,deliver,optimalDelivery};
+async function adaptGorge(page){
+ assert(await page.locator('#run').isDisabled(),'Dry lab examples alone cannot solve the rockfall');
+ await page.locator('[data-index="55"]').click();await page.locator('#safe').click();await page.locator('#probe').click();await page.locator('#train').click();
+ assert((await page.locator('#model').innerText()).includes('Опыт перенесён'),'Training shows its actual effect');
+}
+module.exports={lesson,teachMap,teachTraining,adaptGorge,adaptRain,deliver,optimalDelivery};

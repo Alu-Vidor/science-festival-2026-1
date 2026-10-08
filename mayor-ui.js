@@ -8,7 +8,7 @@
   let selectedCitizen = 0, viewedGame, viewedFrame, viewedHistory, viewedIndex;
   const session = new URLSearchParams(location.search).get('session') || 'initial';
   const shell = document.createElement('section'); shell.id = 'mayor';
-  shell.innerHTML = `<div class="mayor-title"><div><span class="eyebrow">ЗАДАНИЕ 3 · ЖИВОЙ ГОРОД</span><h1>Помоги городу жить</h1><p id="cityCalendar">Три раунда · 12 игровых дней · около 12 минут</p></div><strong id="cityLocalScore" class="city-local-score">0 / 50</strong></div>
+  shell.innerHTML = `<div class="mayor-title"><div><span class="eyebrow">ЗАДАНИЕ 3 · ЖИВОЙ ГОРОД</span><h1>Помоги городу жить</h1><p id="cityCalendar">Три раунда · 12 игровых дней</p></div><div class="city-scoreboard"><span>Это прохождение<strong id="cityLocalScore" class="city-local-score">0 / 50</strong></span><span>Лучший результат<strong id="cityBestScore">0 / 50</strong></span></div></div>
     <nav id="cityRounds" class="city-rounds" aria-label="Раунды города"></nav>
     <p id="cityRoundBrief" class="city-round-brief"></p>
     <div class="city-playground"><div class="city-map-area"><div id="mayorMapSlot"></div><p id="citizenStory">Эмоции появятся над жителями. Нажми на фигурку, чтобы узнать причину.</p>
@@ -20,6 +20,8 @@
         <p id="roundOutcome" class="round-outcome"></p><button id="restartCity" hidden>Новое прохождение</button>
       </div></div>
     <details id="cityProjects"><summary id="projectSummary">Улучшения · 200</summary><p>Распредели 200 монет между улучшениями. Между днями можно освободить вложенные монеты и выбрать другое улучшение. Оно работает, пока в него вложены монеты. У больницы сначала одно место помощи; в третьем раунде обращений станет больше. Доходы не пополняют эти 200 монет.</p><div id="projectChoices"></div><p id="cityBudget"></p></details>
+    <details id="cityConditions"><summary id="cityConditionSummary">Условия успеха</summary><p>Главная задача меняется в каждом раунде. Для максимума выполни все условия за четыре дня.</p><div id="cityConditionGrid" class="city-goals"></div></details>
+    <details id="cityPlaceInfo"><summary>Место в городе</summary><div id="cityPlacePanel"></div></details>
     <details id="cityPeople"><summary>Жители</summary><label>Житель<select id="citizenChoice"></select></label><div id="citizenPanel"></div></details>
     <details id="cityReports"><summary>Раунды</summary><div id="roundReports"></div><div id="cityAttempts" class="attempt-chips"></div><button id="restartEarly">Начать заново</button></details>
     <details class="city-rules"><summary>Правила</summary><p>Три раунда по четыре дня дают до 10, 15 и 25 баллов. Цели показаны до начала раунда. Еда, занятия и настроение — средние за четыре дня; помощь — доля обслуженных обращений; заражения и расходы — сумма. Максимум доступен только при выполнении всех целей раунда.</p><p>Один клик проживает один день. После него город ждёт твоего решения. Можно поставить анимацию на паузу, рассмотреть жителей и продолжить. Изменения плана действуют со следующего дня.</p><p>Фонд улучшений — 200 монет. Можно вернуть всю стоимость улучшения и перераспределить её между днями. Полученные раньше результаты и оплаченные расходы не меняются. Новый набор улучшений работает со следующего дня. Запасы, усталость и болезни переходят между раундами.</p><p>В последнем раунде до четырёх жителей возвращаются после поездки, где заразились накануне. Они учитываются отдельно от заражений внутри города. Симптомы в модели появляются через два дня после заражения.</p><p>🙂 удачная поездка, покупка, отдых или помощь; 😠 пропущенная поездка; 😟 очередь, нехватка еды или помощи; 😴 усталость. Цвет одежды отдельно показывает видимые симптомы.</p><p>Попытки не ограничены. Лучший счёт сохраняется. Время и скорость анимации не влияют на баллы. Это учебная модель вымышленного города.</p></details>`;
@@ -29,7 +31,8 @@
   function element(tag, text, parent) { const e = document.createElement(tag); e.textContent = text; parent.appendChild(e); return e; }
   function signal(name, detail) { window.GameTour?.signal(name, detail); }
   function publish() {
-    $('cityLocalScore').textContent = best + ' / 50';
+    $('cityLocalScore').textContent = campaign.score + ' / 50';
+    $('cityBestScore').textContent = best + ' / 50';
     if (window !== parent) parent.postMessage({ kind: 'city-score', version: GameScore.VERSION, session, score: best, completed: completedOnce }, location.origin === 'null' ? '*' : location.origin);
   }
   function initialHistory(game) {
@@ -39,6 +42,7 @@
   function render(c, index = c.game.history.length) {
     viewedGame = c.game; viewedHistory = [initialHistory(c.game), ...c.game.history]; viewedIndex = index; viewedFrame = viewedHistory[index];
     window.renderMayor(c.game, viewedHistory, index);
+    citizens();
     const figures = [...$('map').querySelectorAll('[data-person]')];
     const candidates = figures.map(figure => ({ figure, index: +figure.getAttribute('data-person') }))
       .filter(x => viewedFrame.citizens?.[x.index].reaction && !x.figure.getAttribute('transform').includes('-100 -100'));
@@ -81,24 +85,33 @@
   ];
   function goals() {
     const c = state(), index = Math.min(2, Math.floor(c.game.day / 4)), goal = C.rounds[index], stats = C.measure(c, index);
-    $('cityGoalTitle').textContent = lesson ? 'Чего нужно добиться в испытании' : 'Цели: ' + goal.title + ' · день ' + (stats?.days || 0) + ' из 4';
-    const box = $('cityGoalGrid'); box.replaceChildren();
-    goalFields.forEach(([key, name, sign, unit]) => {
+    $('cityGoalTitle').textContent = lesson ? 'Главная задача первого раунда' : goal.task + ' · день ' + (stats?.days || 0) + ' из 4';
+    const primary = $('cityGoalGrid'), conditions = $('cityConditionGrid'); primary.replaceChildren(); conditions.replaceChildren();
+    let metCount = 0, total = 0;
+    function card(box, key, name, sign, unit) {
       const item = element('div', '', box); item.className = 'city-goal';
-      const target = key === 'care' && !goal.care ? null : goal[key];
+      const target = goal[key];
       const label = element('span', '', item); element('b', name, label);
-      const description = target === null ? 'Цель появится в третьем раунде' : (sign === '≤' ? 'Не больше ' : 'Не меньше ') + target + unit + (key === 'expense' || key === 'cases' ? ' за раунд' : key === 'care' ? ' обращений' : ' в среднем');
+      const description = (sign === '≤' ? 'Не больше ' : 'Не меньше ') + target + unit + (key === 'expense' || key === 'cases' ? ' за раунд' : key === 'care' ? ' обращений' : ' в среднем');
       element('small', description, label);
-      const met = stats && target !== null ? (sign === '≤' ? stats[key] <= target : stats[key] >= target) : null;
+      const met = stats ? (sign === '≤' ? stats[key] <= target : stats[key] >= target) : null;
       const actual = stats ? (['food','activity','comfort','care'].includes(key) ? stats[key].toFixed(1) : stats[key]) + unit : '—';
       element('strong', actual + (met === null ? '' : met ? ' ✓' : ' !'), item);
       item.setAttribute('aria-label', name + '. ' + description + '. Сейчас: ' + actual + (met === null ? '' : met ? '. Условие пока выполнено.' : '. Нужно улучшить.'));
       if (met !== null) item.setAttribute('data-met', met);
+      return met;
+    }
+    goalFields.forEach(([key, name, sign, unit]) => {
+      if (key === 'care' && !goal.care) return;
+      total++; if (card(conditions, key, name, sign, unit)) metCount++;
+      if (key === goal.focus) card(primary, key, name, sign, unit);
     });
-    $('cityNeeds').textContent = 'Максимум — за все цели после 4-го дня. Средние %; помощь — доля обращений; случаи и расходы — сумма.';
+    $('cityConditionSummary').textContent = 'Условия успеха · ' + (stats ? metCount + '/' + total : total);
+    $('cityNeeds').textContent = 'До ' + goal.max + ' баллов. Максимум — за все условия после четырёх дней. Открой «Условия успеха», чтобы проверить город.';
   }
+
   function projects() {
-    $('projectSummary').textContent = 'Монеты · свободно ' + campaign.funds;
+    $('projectSummary').textContent = 'Фонд · ' + campaign.funds;
     const box = $('projectChoices'); box.replaceChildren();
     for (const id of C.projects) {
       const project = Mayor.upgrades[id], active = campaign.projects.includes(id), card = element('article', '', box);
@@ -113,7 +126,7 @@
         $('mayorStatus').textContent = active ? project.title + ': монеты освобождены. Улучшение не работает со следующего дня; прошлые результаты сохранены.' : project.title + ': включено со следующего дня. Свободно ' + campaign.funds + ' монет.';
       };
     }
-    $('cityBudget').textContent = 'Свободно: ' + campaign.funds + ' из 200. Городская касса: ' + campaign.game.cash + ' — отдельно от монет улучшений. Содержание за уже прошедшие дни не возвращается.';
+    $('cityBudget').textContent = 'Фонд улучшений: свободно ' + campaign.funds + ' из 200 монет. Расходы в целях — работа города за четыре дня, включая содержание улучшений. Доход и городская касса (' + campaign.game.cash + ') не пополняют фонд. Содержание за прошедшие дни не возвращается.';
   }
   function reports() {
     const box = $('roundReports'); box.replaceChildren();
@@ -155,7 +168,7 @@
     element('span', '🚌 Не добрались: ' + r.missed + delta(r.missed, previous?.missed), box);
     element('span', '🛒 Еда: ' + r.food + '%' + delta(r.food, previous?.food), box);
     element('span', '🏥 Помощь: ' + r.treated + '/' + r.care, box);
-    element('span', '💰 Доход ' + r.income + ' · расход ' + r.expenses, box);
+    element('span', '💰 За день: доход ' + r.income + ' · расход ' + r.expenses, box);
   }
   function finishDay() {
     const task = pending; pending = null; playing = false;
@@ -171,7 +184,7 @@
     const day = campaign.game.day, endRound = day % 4 === 0;
     if (endRound) {
       best = Math.max(best, campaign.score); const result = campaign.results.at(-1);
-      $('roundOutcome').textContent = C.rounds[result.index].title + ': ' + result.score + '/' + C.rounds[result.index].max + '. ' + (result.full ? 'Все цели выполнены.' : 'Проверь цели в отчёте.');
+      $('roundOutcome').textContent = C.rounds[result.index].title + ': ' + result.score + '/' + C.rounds[result.index].max + '. ' + (result.full ? 'Все цели выполнены.' : 'Не выполнено: ' + goalFields.filter((field, i) => !result.met[i]).map(field => field[1].toLowerCase()).join(', ') + '. Подробности — в «Раундах».');
     } else $('roundOutcome').textContent = 'День ' + day + ' окончен. Можно изменить план и улучшить город.';
     if (campaign.completed) { completedOnce = true; attempts.push(campaign.score); }
     update(); publish();
@@ -234,14 +247,26 @@
     select.value = selectedCitizen; select.onchange = () => { selectedCitizen = +select.value; citizenDetails(); }; citizenDetails();
   }
   window.mayorCitizenSelect = index => {
-    if (playing || !viewedGame.people[index]) return;
+    if (!viewedGame.people[index]) return;
+    pauseDay();
     selectedCitizen = index; citizens(); $('cityPeople').open = true;
     if (!document.body.classList.contains('monitor-layout')) $('citizenPanel').scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
+  $('cityPeople').addEventListener('toggle', () => { if ($('cityPeople').open) { pauseDay(); citizens(); } });
+  window.mayorPlaceHint = id => ['park', 'gym'].includes(id) ? 'открыть сведения' : id.startsWith('h') ? 'посмотреть жителей' : 'открыть решения';
   window.mayorSelect = id => {
     const key = ['school', 'kindergarten', 'work'].includes(id) ? 'school' : ['market', 'mall'].includes(id) ? 'shops' : id === 'bus' ? 'bus' : null;
     if (key) { if (!document.body.classList.contains('monitor-layout')) $('choices-' + key).scrollIntoView({ block: 'center', behavior: 'smooth' }); $('pick-' + key + '-' + (lesson ? lesson.plan : plan)[key]).focus({ preventScroll: true }); }
     else if (id.startsWith('h')) window.mayorCitizenSelect(viewedGame.people.findIndex(p => p.home === id));
+    else if (['park', 'gym'].includes(id)) {
+      pauseDay();
+      const box = $('cityPlacePanel'); box.replaceChildren();
+      element('h3', id === 'park' ? 'Парк · отдых на воздухе' : 'Спортцентр · отдых в помещении', box);
+      element('p', 'День ' + viewedFrame.day + ' · ' + Epidemic.phases[viewedFrame.phase] + '. Сейчас здесь ' + viewedFrame.loc.filter(place => place === id).length + ' жителей.', box);
+      element('p', id === 'park' ? 'Вечером здесь отдыхают до 60 жителей и восстанавливают энергию. На холоде часть жителей выбирает спортцентр. На воздухе вероятность заражения ниже.' : 'Вечером здесь отдыхают до 24 жителей и восстанавливают энергию. На холоде спрос растёт, поэтому мест может не хватить.', box);
+      element('p', 'Отдых влияет на энергию и настроение. Это место работает самостоятельно; отдельного переключателя нет.', box);
+      $('cityPlaceInfo').open = true;
+    }
     else if (id === 'clinic') { $('cityProjects').open = true; ($('build-clinic') || $('refund-clinic'))?.focus({ preventScroll: true }); }
   };
   window.cityTourHooks = {

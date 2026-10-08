@@ -1,0 +1,23 @@
+/* Clarity and readable controls on the festival monitors. */
+#cityPlaceInfo:not([open]){display:none}
+.city-scoreboard{display:flex;gap:20px;flex:none!important}
+.city-scoreboard>span{display:flex;flex-direction:column;font-size:13px;color:#b9cfdd;white-space:nowrap}
+.city-scoreboard strong{display:block;font-size:24px;line-height:1.3;color:#83ead6}
+#cityBestScore{color:#b9cfdd;font-size:20px}
+.monitor-layout #cityGoalGrid{grid-template-columns:1fr;max-width:100%;margin:0 0 6px}
+.monitor-layout #cityGoalGrid .city-goal{padding:7px 12px}
+.monitor-layout #cityGoalGrid .city-goal b{font-size:16px}
+.monitor-layout #cityGoalGrid .city-goal small{font-size:14px}
+.monitor-layout #cityGoalGrid .city-goal strong{font-size:22px}
+.monitor-layout #cityGoalTitle{font-size:19px;margin:2px 0 6px}
+.monitor-layout #cityNeeds{font-size:14px;margin:0 0 8px;min-height:0}
+.monitor-layout .mayor-title{flex-wrap:wrap;gap:8px 14px}
+.monitor-layout .mayor-title>div:first-child{min-width:300px}
+.monitor-layout #cityCalendar{font-size:14px}
+.monitor-layout #cityConditionGrid{grid-template-columns:1fr 1fr;gap:10px}
+.monitor-layout #cityConditionGrid .city-goal{padding:12px;min-height:76px}
+.monitor-layout #cityConditionGrid small{font-size:15px}
+.monitor-layout #cityConditionGrid b{font-size:17px}
+.monitor-layout #cityConditionGrid strong{font-size:22px}
+.monitor-layout #roundOutcome{font-size:15px;line-height:1.4}
+@media(min-width:2300px){.monitor-layout #cityGoalTitle{font-size:22px}.monitor-layout #cityGoalGrid .city-goal b{font-size:19px}.monitor-layout #cityGoalGrid .city-goal small,.monitor-layout #cityNeeds{font-size:17px}}

@@ -58,10 +58,12 @@
         const decisions = $('cityDecisions');
         move($('cityStart'), decisions, true); move($('mayorStatus'), city.querySelector('.city-map-area'));
         move($('cityNeeds'), city.querySelector('.city-map-area'), true); move($('cityGoalGrid'), city.querySelector('.city-map-area'), true); move($('cityGoalTitle'), city.querySelector('.city-map-area'), true);
+        move($('cityConditions'), city.querySelector('.mayor-title'));
         move($('cityPeople'), city.querySelector('.mayor-title')); move(city.querySelector('.city-rules'), city.querySelector('.mayor-title'));
         move($('cityTutorial'), city.querySelector('.mayor-title'));
         move($('cityProjects'), city.querySelector('.mayor-title')); move($('cityReports'), city.querySelector('.mayor-title'));
         $('fit').click();
+        observer = new ResizeObserver(() => window.fitMayorLabels?.()); observer.observe($('map')); window.fitMayorLabels?.();
         if (!wired.has($('map'))) { wired.add($('map')); $('map').addEventListener('pointerdown', e => { if (active) e.stopImmediatePropagation(); }, true); }
         for (const detail of city.querySelectorAll('details')) tools(detail);
       }

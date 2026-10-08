@@ -12,6 +12,12 @@
     ice: [[30,15,8,70],[30,76,8,70]]
   };
   const danger = f => f[0] >= 70 || f[1] >= 70 || f[0] + f[2] >= 110 || f[3] <= 30;
+  const sensorWords = f => [
+    f[0] >= 70 ? 'Мокро' : f[0] >= 60 ? 'Очень влажно' : f[0] >= 35 ? 'Влажно' : f[0] >= 20 ? 'Слегка влажно' : 'Сухо',
+    f[1] >= 70 ? 'Круто' : f[1] >= 35 ? 'Наклон' : 'Ровно',
+    f[2] >= 60 ? 'Много ям' : f[2] >= 45 ? 'Ямы' : f[2] >= 25 ? 'Неровно' : 'Гладко',
+    f[3] <= 30 ? 'Проваливается' : f[3] <= 65 ? 'Мягко' : 'Твёрдо'
+  ];
   function tile(type, i, f) { return { type, f: [...(f || profiles[type]?.[0] || [0,0,0,100])], object: null }; }
   function features(cell, rain = false) { const f = [...cell.f]; f[0] = Math.min(100, f[0] + (rain ? 25 : 0)); return f; }
   function neighbors(i, grid) { return [i % N ? i - 1 : -1, i % N < N - 1 ? i + 1 : -1, i >= N ? i - N : -1, i < N * (N - 1) ? i + N : -1].filter(j => j >= 0 && grid[j].type !== 'wall'); }
@@ -64,7 +70,7 @@
   const descriptions = {
     training: { title: 'Первый рейс', brief: 'Три учебных лагеря ждут помощь. Довези по одной аптечке в A, B и C — тогда обучение завершено.', max: 0 },
     forest: { title: 'Лесные развилки', brief: 'Три лагеря спасателей за лесными проходами ждут аптечки. Здесь новый грунт: опыт первого рейса может не подойти.', max: 10 },
-    gorge: { title: 'Каменный лабиринт', brief: 'Довези аптечки в три лагеря через каменный лабиринт. Короткий проход по склону может привести к застреванию.', max: 15 },
+    gorge: { title: 'Каменный лабиринт', brief: 'После камнепада в проходах рыхлая осыпь. Даже сухой щебень может провалиться: исследуй твёрдость и довези аптечки в три лагеря.', max: 15 },
     rain: { title: 'Мокрая долина', brief: 'Лагеря ждут помощь после дождя. Грунт стал мокрее: проверь свои предположения и научи робота новым условиям.', max: 25 }
   };
   function create(id) {
@@ -87,7 +93,11 @@
         :id==='gorge'? y===4&&![2,7,9].includes(x)||y===8&&![1,5,9].includes(x)||x===6&&y>4&&y<8&&y!==6
         : x===5&&![2,6,9].includes(y)||y===5&&![2,7,9].includes(x);
       if(boundary||wall)grid[i]=tile('wall',i);
-      else set(i,types[(x*7+y*11+seed)%types.length]);
+      else {
+        const type=types[(x*7+y*11+seed)%types.length];
+        // The forest introduces a few materials; later missions add new conditions.
+        set(i,id==='forest'?({hill:'sand',water:'road',clay:'mud',ice:'gravel'}[type]||type):type);
+      }
     }
     // A first successful trip needs just the two introductory examples.
     // The other material zones stay available for the learner's own experiments.
@@ -104,6 +114,9 @@
       for(let k=0;k<queue.length;k++)for(const j of neighbors(queue[k],grid))if(!seen.has(j)&&!danger(features(grid[j],rain))){seen.add(j);queue.push(j);}
       if(grid.some((c,j)=>c.type!=='wall'&&!danger(features(c,rain))&&!seen.has(j)))grid[i]=before;
     }
+    // Every route to the lower camps crosses scree with readings absent from the lab.
+    // One safe field example transfers to the other passes; a weak pass stays optional.
+    if(id==='gorge')for(const i of [50,55,57,97,101,105])grid[i]=tile('gravel',i,[10,12,45,i===50?22:50]);
     // Expedition camps preserve the local material: reaching people still requires safe ground.
     goals.forEach((i,n)=>{ if(grid[i].type==='wall')set(i,'gravel'); if(danger(features(grid[i],rain)))set(i,grid[i].type); grid[i].object='camp';grid[i].camp=String.fromCharCode(65+n); });
     if(grid[start].type==='wall')set(start,'road');
@@ -118,6 +131,6 @@
     // Every nonoptimal complete path scores strictly below the maximum.
     return Math.min(max - 1, Math.max(delivery, Math.floor(max * (.6 + .4 * optimal / energy))));
   }
-  root.RobotEngine = { N, costs, danger, tile, features, predict, explain, shortest, plan, optimum, permutations, create, examples, names, icons, profiles, score, ids: ['training', 'forest', 'gorge', 'rain'] };
+  root.RobotEngine = { N, costs, danger, sensorWords, tile, features, predict, explain, shortest, plan, optimum, permutations, create, examples, names, icons, profiles, score, ids: ['training', 'forest', 'gorge', 'rain'] };
   if (typeof module !== 'undefined') module.exports = root.RobotEngine;
 })(typeof window !== 'undefined' ? window : globalThis);
