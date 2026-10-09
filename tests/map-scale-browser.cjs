@@ -41,17 +41,25 @@ async function cityScale(city, displayScale) {
   const measured = await city.locator('#map').evaluate(map => {
     const box = map.getBoundingClientRect();
     const buildings = [...map.querySelectorAll('.building-sprite')].map(image => image.getBoundingClientRect());
+    const badges = [...map.querySelectorAll('#cityBadges rect')].map(rect => rect.getBoundingClientRect());
+    const people = [...map.querySelectorAll('.inhabitant > g')].map(person => person.getBoundingClientRect());
     const fonts = [...map.querySelectorAll('#cityBadges text')]
       .map(text => parseFloat(getComputedStyle(text).fontSize) * text.getScreenCTM().a);
     return { count: buildings.length, smallest: Math.min(...buildings.map(rect => rect.width)),
       width: (Math.max(...buildings.map(rect => rect.right)) - Math.min(...buildings.map(rect => rect.left))) / box.width,
       height: (Math.max(...buildings.map(rect => rect.bottom)) - Math.min(...buildings.map(rect => rect.top))) / box.height,
-      font: Math.min(...fonts) };
+      font: Math.min(...fonts),
+      labelHeight: Math.max(...badges.map(rect => rect.height)),
+      occludedPeople: people.filter(person => badges.some(badge => person.left < badge.right - .5 && person.right > badge.left + .5
+        && person.top < badge.bottom - .5 && person.bottom > badge.top + .5)).length,
+      singleLine: [...map.querySelectorAll('#cityBadges > g')].every(badge => badge.querySelectorAll('text').length === 1) };
   });
   assert.equal(measured.count, 15, 'All districts and public buildings stay in the full city view');
   assert(measured.smallest * displayScale >= 70, 'Buildings are large enough to recognise: ' + JSON.stringify(measured));
   assert(measured.width >= .52 && measured.height >= .7, 'The city itself fills its map area');
-  assert(measured.font * displayScale >= 13, 'City names and counts remain readable in display pixels');
+  assert(measured.font * displayScale >= 12 - .05, 'Compact city names remain readable in display pixels');
+  assert(measured.singleLine && measured.labelHeight <= 28.1, 'Names use small single-line badges so residents and buildings remain visible');
+  assert.equal(measured.occludedPeople, 0, 'City nameplates must not cover the residents on the starting map');
 }
 
 (async () => {

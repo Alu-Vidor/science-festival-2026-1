@@ -7,7 +7,7 @@
   const saved = window.FestivalSession?.read('score');
   if (saved?.rules===GameScore.VERSION && ['robot','city'].every(key=>Number.isInteger(saved[key])&&saved[key]>=0&&saved[key]<=50) && ['trainingDone','deliveryDone','cityDone'].every(key=>typeof saved[key]==='boolean')) for(const key of Object.keys(state))state[key]=saved[key];
   if (saved?.robotRules !== RobotEngine.VERSION) { state.robot = 0; state.trainingDone = false; state.deliveryDone = false; }
-  if (session !== 'initial') $('epiView').src = 'epidemic.html?v=review-20261009-map-3&session=' + encodeURIComponent(session);
+  if (session !== 'initial') $('epiView').src = 'epidemic.html?v=review-20261009-city-labels-1&session=' + encodeURIComponent(session);
   function draw() {
     window.FestivalSession?.save('score',{...state,rules:GameScore.VERSION,robotRules:RobotEngine.VERSION},session);
     $('overallScore').textContent = GameScore.total(state);
@@ -47,7 +47,7 @@
   $('newParticipant').onclick = () => {
     window.GameTour?.finish(false); session = window.FestivalSession?.reset() || String(Date.now()); window.resetRobotMission();
     for (const key of Object.keys(state)) state[key] = typeof state[key] === 'boolean' ? false : 0;
-    $('epiView').src = 'epidemic.html?v=review-20261009-map-3&session=' + encodeURIComponent(session);
+    $('epiView').src = 'epidemic.html?v=review-20261009-city-labels-1&session=' + encodeURIComponent(session);
     $('robotTab').click(); draw();
   };
   window.robotExpedition?.publish(); draw();

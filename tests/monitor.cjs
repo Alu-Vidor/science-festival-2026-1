@@ -46,7 +46,9 @@ const server = http.createServer((req, res) => {
           if(sceneWidth<map.width*.52||sceneHeight<map.height*.7)result.push('Painted city occupies too little of its map');
           groups.forEach((g,i)=>{
             const box=boxes[i];if(box.left<map.left||box.right>map.right||box.top<map.top||box.bottom>map.bottom)result.push('Label outside map: '+g.getAttribute('aria-label'));
-            [...g.querySelectorAll('text')].forEach((t,j)=>{const font=parseFloat(getComputedStyle(t).fontSize)*Math.abs(t.getScreenCTM().a),minimum=innerWidth>=2200?(j?18:20):(j?14:16),r=t.getBoundingClientRect();if(font<minimum-.05)result.push('Unreadable label: '+t.textContent+' '+font);if(r.left<box.left||r.right>box.right||r.top<box.top||r.bottom>box.bottom)result.push('Clipped label: '+t.textContent);});
+            const home=g.getAttribute('data-place').startsWith('h'),minimum=innerWidth>=2200?(home?16:18):(home?13:14);
+            if(g.querySelectorAll('text').length!==1||box.height>(innerWidth>=2200?28.1:23.1))result.push('Oversized city label: '+g.getAttribute('aria-label'));
+            [...g.querySelectorAll('text')].forEach(t=>{const font=parseFloat(getComputedStyle(t).fontSize)*Math.abs(t.getScreenCTM().a),r=t.getBoundingClientRect();if(font<minimum-.05)result.push('Unreadable label: '+t.textContent+' '+font);if(r.left<box.left||r.right>box.right||r.top<box.top||r.bottom>box.bottom)result.push('Clipped label: '+t.textContent);});
             for(let j=i+1;j<boxes.length;j++){const b=boxes[j];if(Math.min(box.right,b.right)-Math.max(box.left,b.left)>1&&Math.min(box.bottom,b.bottom)-Math.max(box.top,b.top)>1)result.push('Labels overlap: '+g.getAttribute('aria-label')+' / '+groups[j].getAttribute('aria-label'));}
           });return result;
         });assert.deepEqual(problems,[],'City labels must be readable at their actual screen size');

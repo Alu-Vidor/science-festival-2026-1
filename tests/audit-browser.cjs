@@ -39,6 +39,9 @@ async function cityGeometry(city, width) {
     const labelFailures = [];
     for (const badge of map.querySelectorAll('#cityBadges > g')) {
       const background = badge.querySelector('rect').getBoundingClientRect();
+      if (badge.querySelectorAll('text').length !== 1) labelFailures.push('City labels must be a single line');
+      if (!badge.querySelector('title').textContent.includes('Сейчас здесь') || !badge.getAttribute('aria-description'))
+        labelFailures.push('Occupancy details must remain available in tooltips and accessible descriptions');
       for (const text of badge.querySelectorAll('text')) {
         const rect = text.getBoundingClientRect();
         if (rect.left < background.left - 1 || rect.right > background.right + 1 || rect.top < background.top - 1 || rect.bottom > background.bottom + 1)
@@ -53,7 +56,7 @@ async function cityGeometry(city, width) {
   });
   assert.equal(metrics.count, 15);
   assert.equal(metrics.outside, false, 'All fifteen city buildings remain visible in the larger map');
-  assert.deepEqual(metrics.labelFailures, [], 'Both label lines remain inside their badge and the city map');
+  assert.deepEqual(metrics.labelFailures, [], 'Compact names fit their badges and keep full occupancy details available');
   assert(metrics.smallest >= (width >= 2200 ? 110 : 75), 'Individual city buildings are large enough to inspect on the monitor: ' + JSON.stringify(metrics));
   assert(metrics.widthRatio >= .52 && metrics.heightRatio >= .70,
     'The painted city occupies the map area instead of leaving a small island: ' + JSON.stringify(metrics));
