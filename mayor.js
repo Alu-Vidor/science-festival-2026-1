@@ -9,8 +9,8 @@
     park: ['normal', 'closed'], gym: ['normal', 'limited', 'closed'], clinic: ['normal', 'appointments', 'closed']
   };
   const upgrades = {
-    bus: { title: 'Новые автобусы', cost: 90, upkeep: 5, effect: '+20 мест на каждом этапе поездок' },
-    market: { title: 'Расширить магазин', cost: 80, upkeep: 4, effect: '+12 покупателей за день' },
+    bus: { title: 'Новые автобусы', cost: 90, upkeep: 5, effect: '+20 базовых мест на каждом этапе; смены и события меняют итоговую вместимость' },
+    market: { title: 'Расширить магазин', cost: 80, upkeep: 4, effect: '+12 базовых мест в магазине; режим работы и перебои поставок меняют итоговую вместимость' },
     clinic: { title: 'Новый кабинет помощи', cost: 110, upkeep: 6, effect: '+4 места для помощи в день' },
     park: { title: 'Обустроить парк', cost: 70, upkeep: 3, effect: '+20 мест для отдыха и больше восстановления' },
     water: { title: 'Водоснабжение', cost: 100, upkeep: 4, effect: '+80 жителей с надёжным водоснабжением' },
@@ -99,6 +99,13 @@
       power: Math.round(clamp(100 * capacity.power / n)),
       waste: Math.round(clamp(100 * capacity.waste / n)), accumulatedWaste: Math.round(g.waste) };
   }
+  function dailyCost(infrastructure,p){
+    const upkeep=Object.entries(infrastructure).reduce((sum,[key,level])=>sum+level*upgrades[key].upkeep,0);
+    return 30 + (p.clinic === 'closed' ? 0 : p.clinic === 'appointments' ? 22 : 18) +
+      (p.bus === 'closed' ? 0 : p.bus === 'reduced' ? 6 : p.bus === 'frequent' ? 18 : 12) +
+      ['school', 'kindergarten'].reduce((sum, k) => sum + (p[k] === 'remote' ? 3 : p[k] === 'shifts' ? 14 : 8), 0) +
+      ['market', 'mall'].filter(k => p[k] === 'long').length * 8 + (p.work === 'shifts' ? 12 : 0) + upkeep - (p.shopSaving || 0);
+  }
   function step(game, choices = {}) {
     if (game.day >= game.maxDays) throw Error('Опыт завершён');
     const g = JSON.parse(JSON.stringify(game)), p = { ...g.policy, ...choices };
@@ -132,11 +139,12 @@
       if (person.senior || caregivers.has(i) || p.work === 'closed' || p.work === 'remote') return home(i);
       return p.work === 'limited' && roll(i, 1) > .5 ? home(i) : 'work';
     });
-    const capacity = p.bus === 'closed' ? 0 : Math.floor(((p.bus === 'reduced' ? 20 : p.bus === 'frequent' ? 60 : 40) +
+    const baseCapacity = p.bus === 'closed' ? 0 : Math.floor(((p.bus === 'reduced' ? 20 : p.bus === 'frequent' ? 60 : 40) +
       g.infrastructure.bus * 20) * (ev.kind === 'bus' ? .5 : 1));
     const missedSet = new Set(), travelMinutes = Array(n).fill(0), travelByPhase = [], deniedTrips = [];
     // Allocate a fresh bus capacity at each public-trip stage. Nearby residents may walk.
     function transport(loc, slot) {
+      const capacity = Array.isArray(p.busAllocation) ? Math.floor((p.busAllocation[slot] + g.infrastructure.bus * 20) * (ev.kind === 'bus' ? .5 : 1) * (slot===0 && p.school==='shifts' ? 1.25 : 1)) : baseCapacity;
       const candidates = g.people.map((person, i) => loc[i] !== home(i) &&
         (g.districts[person.district].far || roll(i, 2 + slot) < .4) ? i : -1).filter(i => i >= 0)
         .sort((a, b) => roll(a, 50 + slot) - roll(b, 50 + slot));
@@ -152,10 +160,12 @@
         const distance = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
         travelMinutes[i] += Math.round(boarded.has(i) ? 10 + distance / 75 + candidates.length / Math.max(1, capacity) * 5 : 8 + distance / 50);
       });
-      travelByPhase.push({ requested: candidates.length, boarded: boarded.size, capacity, missed: candidates.filter(i => !boarded.has(i) && g.districts[g.people[i].district].far).length });
+      travelByPhase.push({ requested: candidates.length, boarded: boarded.size, capacity, missed: denied.size, requestedIds: candidates, boardedIds: [...boarded], missedIds: [...denied] });
       return boarded;
     }
+    const activityRequested=dayLoc.map((loc,i)=>loc!==home(i)?i:-1).filter(i=>i>=0);
     const morningRiders = transport(dayLoc, 0);
+    const activityArrived=dayLoc.map((loc,i)=>loc!==home(i)?i:-1).filter(i=>i>=0);
     const seats = { school: Math.floor(48 * powerFactor), kindergarten: Math.floor(24 * powerFactor), work: Math.floor(60 * powerFactor) };
     let schoolQueue = 0;
     for (const place of Object.keys(seats)) {
@@ -184,7 +194,7 @@
     if (p.clinic !== 'closed') care.forEach(i => { shopLoc[i] = 'clinic'; });
     transport(shopLoc, 1);
     const served = new Set(), shopCapacity = {}, spending = Array(g.households.length).fill(0);
-    let queue = 0;
+    let queue = 0; const shopCapacityDenied=[],shopMoneyDenied=[];
     for (const place of ['market', 'mall']) {
       const cap = p[place] === 'closed' ? 0 : Math.floor(((g.shopSeats?.[place] ?? (place === 'market' ? 22 : 40)) + (place === 'market' ? g.infrastructure.market * 12 : 0)) *
         (p[place] === 'limited' ? .5 : p[place] === 'long' ? 1.5 : 1) *
@@ -196,10 +206,10 @@
       });
       for (const i of visitors.slice(0, cap)) {
         const h = g.households[g.people[i].household], portions = Math.min(h.members.length * 2, Math.floor(h.money / 1.5));
-        if (!portions) continue;
+        if (!portions) {shopMoneyDenied.push(i);continue;}
         h.food += portions; h.money -= portions * 1.5; spending[h.id] += portions * 1.5; served.add(i);
       }
-      queue += Math.max(0, visitors.length - cap);
+      queue += Math.max(0, visitors.length - cap);shopCapacityDenied.push(...visitors.slice(cap));
     }
     const beds = g.healthcareBeds + g.infrastructure.clinic * 4;
     const reachableCare = care.filter(i => shopLoc[i] === 'clinic');
@@ -320,10 +330,7 @@
     const education = students ? 100 * g.people.reduce((sum, person, i) => sum + (person.child ? learning(i) : 0), 0) / students : 100;
     const workers = working.size, upkeep = Object.entries(g.infrastructure).reduce((sum, [k, level]) => sum + level * upgrades[k].upkeep, 0);
     const income = workers * 3 + served.size;
-    const expenses = 30 + (p.clinic === 'closed' ? 0 : p.clinic === 'appointments' ? 22 : 18) +
-      (p.bus === 'closed' ? 0 : p.bus === 'reduced' ? 6 : p.bus === 'frequent' ? 18 : 12) +
-      ['school', 'kindergarten'].reduce((sum, k) => sum + (p[k] === 'remote' ? 3 : p[k] === 'shifts' ? 14 : 8), 0) +
-      ['market', 'mall'].filter(k => p[k] === 'long').length * 8 + (p.work === 'shifts' ? 12 : 0) + upkeep;
+    const expenses = dailyCost(g.infrastructure,p);
     g.cash += income - expenses;
     const unservedCare = care.length - treated, trustCauses = {
       food: Math.round((food - 85) / 22), rest: Math.round((rest - 40) / 20), education: Math.round((education - 85) / 35),
@@ -346,6 +353,11 @@
       food: Math.round(food), rest: Math.round(rest), education: Math.round(education), queue, schoolQueue, restQueue,
       workers, participation: Math.round(100 * (workers + districtReports.reduce((sum, d) => sum + d.education, 0)) / Math.max(1, g.people.filter(person => !person.senior).length)),
       caregivers: caregivers.size, missed: missedSet.size, missedIds: [...missedSet], informal, happiness, services, alerts,
+      flows: {
+        activity:{requested:activityRequested,arrived:activityArrived,served:g.people.map((_,i)=>['school','kindergarten','work'].includes(dayLoc[i])?i:-1).filter(i=>i>=0)},
+        food:{capacityDenied:shopCapacityDenied,moneyDenied:shopMoneyDenied,requested:buyers,arrived:buyers.filter(i=>['market','mall'].includes(shopLoc[i])),served:[...served]},
+        care:{requested:care,arrived:reachableCare,served:[...careServed]}
+      },
       districts: districtReports, policy: { ...p }, transport: travelByPhase, shopCapacity,
       commute: Math.round(travelMinutes.reduce((a, b) => a + b, 0) / n),
       tired: g.people.filter(person => person.energy < 40).length,
@@ -355,6 +367,6 @@
     g.decisions.push({ day, policy: { ...p }, infrastructure: { ...g.infrastructure } });
     return g;
   }
-  root.Mayor = { create, step, invest, serviceState, event, setup, policy, modes, upgrades };
+  root.Mayor = { create, step, dailyCost, invest, serviceState, event, setup, policy, modes, upgrades };
   if (typeof module !== 'undefined') module.exports = root.Mayor;
 })(typeof window !== 'undefined' ? window : globalThis);

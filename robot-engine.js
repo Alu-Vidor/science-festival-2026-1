@@ -1,143 +1,89 @@
-/* Authored expeditions, learner's route planner and an independent exact energy benchmark. */
+/* Route experiments. Physics and the learned predictor have separate inputs. */
 (function (root) {
   'use strict';
-  const N = 12, costs = { road: 1, sand: 2, mud: 3, hill: 4, water: 4, gravel: 2, grass: 2, clay: 3, ice: 2 };
-  const names = { road: 'Дорога', sand: 'Песок', mud: 'Грязь', hill: 'Склон', water: 'Брод', gravel: 'Щебень', grass: 'Трава', clay: 'Глина', ice: 'Лёд' };
-  const icons = { road: '·', sand: '∴', mud: '≋', hill: '▲', water: '≈', gravel: '◇', grass: '♧', clay: '▰', ice: '❄', wall: '▧' };
-  const profiles = {
-    road: [[12,8,12,90],[12,8,12,24]], sand: [[18,10,24,60],[18,10,24,24]],
-    mud: [[40,15,34,68],[62,15,53,68]], hill: [[15,48,30,85],[15,78,30,85]],
-    water: [[55,8,15,80],[80,8,15,80]], gravel: [[12,28,60,88],[52,28,65,80]],
-    grass: [[35,8,28,75],[35,8,28,24]], clay: [[40,25,45,75],[69,25,48,75]],
-    ice: [[30,15,8,70],[30,76,8,70]]
+  const VERSION = 'cargo-school-2';
+  const terrains = {
+    road: {name:'Дорога',base:2,color:'#667986'}, mud:{name:'Грязь',base:3,color:'#89613c'},
+    water:{name:'Мелководье',base:4,color:'#288ca8'}, gravel:{name:'Камни',base:3,color:'#a2aaa1'},
+    sand:{name:'Песок',base:4,color:'#d9ba75'}, hill:{name:'Подъём',base:5,color:'#7c9876'}
   };
-  const limits = Object.freeze({ wet: 70, slope: 70, wetRough: 110, bearing: 30 });
-  const danger = f => f[0] >= limits.wet || f[1] >= limits.slope || f[0] + f[2] >= limits.wetRough || f[3] <= limits.bearing;
-  const sensorWords = f => [
-    f[0] >= 70 ? 'Мокро' : f[0] >= 60 ? 'Очень влажно' : f[0] >= 35 ? 'Влажно' : f[0] >= 20 ? 'Слегка влажно' : 'Сухо',
-    f[1] >= 70 ? 'Круто' : f[1] >= 35 ? 'Наклон' : 'Ровно',
-    f[2] >= 60 ? 'Много ям' : f[2] >= 45 ? 'Ямы' : f[2] >= 25 ? 'Неровно' : 'Гладко',
-    f[3] <= 30 ? 'Проваливается' : f[3] <= 65 ? 'Мягко' : 'Твёрдо'
+  const nodes = {S:[70,210,'База'],W:[280,210,'А'],X:[500,210,'Б'],Y:[720,210,'В'],G:[930,210,'Лагерь'],U:[280,50,'Г'],V:[500,50,'Д'],T:[720,50,'Е'],L:[280,370,'Ж'],M:[500,370,'З'],N:[720,370,'И']};
+  const edgeData = [
+    ['S','W','mud',2],['S','U','road',8],['S','L','gravel',4],['W','U','water',1],['W','L','gravel',2],['W','X','road',3],
+    ['U','V','road',3],['L','M','road',3],['X','V','sand',2],['X','M','water',1],['V','T','road',3],['M','N','sand',3],
+    ['X','Y','hill',2],['Y','T','gravel',2],['Y','N','gravel',2],['T','G','road',5],['N','G','road',5],['Y','G','road',3]
   ];
-  function tile(type, i, f) { return { type, f: [...(f || profiles[type]?.[0] || [0,0,0,100])], object: null }; }
-  function features(cell, rain = false) { const f = [...cell.f]; f[0] = Math.min(100, f[0] + (rain ? 25 : 0)); return f; }
-  function neighbors(i, grid) { return [i % N ? i - 1 : -1, i % N < N - 1 ? i + 1 : -1, i >= N ? i - N : -1, i < N * (N - 1) ? i + N : -1].filter(j => j >= 0 && grid[j].type !== 'wall'); }
-  // The model only receives the child's examples and four sensor readings.
-  // No terrain name, physical rule or hidden answer enters this classifier.
-  function explain(model, f) {
-    const near = model.map(s => ({ ...s, distance: Math.sqrt(s.f.reduce((sum,v,j) => sum + (v-f[j])**2,0)) }))
-      .sort((a,b) => a.distance-b.distance).slice(0,3);
-    if (!near.length || near[0].distance > 23) return { label: null, near, reason: 'Нет похожих примеров' };
-    if (near[0].distance < .01) return { label: near[0].y, near, reason: 'Такие показания уже были в обучении' };
-    const weights=near.map(s=>1/(1+s.distance**2)), total=weights.reduce((a,b)=>a+b,0);
-    const risk=near.reduce((sum,s,i)=>sum+weights[i]*s.y,0)/total;
-    return { label: risk > .35 && risk < .65 ? null : +(risk >= .5), near, reason: risk > .35 && risk < .65 ? 'Похожие примеры противоречат друг другу' : 'Сравнение с тремя ближайшими примерами', risk };
+  function create(stage=0) {
+    const edges=edgeData.map(([a,b,type,length],i)=>({id:i,a,b,type,length}));
+    if(stage===1){
+      for(const [i,type,length] of [[1,'road',10],[2,'road',7],[3,'sand',2],[4,'water',1],[5,'hill',2],[6,'gravel',3],[7,'hill',2],[9,'gravel',2],[10,'mud',2],[11,'road',3],[13,'water',1],[14,'sand',2],[15,'hill',2],[16,'road',5],[17,'road',4]]) Object.assign(edges[i],{type,length});
+    }
+    return {stage,nodes,edges,start:'S'};
   }
-  function predict(model, f) { return explain(model,f).label; }
-  function transfer(model, f) {
-    return explain(model.filter(sample => sample.f.some((value, i) => value !== f[i])), f);
+  const fresh=()=>({dirty:false,wet:0});
+  const stateKey=s=>`${+s.dirty}:${s.wet}`;
+  const key=o=>`${o.type}:${stateKey(o.before)}`;
+  function stateName(s){return [s.dirty?'грязные':'чистые',s.wet?`мокрые (${s.wet})`:'сухие'].join(', ');}
+  function physical(type,before) {
+    const after={...before},base=terrains[type].base;
+    const stalled=type==='hill'&&before.wet>0;
+    const energy=base+(before.dirty&&type!=='water'?3:0);
+    if(!stalled){
+      if(type==='mud')after.dirty=true;
+      if(type==='water'){after.dirty=false;after.wet=2;}
+      else {after.wet=Math.max(0,after.wet-1);if(type==='gravel')after.dirty=false;if(type==='sand')after.wet=0;}
+    }
+    return {energy,after,stalled};
   }
-  function shortest(grid, start, goal, { rain = false, model = [], mode = 'energy', oracle = false, useAI = true } = {}) {
-    const dist = Array(144).fill(Infinity), prev = Array(144).fill(-1), done = new Set(); dist[start] = 0;
-    for (let k = 0; k < 144; k++) {
-      let u = -1; for (let i = 0; i < 144; i++) if (!done.has(i) && (u < 0 || dist[i] < dist[u])) u = i;
-      if (u < 0 || !Number.isFinite(dist[u])) return null;
-      if (u === goal) { const path = []; for (let v = goal; v !== start; v = prev[v]) path.unshift(v); return path; }
-      done.add(u);
-      for (const v of neighbors(u, grid)) {
-        if (oracle ? danger(features(grid[v], rain)) : useAI && predict(model, features(grid[v], rain)) !== 0) continue;
-        const next = dist[u] + (mode === 'steps' ? 1 : costs[grid[v].type]);
-        if (next < dist[v]) { dist[v] = next; prev[v] = u; }
+  function train(observations){
+    const rows=new Map();
+    // Store only measured input/output pairs; no map, route, or physical function.
+    for(const o of observations)rows.set(key(o),{type:o.type,before:{...o.before},energy:o.energy,after:{...o.after},stalled:o.stalled});
+    return [...rows.values()];
+  }
+  // Learn separate effects from consistent hypotheses, not an unrelated wheel-state snapshot.
+  // Candidate families are shared by every surface. No physical() calls or surface-specific answers.
+  const dirtRules=[['загрязнение сохраняется',s=>s.dirty],['колёса очищаются',()=>false],['колёса загрязняются',()=>true]];
+  const wetRules=[['влажность сохраняется',s=>s.wet],['влажность снижается на 1',s=>Math.max(0,s.wet-1)],['колёса высыхают',()=>0],['влажность становится 1',()=>1],['влажность становится 2',()=>2],['влажность растёт на 1',s=>Math.min(2,s.wet+1)]];
+  const stallRules=[['проезд возможен',()=>false],['мокрые колёса застревают',s=>s.wet>0],['сильно мокрые колёса застревают',s=>s.wet===2],['грязные колёса застревают',s=>s.dirty],['проезд невозможен',()=>true],['сухие колёса застревают',s=>!s.wet],['чистые колёса застревают',s=>!s.dirty],['грязные мокрые колёса застревают',s=>s.dirty&&s.wet>0]];
+  const compiled=new WeakMap();
+  function hypotheses(model){
+    if(compiled.has(model))return compiled.get(model);
+    const result={};
+    for(const [type,t]of Object.entries(terrains)){
+      const rows=model.filter(o=>o.type===type),moving=rows.filter(o=>!o.stalled),energy=[];
+      for(let dirty=0;dirty<=4;dirty++)for(let wet=0;wet<=4;wet++){
+        const f=s=>t.base+dirty*Number(s.dirty)+wet*s.wet;
+        if(rows.every(o=>f(o.before)===o.energy))energy.push([`расход ${t.base}${dirty?' + '+dirty+' за грязь':''}${wet?' + '+wet+' × влажность':''}`,f]);
       }
+      energy.sort((a,b)=>a[1]({dirty:true,wet:1})-b[1]({dirty:true,wet:1}));
+      result[type]={rows,energy,dirt:dirtRules.filter(([,f])=>moving.every(o=>f(o.before)===o.after.dirty)),wet:wetRules.filter(([,f])=>moving.every(o=>f(o.before)===o.after.wet)),stall:stallRules.filter(([,f])=>rows.every(o=>f(o.before)===o.stalled))};
     }
-    return null;
+    compiled.set(model,result);return result;
   }
-  function permutations(a) { return a.length ? a.flatMap((v, i) => permutations(a.filter((_, j) => i !== j)).map(p => [v, ...p])) : [[]]; }
-  // Positive additive energy costs: minimizing over all goal orders and shortest safe
-  // segments is exact, including paths which supply another camp on the way.
-  function plan(mission, model, options = {}) {
-    const goals = mission.grid.flatMap((c, i) => c.object === 'camp' ? [i] : []); let best = null;
-    for (const order of permutations(goals)) {
-      let pos = mission.start, path = [], valid = true; const remaining = new Set(goals);
-      for (const goal of order) {
-        if (!remaining.has(goal)) continue;
-        const segment = shortest(mission.grid, pos, goal, { rain: mission.rain, model, oracle: !!options.oracle, useAI: options.useAI !== false });
-        if (!segment) { valid = false; break; }
-        path.push(...segment); segment.forEach(i => remaining.delete(i)); pos = goal;
-      }
-      const energy = path.reduce((sum, i) => sum + costs[mission.grid[i].type], 0);
-      if (valid && (!best || energy < best.energy || energy === best.energy && path.length < best.path.length)) best = { energy, path, order };
+  function predictStep(model,type,before){
+    const h=hypotheses(model)[type],exact=h.rows.find(o=>stateKey(o.before)===stateKey(before));
+    if(exact)return {energy:exact.energy,after:{...exact.after},stalled:exact.stalled,known:true,source:'Измерено при таком состоянии колёс'};
+    // Empty data makes only the visible base-cost/unchanged-state assumption.
+    if(!h.rows.length)return {energy:terrains[type].base,after:{...before},stalled:false,known:false,source:'Нет измерений этого покрытия; используется стартовое предположение'};
+    const fallback={energy:terrains[type].base,dirt:before.dirty,wet:before.wet,stall:false};
+    const values=Object.fromEntries(['energy','dirt','wet','stall'].map(k=>[k,[...new Set(h[k].map(([,f])=>f(before)))]]));
+    const pick=k=>values[k][0]??fallback[k],stalled=pick('stall'),known=['energy','stall',...(!stalled?['dirt','wet']:[])].every(k=>values[k].length===1);
+    return {energy:pick('energy'),after:stalled?{...before}:{dirty:pick('dirt'),wet:pick('wet')},stalled,known,source:known?'Все правила, согласующиеся с опытом, дают этот результат':'Перенос опыта: несколько объяснений ещё возможны'};
+  }
+  function explain(model){return Object.entries(hypotheses(model)).map(([type,h])=>({type,examples:h.rows.length,effects:[h.energy[0]?.[0],h.dirt[0]?.[0],h.wet[0]?.[0],h.stall[0]?.[0]].filter(Boolean),ambiguous:[h.energy,h.dirt,h.wet,h.stall].some(rows=>rows.length!==1)}));}
+  function edgeBetween(map,a,b){return map.edges.find(e=>e.a===a&&e.b===b||e.a===b&&e.b===a);}
+  function journey(steps,predictor,budget=Infinity){
+    let state=fresh(),spent=0,stalled=false,exhausted=false;const observations=[];
+    for(const step of steps){
+      const result=predictor(step.type,state);
+      if(spent+result.energy>budget){exhausted=true;break;}
+      const observation={...step,before:{...state},...result,after:{...result.after}};
+      observations.push(observation);spent+=result.energy;state={...result.after};
+      if(result.stalled){stalled=true;break;}
     }
-    return best;
+    return {spent,state,stalled,exhausted,observations,finished:!stalled&&!exhausted&&observations.length===steps.length};
   }
-  function optimum(mission) { return plan(mission, [], { oracle: true }); }
-  const descriptions = {
-    training: { title: 'Первый рейс', brief: 'Три учебных лагеря ждут помощь. Довези по одной аптечке в A, B и C — тогда обучение завершено.', max: 0 },
-    forest: { title: 'Лесные развилки', brief: 'Три лагеря спасателей за лесными проходами ждут аптечки. Здесь новый грунт: опыт первого рейса может не подойти.', max: 10 },
-    gorge: { title: 'Каменный лабиринт', brief: 'После камнепада в проходах рыхлая осыпь. Даже сухой щебень может провалиться: исследуй твёрдость и довези аптечки в три лагеря.', max: 15 },
-    rain: { title: 'Мокрая долина', brief: 'Лагеря ждут помощь после дождя. Грунт стал мокрее: проверь свои предположения и научи робота новым условиям.', max: 25 }
-  };
-  function create(id) {
-    if (!descriptions[id]) throw Error('Unknown expedition: '+id);
-    const types=Object.keys(profiles), seed={training:1,forest:7,gorge:19,rain:31}[id], rain=id==='rain';
-    const grid=Array.from({length:144},(_,i)=>tile('road',i));
-    const variation=(i,j)=>((i*13+j*7+seed)%5)-2;
-    const set=(i,type,bad=false)=>{
-      const f=profiles[type][+bad].map((v,j)=>Math.max(0,Math.min(100,v+variation(i,j))));
-      // Some wet ground stays usable after rain; others become traps.
-      if(rain&&!bad&&danger(features({f},true)))f[0]=Math.max(0,f[0]-25);
-      grid[i]=tile(type,i,f);
-    };
-    let start=id==='training'?0:id==='gorge'?13:121;
-    for(let i=0;i<144;i++){
-      const x=i%12,y=i/12|0;
-      if(id==='training') { const type=types[(y/4|0)*3+(x/4|0)]; grid[i]=tile(type,i,profiles[type][+(x%4>=2&&y%4!==3)]); continue; }
-      const boundary=x===0||x===11||y===0||y===11;
-      const wall=id==='forest' ? x===4&&![2,7,9].includes(y)||x===8&&![1,5,9].includes(y)
-        :id==='gorge'? y===4&&![2,7,9].includes(x)||y===8&&![1,5,9].includes(x)||x===6&&y>4&&y<8&&y!==6
-        : x===5&&![2,6,9].includes(y)||y===5&&![2,7,9].includes(x);
-      if(boundary||wall)grid[i]=tile('wall',i);
-      else {
-        const type=types[(x*7+y*11+seed)%types.length];
-        // The forest introduces a few materials; later missions add new conditions.
-        set(i,id==='forest'?({hill:'sand',water:'road',clay:'mud',ice:'gravel'}[type]||type):type);
-      }
-    }
-    // A first successful trip needs just the two introductory examples.
-    // The other material zones stay available for the learner's own experiments.
-    if(id==='training')for(let y=0;y<12;y++)grid[y*12+1]=tile('road',y*12+1);
-    const goals=id==='training'?[37,85,133]:id==='forest'?[22,82,130]:id==='gorge'?[21,118,121]:[14,46,130];
-    const guaranteed=new Set([start,...goals]);
-    // Add traps only while the safe landscape still connects every usable cell.
-    // Keep traps sparse enough to preserve useful bypasses, not just a connected tree.
-    // Model mistakes can then cause a longer delivery rather than only block it.
-    if(id!=='training')for(let i=0;i<144;i++){
-      if(grid[i].type==='wall'||guaranteed.has(i)||(i*17+seed)%7>0)continue;
-      const before=grid[i];set(i,before.type,true);
-      const seen=new Set([start]), queue=[start];
-      for(let k=0;k<queue.length;k++)for(const j of neighbors(queue[k],grid))if(!seen.has(j)&&!danger(features(grid[j],rain))){seen.add(j);queue.push(j);}
-      if(grid.some((c,j)=>c.type!=='wall'&&!danger(features(c,rain))&&!seen.has(j)))grid[i]=before;
-    }
-    // A muddy shortcut preserves the safe graph (this was a wall). A mistaken
-    // 'passable' label makes it attractive, so the learner sees a real stall.
-    if(id==='forest')grid[100]=tile('mud',100,profiles.mud[1]);
-    // Every route to the lower camps crosses scree with readings absent from the lab.
-    // One safe field example transfers to the other passes; a weak pass stays optional.
-    if(id==='gorge')for(const i of [50,55,57,97,101,105])grid[i]=tile('gravel',i,[10,12,45,i===50?22:50]);
-    // Expedition camps preserve the local material: reaching people still requires safe ground.
-    goals.forEach((i,n)=>{ if(grid[i].type==='wall')set(i,'gravel'); if(danger(features(grid[i],rain)))set(i,grid[i].type); grid[i].object='camp';grid[i].camp=String.fromCharCode(65+n); });
-    if(grid[start].type==='wall')set(start,'road');
-    return { id, grid, start, rain, budget: 240, cargo: goals.length, ...descriptions[id] };
-  }
-  function examples() { return Object.entries(profiles).flatMap(([type,pair])=>pair.map((f,y)=>({f:[...f],y,type}))); }
-  function score({ max, delivered, camps, energy, optimal, complete }) {
-    if (!max || !camps) return 0;
-    const delivery = Math.floor(max * .6 * Math.min(delivered, camps) / camps);
-    if (!complete || delivered !== camps || !Number.isFinite(optimal) || energy < optimal) return delivery;
-    if (energy === optimal) return max;
-    // Every nonoptimal complete path scores strictly below the maximum.
-    return Math.min(max - 1, Math.max(delivery, Math.floor(max * (.6 + .4 * optimal / energy))));
-  }
-  root.RobotEngine = { N, costs, limits, danger, sensorWords, tile, features, predict, explain, transfer, shortest, plan, optimum, permutations, create, examples, names, icons, profiles, score, ids: ['training', 'forest', 'gorge', 'rain'] };
-  if (typeof module !== 'undefined') module.exports = root.RobotEngine;
-})(typeof window !== 'undefined' ? window : globalThis);
+  const api={VERSION,terrains,create,fresh,key,stateName,physical,train,predictStep,explain,edgeBetween,journey};
+  root.RobotEngine=api;if(typeof module!=='undefined')module.exports=api;
+})(typeof window!=='undefined'?window:globalThis);

@@ -1,238 +1,155 @@
-/* The learner's labels teach rescue delivery; physical tests never relabel them. */
-'use strict';
-const $=id=>document.getElementById(id), R=RobotEngine, N=12;
-let grid=[],start=0,robot=0,selected=-1,raining=false,samples=[],model=[],overlay=false,running=false,timer=null;
-let path=[],trail=[],targets=new Set(),delivered=0,steps=0,spent=0,remaining=240,stage=0,mission,benchmark,preview=null;
-let best=Array(4).fill(null),checks=new Map(),guesses=new Map(),stuckCell=-1,trainingPassed=false,learningEffect='';
-let robotSession=window.FestivalSession?.id;let restoring=true,restoredRobot=false;let transferChecks=Array.from({length:4},()=>[]),transferMessage='';
-const features=i=>R.features(grid[i],raining), danger=f=>R.danger(f), key=f=>f.join(',');
-const say=text=>$('status').textContent=text;
-const learned=()=>model.length>0;
-const campIndices=()=>grid.flatMap((c,i)=>c.object==='camp'?[i]:[]);
-const letter=i=>grid[i].camp;
-const pendingExamples=()=>samples.filter(s=>!model.some(m=>key(m.f)===key(s.f)&&m.y===s.y)).length;
-function persist(){if(!restoring)window.FestivalSession?.save('robot',{stage,samples,model,best,trainingPassed,transferChecks,trip:{trail,selected,checks:[...checks],guesses:[...guesses]}},robotSession);}
-function transferDone(i=stage){return i===0||[0,1].every(y=>transferChecks[i].some(check=>check.y===y));}
-function publish(){persist();window.SessionScore?.robot(best.reduce((sum,r,i)=>sum+(transferDone(i)?r?.score||0:0),0),best.slice(1).every((r,i)=>r?.complete&&transferDone(i+1)),trainingPassed);}
-function currentMission(){return {...mission,grid,start,rain:raining};}
-function recalculate(){
- benchmark=R.optimum(currentMission());preview=model.length?R.plan(currentMission(),model):null;
- updateRouteInfo();
-}
-function updateRouteInfo(){
- if(running){$('autoRoute').textContent=`Рейс идёт: помощь получили ${delivered} из ${mission.cargo} лагерей. Жёлтый след — уже пройденный путь.`;return;}
- if(trail.length){$('autoRoute').textContent=`Пройденный путь — жёлтый. Потрачено ${spent} энергии. Повторный рейс начнётся с базы с тремя аптечками.`;return;}
- const order=preview?[...new Set(preview.path.filter(i=>grid[i].object==='camp'))].map(letter).join(' → '):'';
- $('autoRoute').textContent=preview?`Робот выбрал путь: база → ${order}. Расход: ${preview.energy} энергии.`:model.length?'Пути ко всем лагерям пока нет: робот не узнаёт часть грунта. Разные примеры расширяют его опыт.':'Робот выберет путь после обучения на твоих метках.';
-}
-function updateTask(){
- const complete=delivered===mission.cargo&&!running;
- $('missionTask').dataset.state=complete&&transferDone()?'complete':complete?'checking':running?'running':'preparing';
- $('taskTitle').textContent=complete&&transferDone()?(stage===0?'Победа! Учебный рейс выполнен':'Победа! Доставка и проверка опыта выполнены'):complete?'Аптечки доставлены — проверь перенос опыта':stage===0?'Первый рейс: помоги трём учебным лагерям':'Довези аптечки в три лагеря спасателей';
- $('taskHint').textContent=stage===0?'У робота три аптечки. Научи его отличать проезд от опасности и выполни пробный рейс. Обучение завершено, когда все лагеря получили помощь.':'Довези три аптечки без застревания и проверь перенос опыта: подтверди проезд и опасность на выбранных тобой участках. Экономия батареи даёт бонус.';
- if(complete)$('taskHint').textContent=stage===0?'Твой робот сам доставил все аптечки. Учебный рейс пройден — он без баллов. Впереди три спасательные экспедиции.':`Твой робот сам доставил все аптечки. За этот рейс: ${R.score({max:mission.max,delivered,camps:mission.cargo,energy:spent,optimal:benchmark.energy,complete:true})} / ${mission.max} баллов. `+(transferDone()?' Проверка переноса выполнена.':' Баллы войдут в общий счёт после двух проверок переноса.');
- $('run').textContent=trail.length?'↻ Повторить рейс':stage===0?'▶ Пробный рейс':'▶ Отвезти аптечки';
- $('run').title=pendingExamples()?'Сначала передай новые примеры роботу кнопкой «Обучить робота».':!preview?'Для пути к лагерям нужны примеры разных покрытий.':trail.length?'Робот начнёт новый рейс с базы с тремя аптечками.':'Робот сам поедет по синей линии.';
-}
-function terrainLegend(){
- const legend=$('terrainLegend');legend.replaceChildren();
- const present=new Set(grid.map(cell=>cell.type));
- Object.entries(R.names).filter(([type])=>present.has(type)).forEach(([type,name])=>{
-  const b=document.createElement('div');b.className='terrain-key';b.dataset.terrain=type;
-  b.innerHTML=`<span class="terrain-swatch ${type}" aria-hidden="true"></span><span>${name}<small>${R.costs[type]} / шаг</small></span>`;legend.appendChild(b);
- });
-}
-function controls(){
- const nav=$('expeditionNav');nav.replaceChildren();
- R.ids.forEach((id,i)=>{const b=document.createElement('button');b.id='expedition-'+id;b.textContent=(i?i+'. ':'')+R.create(id).title+(best[i]?.complete&&transferDone(i)?' ✓':'');b.setAttribute('aria-current',stage===i?'step':'false');b.disabled=running||(i===1?!trainingPassed:i>1&&(!best[i-1]?.complete||!transferDone(i-1)));b.onclick=()=>loadStage(i);nav.appendChild(b);});
- $('missionName').textContent=mission.title.toUpperCase();$('missionBrief').textContent=mission.brief;
- $('nextMission').hidden=stage===3;$('nextMission').disabled=running||(stage===0?!trainingPassed:!best[stage]?.complete||!transferDone());
- $('nextMission').textContent=stage===0?'В лес к спасателям →':'Следующая экспедиция →';
- $('deliveryTries').textContent=stage===0?(trainingPassed?'Пробный рейс выполнен ✓':'Учебный рейс без баллов. Задача — помощь трём лагерям.'):`Лучший результат: ${best[stage]?.score||0} / ${mission.max}. Проверка переноса: ${transferChecks[stage].length}/2.`;
- $('robotBenchmark').textContent=`Бонус за экономию: безопасный минимум — ${benchmark.energy} энергии. Максимум экспедиции — ${mission.max} баллов.`;
- $('run').disabled=running||!learned()||!preview||pendingExamples()>0;$('stop').disabled=!running;
- for(const id of ['predict','clear','robotTutorial','newParticipant'])$(id).disabled=running;
- $('boardStage').classList.toggle('rolling',running);updateTask();publish();
-}
-function initial(){
- clearTimeout(timer);running=false;mission=R.create(R.ids[stage]);grid=mission.grid;start=robot=mission.start;raining=mission.rain;
- selected=stuckCell=-1;path=[];trail=[];transferMessage='';spent=delivered=steps=0;remaining=mission.budget;targets=new Set(campIndices());checks=new Map();guesses=new Map();learningEffect='';
- $('weather').textContent=raining?'После дождя · грунт мокрее':'Сухая погода';$('boardStage').classList.toggle('rainy',raining);
- recalculate();terrainLegend();draw();inspect();updateLearning();controls();say(mission.brief);
-}
-function loadStage(index){if(running||index<0||index>3||index===1&&!trainingPassed||index>1&&(!best[index-1]?.complete||!transferDone(index-1)))return;stage=index;initial();}
-function moveSprite(){
- const w=$('board').getBoundingClientRect().width;if(w<=33)return;const cell=(w-33)/12,sp=$('robotSprite');sp.style.width=sp.style.height=cell+'px';sp.style.transform=`translate(${robot%N*(cell+3)}px,${(robot/N|0)*(cell+3)}px)`;
- const svg=$('routeLayer');svg.setAttribute('viewBox',`0 0 ${w} ${w}`);
- const points=indices=>indices.map(i=>`${i%N*(cell+3)+cell/2},${(i/N|0)*(cell+3)+cell/2}`).join(' ');
- const planned=running?[robot,...path]:trail.length?[]:preview?[start,...preview.path]:[];
- $('routePlan').setAttribute('points',points(planned));$('routeTravelled').setAttribute('points',points(trail.length?[start,...trail]:[]));
-}
-function draw(){
- const frag=document.createDocumentFragment();
- grid.forEach((c,i)=>{
-  const b=document.createElement('button');b.className='cell '+c.type+(selected===i?' selected':'')+(i===stuckCell?' stuck':'');b.dataset.index=i;
-  let title=`Ряд ${(i/N|0)+1}, клетка ${i%N+1}: ${R.names[c.type]||'Преграда'}`;
-  if(c.object==='camp'){
-   b.dataset.camp=letter(i);b.dataset.served=String(!targets.has(i));
-   b.innerHTML=`<img class="camp-art" src="assets/camp.svg" alt=""><span class="camp-letter">${letter(i)}</span>`;
-   title+=` · Лагерь ${letter(i)}: `+(targets.has(i)?'ждёт аптечку':'получил аптечку');
-   if(!targets.has(i)){const mark=document.createElement('span');mark.className='camp-served';mark.textContent='✓';b.appendChild(mark);}
+/* Experiments are player-driven; deliveries are driven by the learned robot. */
+(function(){
+  'use strict';
+  const R=RobotEngine,D=RobotDelivery,$=id=>document.getElementById(id),NS='http://www.w3.org/2000/svg';
+  const svg=(tag,attrs={},text)=>{const e=document.createElementNS(NS,tag);for(const [k,v]of Object.entries(attrs))e.setAttribute(k,v);if(text!==undefined)e.textContent=text;return e;};
+  const blank=()=>({rules:D.VERSION,round:0,view:'district',route:['S'],selected:[],trips:[]});
+  let s=blank(),session=FestivalSession.id,running=false,timer=null,frame=null,live=null,restored=false,planning=null;
+  let best=FestivalSession.read('robotBest');if(!best||best.rules!==D.VERSION||!Number.isInteger(best.stars)||best.stars<0||best.stars>D.MAX_STARS||!Number.isInteger(best.reserve)||best.reserve<0||best.reserve>194)best={rules:D.VERSION,stars:0,reserve:0};
+  const map=()=>s.view==='lab'?D.laboratory():D.district(s.round),model=()=>D.model(s.trips),last=()=>s.trips.at(-1);
+  const routeName=(r,m=map())=>r.map(id=>id==='S'?'База':(m.orders?.find(o=>o.node===id)?.title||m.nodes[id][2])).join(' → ');
+  const delivered=()=>s.trips.some(t=>t.round===s.round&&t.kind==='delivery'&&t.ended);
+  const experiments=()=>s.trips.filter(t=>t.round===s.round&&t.kind==='experiment').length;
+  const pending=()=>s.trips.filter(t=>t.ended&&!t.taught&&t.steps>0);
+  const activeRoute=()=>s.view==='lab'?s.route:(running||delivered())&&last()?.kind==='delivery'?last().route:planning?.route||['S'];
+  function save(){FestivalSession.save('robot',s,session);FestivalSession.save('robotBest',best,session);}
+  function publish(){const v=D.score(s.trips);window.SessionScore?.robot(Math.floor(Math.max(v.stars,best.stars)*50/D.MAX_STARS),s.trips.filter(t=>t.kind==='delivery'&&t.ended).length===3,s.trips.some(t=>t.taught));}
+  function say(text){$('status').textContent=text;}
+  function restore(){const old=FestivalSession.read('robot');if(!D.validate(old))return;s=old;restored=true;for(const t of s.trips)if(!t.ended){t.ended=true;t.interrupted=true;}const t=last();if(t&&t.round===s.round&&(t.kind==='experiment')===(s.view==='lab'))live=D.actual(t);}
+  function wheelEffect(obs){
+    const o=obs.at(-1);if(!o)return 'Перед стартом: чистые сухие колёса.';
+    if(o.stalled)return 'Мокрые колёса буксуют на подъёме. Робот застрял.';
+    if(o.before.dirty&&!o.after.dirty)return o.type==='water'?'Вода смыла грязь, но колёса намокли.':'Камни счистили грязь с колёс.';
+    if(!o.before.dirty&&o.after.dirty)return 'Грязь налипла на колёса. Что изменится дальше?';
+    if(o.before.wet&&!o.after.wet)return 'Колёса высохли: влажность 0 из 2.';
+    if(o.after.wet>o.before.wet)return 'Колёса намокли: влажность '+o.after.wet+' из 2.';
+    if(o.before.dirty)return 'Грязные колёса: расход '+o.energy+' вместо базовых '+R.terrains[o.type].base+'.';
+    return R.terrains[o.type].name+': '+o.energy+' заряда за шаг. '+(o.after.wet?'Колёса ещё мокрые.':'Колёса сухие.');
   }
-  if(i===start){b.classList.add('launch-position');title+=' · База: старт робота с аптечками';const base=document.createElement('span');base.className='base-label';base.textContent='База';b.appendChild(base);}
-  if(overlay&&c.type!=='wall'){
-   const answer=R.predict(model,features(i));b.dataset.prediction=answer===null?'unknown':answer?'unsafe':'safe';
-   const mark=document.createElement('span');mark.className='ai-mark '+b.dataset.prediction;mark.textContent=answer===null?'?':answer?'×':'✓';b.appendChild(mark);
-   title+=' · Робот думает: '+(answer===null?'не знает':answer?'застрянет':'проедет');
+  function drawMap(){
+    const m=map();$('missionName').textContent=m.title;$('roads').replaceChildren();$('roadLabels').replaceChildren();
+    for(const e of m.edges){
+      const a=m.nodes[e.a],b=m.nodes[e.b],d=`M${a[0]},${a[1]} L${b[0]},${b[1]}`,group=svg('g',{'data-edge':e.id,class:'road-group',tabindex:0,role:'button','aria-label':R.terrains[e.type].name+', длина '+e.length+'. О покрытии'});
+      group.append(svg('path',{d,class:'road-border'}),svg('path',{d,class:'road-surface',stroke:`url(#texture-${e.type})`}));
+      group.onclick=()=>surface(e.type);group.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();surface(e.type);}};$('roads').append(group);
+      const text=R.terrains[e.type].name+' · '+e.length,w=Math.max(82,text.length*8.4),label=svg('g',{class:'road-label',transform:`translate(${(a[0]+b[0])/2} ${(a[1]+b[1])/2})`});label.append(svg('rect',{x:-w/2,y:-13,width:w,height:26,rx:5}),svg('text',{y:5},text));$('roadLabels').append(label);
+    }
+    const decor=$('mapDecor');decor.replaceChildren();
+    for(const [i,[x,y]]of [[370,120],[407,142],[609,115],[650,141],[380,290],[418,310],[594,287],[630,306],[123,94],[135,331],[868,95],[865,334]].entries()){
+      const tree=svg('g',{transform:`translate(${x} ${y})`,class:'scenery',style:'--delay:'+i*-.3+'s'});
+      tree.append(svg('ellipse',{cx:0,cy:12,rx:19,ry:7,fill:'#142e29',opacity:'.5'}));
+      if(s.view==='district'&&s.round===1)tree.append(svg('path',{d:'M-19 10L-6-13 4-8 10-19 24 10Z',fill:'#829283',stroke:'#355444','stroke-width':2}),svg('path',{d:'M-6-13 4-8 10-19 15-4',fill:'none',stroke:'#b9c5ab','stroke-width':3}));
+      else tree.append(svg('path',{d:'M0-27L-17-3H-11L-24 13H24L11-3H17Z',fill:'#52794f',stroke:'#274c38','stroke-width':2}),svg('path',{d:'M0-20L-11-4H-5L-15 7',fill:'none',stroke:'#a1ad6c','stroke-width':2}));decor.append(tree);
+    }
+    const junctions=$('junctions');junctions.replaceChildren();
+    for(const [id,[x,y,title]]of Object.entries(m.nodes)){
+      const order=m.orders?.find(o=>o.node===id),g=svg('g',{class:'junction'+(order?' order-node':''),transform:`translate(${x} ${y})`,'data-node':id,tabindex:0,role:'button','aria-label':s.view==='lab'?title+' — добавить в опыт':order?order.title+' — '+order.stars+' звёзд, выбрать заказ':title+' — развилка'});
+      g.append(svg('circle',{r:id==='S'||order?27:22}),svg('text',{},id==='S'?'⌂':order?order.code:title));
+      if(id==='S'||order)g.append(svg('text',{class:'node-name',y:id==='G'?-46:46,style:id==='G'?'text-anchor:end':''},id==='S'?'База':order.title));
+      g.onclick=()=>node(id);g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();node(id);}};junctions.append(g);
+    }
+    $('terrainLegend').replaceChildren(...Object.entries(R.terrains).map(([type,t])=>{const b=document.createElement('button');b.className='terrain-key';b.dataset.terrain=type;b.setAttribute('aria-label',t.name+' — свойства');const swatch=svg('svg',{viewBox:'0 0 30 24','aria-hidden':true});swatch.append(svg('rect',{width:30,height:24,fill:`url(#texture-${type})`}));b.append(swatch,document.createTextNode(t.name));b.onclick=()=>surface(type);return b;}));
   }
-  b.title=title;b.setAttribute('aria-label',title);b.onclick=()=>select(i);frag.appendChild(b);
- });
- $('board').replaceChildren(frag);$('delivered').textContent=delivered+' / '+campIndices().length;$('remaining').textContent=Math.round(remaining/mission.budget*100)+'%';$('remaining').title=remaining+' из '+mission.budget+' энергии';$('steps').textContent=steps;$('cargo').textContent=mission.cargo-delivered;
- $('cargoHold').replaceChildren(...Array.from({length:mission.cargo},(_,i)=>{const img=document.createElement('img');img.src='assets/medkit.svg';img.alt=i<delivered?'Аптечка передана лагерю':'Аптечка на борту';img.classList.toggle('unloaded',i<delivered);return img;}));
- $('campStatus').replaceChildren(...campIndices().map(i=>{const item=document.createElement('li');item.dataset.served=String(!targets.has(i));item.innerHTML=`<b>Лагерь ${letter(i)}</b><span>${targets.has(i)?'Ждёт аптечку':'✓ Помощь доставлена'}</span>`;return item;}));
- $('predict').textContent=overlay?'Скрыть мнение робота':'Что робот думает о грунте?';$('predict').setAttribute('aria-pressed',overlay);$('predictionLegend').hidden=!overlay;moveSprite();updateRouteInfo();
-}
-function select(i){if(running)return;selected=i;inspect();draw();persist();window.GameTour?.signal('robot:inspected',{index:i});}
-const sensorWords=f=>R.sensorWords(f);
-function inspect(){
- const valid=selected>=0&&grid[selected].type!=='wall',f=valid?features(selected):null,guess=valid?guesses.get(key(f)):undefined,result=valid?checks.get(key(f)):undefined,sample=valid?samples.find(s=>key(s.f)===key(f)):null;
- for(const id of ['safe','unsafe']){$(id).disabled=running||!valid;$(id).setAttribute('aria-pressed',String(guess===(id==='safe'?0:1)));}
- $('probe').disabled=running||!valid||guess===undefined;
- $('selectedName').textContent=valid?`${R.names[grid[selected].type]} · ряд ${(selected/N|0)+1}, клетка ${selected%N+1}`:'Выбери участок на карте';
- if(!valid){$('sensorHint').textContent=selected>=0?'Это преграда: через неё робот не проедет. Гипотезы проверяют на грунте.':'Здесь ты проверяешь свои предположения. Разные примеры учат робота узнавать новый грунт.';if(selected>=0)$('selectedName').textContent='Каменная преграда';}
- else if(result===undefined)$('sensorHint').textContent=guess===undefined?'Как думаешь, робот проедет здесь или застрянет? Сравни числа с границами проезда.':'Твой ответ: '+(guess?'застрянет':'проедет')+'. Испытание сохранит именно его, даже если он ошибочный.';
- else{
-  const reason=f[3]<=R.limits.bearing?'грунт проваливается':f[0]>=R.limits.wet?'слишком мокро':f[1]>=R.limits.slope?'слишком круто':'влажность и ямы';
-  $('sensorHint').textContent='На испытании: '+(result?'застрянет — '+reason:'проедет')+'. '+(sample?'В примере: «'+(sample.y?'застрянет':'проедет')+'». '+(sample.y!==+result?'Ответ не исправлен.':''): 'Метка для этого участка ещё не сохранена.');
- }
- const words=valid?sensorWords(f):['—','—','—','—'];
- for(const [j,id]of ['wet','slope','rough','bearing'].entries()){$(id).textContent=words[j];$(id+'Number').textContent=valid?f[j]:'—';$(id+'Number').title='Шкала от 0 до 100';}
- $('terrainLimits').textContent=`Шкала 0–100. Проезд: влажность < ${R.limits.wet}; уклон < ${R.limits.slope}; твёрдость > ${R.limits.bearing}; влажность + неровности < ${R.limits.wetRough}. Нужны все условия.`;
- const forecast=valid?R.transfer(model,f).label:null;
- $('transferForecast').hidden=stage===0;
- $('transferForecast').textContent=valid?(guess===undefined?'Сначала твоя гипотеза, затем прогноз робота.':'Робот по другим примерам: '+(forecast===null?'пока не знает':forecast?'застрянет':'проедет')+'.'):'Выбери участок для проверки переноса.';
- explainSelected();
-}
-function label(y){if(running||selected<0||grid[selected].type==='wall')return;guesses.set(key(features(selected)),y);checks.delete(key(features(selected)));inspect();persist();window.GameTour?.signal('robot:guessed',{index:selected,label:y});}
-function probe(){
- if(selected<0||grid[selected].type==='wall'||running||!guesses.has(key(features(selected))))return;
- transferMessage='';
- const f=features(selected),y=+danger(f),transfer=R.transfer(model,f),guess=guesses.get(key(f)),sample={f,y:guess,observed:y,type:grid[selected].type},old=samples.findIndex(s=>key(s.f)===key(f));
- checks.set(key(f),!!y);if(old<0)samples.push(sample);else samples[old]=sample;
- if(stage&&!transferChecks[stage].some(check=>check.y===y)){
-  if(transfer.label===y&&guess===y){
-   transferChecks[stage].push({index:selected,f:[...f],type:grid[selected].type,y,near:transfer.near.map(({f,y,type})=>({f:[...f],y,type}))});
-   transferMessage='Перенос подтверждён: ты и робот предсказали «'+(y?'застрянет':'проедет')+'», испытание подтвердило. Точного примера этого участка в опыте не было.';
-  }else transferMessage=guess!==y?'Гипотеза не подтвердилась. Твоя метка сохранена без исправления. Робот обучится на ней.':transfer.label===null?'Для проверки переноса нужны похожие примеры. Обучи робота, затем проверь свой прогноз.':'Робот ошибся. Исправь свои метки и переобучи его.';
- }
-
- inspect();updateLearning();controls();say(transferMessage||'Сохранён твой ответ: «'+(guess?'застрянет':'проедет')+'». '+(guess!==y?'Испытание показало ошибку, но метка не исправлена.':'Испытание его подтвердило.'));
- window.GameTour?.signal('robot:probed',{index:selected,label:guess,observed:y});
-}
-function explainSelected(){
- const box=$('predictionReason');box.replaceChildren();const p=document.createElement('p');box.appendChild(p);
- if(selected<0||grid[selected].type==='wall'){p.textContent='Выбери участок: здесь видно, с какими примерами робот сравнивает его датчики.';return;}
- const answer=R.explain(model,features(selected));p.textContent='Робот думает: '+(answer.label===null?'не знает':answer.label?'застрянет':'проедет')+'. '+answer.reason+'.';
- answer.near.forEach(s=>{const e=document.createElement('p');e.textContent=(R.names[s.type]||'Участок')+' · твоя метка: '+(s.y?'застрянет':'проедет')+' · показания '+s.f.join(' / ');box.appendChild(e);});
-}
-function updateLearning(){
- const pending=pendingExamples();$('samples').textContent=`Твои примеры: ${samples.length}`+(pending?` · ждут обучения: ${pending}`:'');
- $('train').disabled=running||!samples.length;
- $('model').textContent=running?'Робот применяет твои метки и едет сам.':pending?'Робот ещё не получил новые метки. Обучение передаст твои ответы без исправлений.':
-  !model.length?'Сохрани свой ответ и обучи робота. Ошибочные метки тоже попадут в его память.':trail.length?(delivered===mission.cargo?'Опыт сработал: робот добрался до всех лагерей.':'Рейс остановлен. Исправь метку и переобучи робота.'):
-  learningEffect?learningEffect+(preview?' Путь готов.':' Полного пути пока нет.'):
-  preview?'Робот выбрал путь. Синяя линия показывает, куда он поедет.':'Пути пока нет: часть грунта незнакома роботу. Каждый новый пример помогает узнавать похожие участки.';
- const coverage=$('coverage');coverage.replaceChildren();
- const present=new Set(grid.map(cell=>cell.type));
- Object.keys(R.names).filter(type=>present.has(type)).forEach(type=>{
-  const known=samples.filter(s=>s.type===type),b=document.createElement('button');b.dataset.coverage=type;
-  const unknown=grid.filter(c=>c.type===type&&R.predict(model,R.features(c,raining))===null).length;
-  b.innerHTML=`<span class="terrain-swatch ${type}" aria-hidden="true"></span><span>${R.names[type]}<small>${known.length?'Состояния в твоих примерах: '+new Set(known.map(s=>sensorWords(s.f).join(' · '))).size:'Примеров пока нет'}</small><small>${unknown?'Есть незнакомые показания на этой карте':'Робот узнаёт показания на этой карте'}</small></span>`;
-  b.onclick=()=>{const cells=grid.flatMap((c,i)=>c.type===type?[i]:[]),i=cells.find(i=>!samples.some(s=>key(s.f)===key(features(i))))??cells[0];if(i!==undefined){$('learningNotebook').open=false;document.querySelector('.monitor-dialog[open]')?.close();select(i);}};coverage.appendChild(b);
- });
- const journal=$('exampleJournal');journal.replaceChildren();samples.forEach((s,i)=>{const p=document.createElement('p');p.textContent=`${i+1}. ${R.names[s.type]}: ${s.f.join(' / ')} · ${sensorWords(s.f).join(' · ')} · твоя метка: ${s.y?'застрянет':'проедет'}`+(s.observed===undefined?'':` · испытание: ${s.observed?'застрянет':'проедет'}${s.y!==s.observed?' — метка ошибочная':''}`)+` · ${model.some(m=>key(m.f)===key(s.f)&&m.y===s.y)?'в памяти робота':'ждёт обучения'}`;journal.appendChild(p);});
- $('notebookSummary').textContent='Память робота · '+samples.length+' примеров';
- $('robotResearch').hidden=stage===0;
- $('transferSummary').textContent='Проверка переноса · '+(stage?transferChecks[stage].length:0)+'/2';
- $('transferOutcome').textContent=transferMessage||'Выбери грунт и сделай прогноз. Для опыта робот использует похожие примеры, исключая точную копию выбранных показаний.';
- const evidence=$('transferEvidence');evidence.replaceChildren();
- if(stage)for(const y of [0,1]){const proof=transferChecks[stage].find(check=>check.y===y),p=document.createElement('p');p.textContent=(proof?'✓ ':'○ ')+(y?'Опасный грунт':'Проезд')+(proof?': '+R.names[proof.type]+' · '+sensorWords(proof.f).join(' · ')+'. Прогноз совпал с испытанием.':' — ещё нужно подтвердить перенос.');evidence.appendChild(p);}
- explainSelected();updateTask();
-}
-function resetTrip(){robot=start;remaining=mission.budget;delivered=steps=spent=0;trail=[];path=[];stuckCell=-1;targets=new Set(campIndices());}
-function train(){
- if(running||$('train').disabled)return;
- const before=grid.map((c,i)=>c.type==='wall'?null:R.predict(model,features(i)));
- model=samples.map(({f,y,type})=>({f:[...f],y,type}));
- const changes=grid.flatMap((c,i)=>c.type!=='wall'&&R.predict(model,features(i))!==null&&before[i]!==R.predict(model,features(i))?[i]:[]);
- const transferred=changes.find(i=>!samples.some(s=>key(s.f)===key(features(i))))??changes.find(i=>i!==selected);
- const changed=transferred??changes[0];
- const opinion=answer=>answer===null?'не знает':answer?'застрянет':'проедет';
- learningEffect=changed!==undefined?`${R.names[grid[changed].type]}: «${opinion(before[changed])}» → «${opinion(R.predict(model,features(changed)))}». `+(transferred!==undefined?'Опыт перенесён на похожий грунт.':'Твоя метка теперь в памяти робота.'):'Решения не изменились: эти показания уже знакомы.';
- resetTrip();recalculate();draw();inspect();updateLearning();controls();say(learningEffect+' '+(preview?'Робот построил путь к лагерям.':'Для пути к лагерям ещё нужны разные наблюдения.'));window.GameTour?.signal('robot:trained');
-}
-function stop(message=true){clearTimeout(timer);running=false;path=[];draw();controls();inspect();updateLearning();if(message)say('Рейс остановлен. Уже переданные аптечки остались в лагерях. Повторный рейс начнётся с базы с новым комплектом.');}
-function run(){
- if(running||$('run').disabled)return;resetTrip();recalculate();running=true;path=[...preview.path];controls();inspect();updateLearning();
- function finish(message){
-  const complete=!targets.size;running=false;clearTimeout(timer);
-  const result={score:R.score({max:mission.max,delivered,camps:campIndices().length,energy:spent,optimal:benchmark.energy,complete}),complete,energy:spent,start};
-  if(complete&&stage===0)trainingPassed=true;
-  if(complete||stage){if(!best[stage]||result.score>best[stage].score||result.score===best[stage].score&&result.energy<best[stage].energy)best[stage]=result;}
-  if(stage)message+=` Результат: ${result.score}/${mission.max}. `+(complete&&spent===benchmark.energy?'Минимум энергии найден!':complete?'Помощь доставлена! Можно улучшить экономию батареи.':'Проверяй свои гипотезы и дополняй опыт робота.');
-  else message+=complete?' Первый рейс пройден! Теперь робот готов к лесной экспедиции.':' Это учебный рейс: можно повторить без потери баллов.';
-  path=[];draw();inspect();controls();updateLearning();say(message);window.GameTour?.signal('robot:finished',{delivered,useAI:true});
- }
- function tick(){
-  if(!running)return;
-  const next=path.shift();if(next===undefined){finish('Рейс завершён.');return;}
-  const cost=R.costs[grid[next].type];if(remaining<cost){finish('Батарея разрядилась раньше окончания рейса.');return;}
-  robot=next;remaining-=cost;spent+=cost;steps++;trail.push(next);
-  if(danger(features(next))){selected=stuckCell=next;checks.set(key(features(next)),true);finish('Робот застрял: его обучение разрешило опасный грунт. Исправь свою метку, сохрани пример и переобучи робота.');return;}
-  if(targets.has(next)){targets.delete(next);delivered++;}draw();persist();
-  if(!targets.size){finish('Все три лагеря получили аптечки!');return;}
-  timer=setTimeout(tick,window.matchMedia('(prefers-reduced-motion: reduce)').matches?20:180);
- }
- draw();say('Робот выехал с базы с тремя аптечками. В каждом лагере он оставит одну.');window.GameTour?.signal('robot:started');timer=setTimeout(tick,350);
-}
-$('safe').onclick=()=>label(0);$('unsafe').onclick=()=>label(1);$('probe').onclick=probe;$('train').onclick=train;
-$('clear').onclick=()=>{samples=[];model=[];overlay=false;learningEffect='';resetTrip();recalculate();draw();inspect();updateLearning();controls();say('Память робота очищена. Пройденные миссии и баллы сохранены.');};
-$('predict').onclick=()=>{overlay=!overlay;draw();say(overlay?'Значки — мнение робота: ✓ проедет, × застрянет, ? не знает. Испытание грунта может показать, что он ошибся.':'Значки скрыты. Робот продолжает выбирать путь по своей памяти.');};
-$('run').onclick=run;$('stop').onclick=()=>stop();$('nextMission').onclick=()=>loadStage(stage+1);
-$('robotZoom').onclick=()=>{const on=$('boardStage').classList.toggle('enlarged');$('robotZoom').setAttribute('aria-pressed',on);$('robotZoom').textContent=on?'− Обычные клетки':'＋ Крупнее клетки';moveSprite();};
-window.resetRobotMission=()=>{robotSession=window.FestivalSession?.id;stop(false);stage=0;best=Array(4).fill(null);samples=[];model=[];overlay=false;trainingPassed=false;transferChecks=Array.from({length:4},()=>[]);initial();};
-window.robotLesson={begin(){stop(false);stage=0;initial();return true;}};
-window.robotExpedition={get restored(){return restoredRobot;},publish,current:()=>({stage,id:mission.id,start,spent,trainingPassed,transferChecks:transferChecks.map(checks=>checks.map(check=>({...check}))),onboard:mission.cargo-delivered,delivered,served:campIndices().filter(i=>!targets.has(i)),best:best.map(r=>r&&({...r})),optimal:benchmark.energy}),load:loadStage};
-function switchLab(epi){stop(false);document.body.classList.toggle('city-active',epi);$('robotView').style.display=epi?'none':'';$('epiView').style.display=epi?'block':'none';for(const [id,on]of [['robotTab',!epi],['epiTab',epi]]){$(id).classList.toggle('active',on);$(id).setAttribute('aria-pressed',on);}if(epi)$('epiView').contentWindow.postMessage('city-active','*');else{$('epiView').contentWindow.postMessage('pause','*');window.GameTour?.maybeStart('robot');}location.hash=epi?'epidemic':'robot';}
-$('robotTab').onclick=()=>switchLab(false);$('epiTab').onclick=()=>switchLab(true);
-window.addEventListener('message',e=>{if(e.source===$('epiView').contentWindow&&e.data?.kind==='epidemic-height'&&Number.isFinite(e.data.height))$('epiView').style.height=Math.max(600,Math.min(10000,e.data.height))+'px';});
-new ResizeObserver(moveSprite).observe($('board'));
-function recoverRobot(){
- const saved=window.FestivalSession?.read('robot');if(!saved)return;
- try{
-  const validExamples=xs=>Array.isArray(xs)&&xs.length<=500&&xs.every(s=>R.names[s.type]&&[0,1].includes(s.y)&&Array.isArray(s.f)&&s.f.length===4&&s.f.every(n=>Number.isFinite(n)&&n>=0&&n<=100));
-  if(!Number.isInteger(saved.stage)||saved.stage<0||saved.stage>3||!validExamples(saved.samples)||!validExamples(saved.model)||!Array.isArray(saved.best)||saved.best.length!==4||typeof saved.trainingPassed!=='boolean')return;
-  if(saved.best.some((r,i)=>r&&(!Number.isInteger(r.score)||r.score<0||r.score>R.create(R.ids[i]).max||typeof r.complete!=='boolean'||!Number.isFinite(r.energy)||r.energy<0)))return;
-  if(saved.stage===1&&!saved.trainingPassed||saved.stage>1&&!saved.best[saved.stage-1]?.complete)return;
-  stage=saved.stage;samples=saved.samples;model=saved.model;best=saved.best;trainingPassed=saved.trainingPassed;
-  if(Array.isArray(saved.transferChecks)&&saved.transferChecks.length===4)for(let i=1;i<4;i++){
-   const map=R.create(R.ids[i]);
-   transferChecks[i]=(Array.isArray(saved.transferChecks[i])?saved.transferChecks[i]:[]).filter(check=>map.grid[check.index]&&map.grid[check.index].type!=='wall'&&check.type===map.grid[check.index].type&&[0,1].includes(check.y)&&Array.isArray(check.f)&&key(check.f)===key(R.features(map.grid[check.index],map.rain))&&+danger(check.f)===check.y&&validExamples(check.near)&&R.transfer(check.near,check.f).label===check.y).filter((check,n,all)=>all.findIndex(other=>other.y===check.y)===n).slice(0,2);
+  function position(o){if(!o)return map().nodes.S;const a=map().nodes[o.from],b=map().nodes[o.to];return [a[0]+(b[0]-a[0])*o.fraction,a[1]+(b[1]-a[1])*o.fraction];}
+  function drawRoute(move=true){
+    const m=map(),route=activeRoute(),layer=$('routeLines');layer.replaceChildren();
+    if(route.length>1)layer.append(svg('polyline',{class:'route-plan',points:route.map(n=>m.nodes[n].slice(0,2).join(',')).join(' ')}));
+    $('returnLegend').hidden=s.view==='lab';
+    if(s.view==='district'&&s.selected.length){const turn=route.findIndex((_,i)=>s.selected.every(id=>route.slice(0,i+1).includes(id)));if(turn>=0&&turn<route.length-1)layer.append(svg('polyline',{class:'route-return',points:route.slice(turn).map(n=>m.nodes[n].slice(0,2).join(',')).join(' ')}));}
+    const obs=live?.observations||[],points=[m.nodes.S,...obs.map(position)];if(points.length>1)layer.append(svg('polyline',{class:'route-trail',points:points.map(p=>p.slice(0,2).join(',')).join(' ')}));
+    if(move){const p=position(obs.at(-1));$('robotSprite').setAttribute('transform',`translate(${p[0]} ${p[1]})`);}
+    for(const g of $('junctions').children){g.dataset.current=s.view==='lab'&&g.dataset.node===s.route.at(-1);g.dataset.selected=s.view==='district'&&s.selected.includes(g.dataset.node);g.dataset.delivered=s.view==='district'&&s.selected.includes(g.dataset.node)&&obs.some(o=>o.to===g.dataset.node&&o.fraction===1&&!o.stalled);g.setAttribute('aria-disabled',String(running||s.view==='district'&&delivered()));if(map().orders?.some(o=>o.node===g.dataset.node))g.setAttribute('aria-pressed',String(s.selected.includes(g.dataset.node)));}
+    const spent=live?.spent||0,w=live?.state||R.fresh();$('remaining').textContent=(m.budget-spent)+' / '+m.budget;$('spent').textContent=spent;$('batteryMeter').max=m.budget;$('batteryMeter').value=m.budget-spent;$('batteryMeter').low=m.budget*.2;$('batteryMeter').high=m.budget*.5;$('batteryMeter').optimum=m.budget;
+    $('wheelState').textContent=R.stateName(w);for(const id of ['wheelPicture','robotSprite']){$(id).dataset.dirty=String(w.dirty);$(id).dataset.wet=String(w.wet>0);$(id).dataset.stalled=String(!!live?.stalled);}
+    const delivery=s.view==='district'&&last()?.kind==='delivery'&&(running||delivered());$('deliveryProgress').hidden=!delivery;
+    if(delivery){const arrived=s.selected.filter(id=>obs.some(o=>o.to===id&&o.fraction===1&&!o.stalled)).length,returned=obs.at(-1)?.to==='S'&&obs.at(-1)?.fraction===1&&!obs.at(-1)?.stalled;
+      $('deliveryProgress').textContent='Доставки: '+arrived+' / '+s.selected.length+' · '+(returned&&!running?'На базе':arrived===s.selected.length?'Возвращается на базу':'В пути')+(running?' · звёзды после возврата':'');}
+    $('surfaceEffect').textContent=wheelEffect(obs);$('robotSprite').classList.toggle('moving',running);
   }
-  for(let i=1;i<stage;i++)if(!transferDone(i)){stage=i;break;}
-  restoredRobot=true;
- }catch{}
-}
-recoverRobot();initial();
-if(restoredRobot){
- const trip=window.FestivalSession.read('robot')?.trip;
- if(stage===window.FestivalSession.read('robot')?.stage&&trip&&Array.isArray(trip.trail)&&trip.trail.length<=240&&trip.trail.every(i=>Number.isInteger(i)&&grid[i]&&grid[i].type!=='wall')){
-  trail=trip.trail;robot=trail.at(-1)??start;spent=trail.reduce((sum,i)=>sum+R.costs[grid[i].type],0);steps=trail.length;remaining=Math.max(0,mission.budget-spent);
-  targets=new Set(campIndices().filter(i=>!trail.includes(i)));delivered=mission.cargo-targets.size;stuckCell=trail.length&&danger(features(robot))?robot:-1;
-  selected=Number.isInteger(trip.selected)&&trip.selected>=0&&trip.selected<144?trip.selected:-1;
-  try{checks=new Map(trip.checks);guesses=new Map(trip.guesses);}catch{checks=new Map();guesses=new Map();}
-  draw();inspect();updateLearning();controls();
- }
- say(stuckCell>=0?'Прогресс восстановлен. Робот застрял; ошибочная метка сохранена. Исправь её, сохрани пример и переобучи робота.':'Прогресс восстановлен. Память и результаты сохранены; прерванный рейс можно повторить с базы.');
-}
-restoring=false;publish();if(location.hash==='#epidemic')setTimeout(()=>switchLab(true),0);
+  function frozen(t){return D.forecast(t.kind==='experiment'?D.laboratory():D.district(t.round),t.route,R.train(t.learned.flatMap(i=>D.measured(s.trips[i]))));}
+  function mismatch(t,a){
+    const p=frozen(t),i=a.observations.findIndex((o,i)=>{const q=p.observations[i];return !q||q.energy!==o.energy||q.stalled!==o.stalled||q.after.dirty!==o.after.dirty||q.after.wet!==o.after.wet;});
+    if(i<0)return 'На пройденной части прогноз совпал с измерениями.';
+    const o=a.observations[i],q=p.observations[i];
+    return R.terrains[o.type].name+': '+(!q?'робот ожидал остановиться раньше.':o.stalled!==q.stalled?`ожидал ${q.stalled?'застрять':'проехать'}, а ${o.stalled?'застрял':'проехал'}.`:o.energy!==q.energy?'ожидал '+q.energy+' заряда за шаг, потратил '+o.energy+'.':'ожидал колёса «'+R.stateName(q.after)+'», получил «'+R.stateName(o.after)+'».');
+  }
+  function draw(){
+    planning=D.plan(D.district(s.round),s.selected,model());const lab=s.view==='lab',done=delivered(),t=last(),review=!!live&&!!t?.ended,score=D.score(s.trips),left=D.EXPERIMENTS-experiments(),allDone=done&&s.round===2;
+    if(score.stars>best.stars||score.stars===best.stars&&score.reserve>best.reserve)best={rules:D.VERSION,stars:score.stars,reserve:score.reserve};
+    $('roundLabel').textContent='Выезд '+(s.round+1)+' / 3';$('stars').textContent='★ '+score.stars;$('reserve').textContent='Запас: '+score.reserve;$('experimentCount').textContent='Опыты перед выездом: '+experiments()+' / 2';
+    for(const [id,isLab]of [['labView',true],['districtView',false]]){$(id).classList.toggle('active',lab===isLab);$(id).setAttribute('aria-pressed',String(lab===isLab));$(id).disabled=running;}
+    $('mapInstruction').textContent=lab?'Нажимай на соседние кружки: выбирай, что проверить. Максимум 6 дорог.':'Выбери груз. ИИ строит весь путь: доставки и возвращение на базу.';
+    $('pathOwner').textContent=lab?'Твой опыт':'Решение ИИ';$('routeOwner').textContent=lab?'Путь эксперимента':'Маршрут выбрал ИИ';$('routeText').textContent=activeRoute().length>1?routeName(activeRoute()):lab?'База → выбери соседнюю развилку':s.selected.length?'ИИ не нашёл проезда по своему опыту':'Выбери заказы справа';
+    $('ordersPanel').hidden=lab||review||running;$('labPanel').hidden=!lab||review||running;
+    const district=D.district(s.round),load=D.cargo(district,s.selected);
+    $('orderCards').replaceChildren(...district.orders.map(o=>{const chosen=s.selected.includes(o.id),blocked=!chosen&&load+o.size>D.CAPACITY,b=document.createElement('button');b.className='order-card'+(chosen?' selected':'')+(blocked?' capacity-blocked':'');b.dataset.order=o.id;b.setAttribute('aria-pressed',String(chosen));b.setAttribute('aria-label',o.title+', '+o.size+' места, '+o.stars+' звёзд'+(blocked?', не помещается':''));b.disabled=running||done;b.innerHTML='<strong>'+o.code+'. '+o.title+'</strong><span class="order-check">'+(chosen?'✓':'+')+'</span><small>'+o.size+' '+(o.size===1?'место':'места')+(blocked?' · нет места':'')+'</small><b>'+ '★'.repeat(o.stars)+'</b>';b.onclick=()=>order(o.id);return b;}));
+    const packages=district.orders.flatMap((o,i)=>s.selected.includes(o.id)?Array.from({length:o.size},()=>({o,i})):[]);
+    $('cargoSlots').replaceChildren(...Array.from({length:D.CAPACITY},(_,i)=>{const slot=document.createElement('span'),item=packages[i];slot.className='cargo-slot'+(item?' filled':'');slot.textContent=item?item.o.code:'·';slot.title=item?item.o.title:'Свободное место';slot.setAttribute('aria-label',slot.title);if(item)slot.dataset.package=item.i;return slot;}));
+    $('cargoSummary').textContent='Груз: '+load+' / '+D.CAPACITY+' места';
+    $('orderValue').textContent='★ '+D.district(s.round).orders.filter(o=>s.selected.includes(o.id)).reduce((v,o)=>v+o.stars,0);
+    $('undo').hidden=$('clearRoute').hidden=!lab||running;$('undo').disabled=$('clearRoute').disabled=running||s.route.length<2;
+    $('run').hidden=running||!lab&&done;$('run').disabled=running||(lab?(left<=0||s.route.length<2||done):!planning||done);
+    $('run').textContent=lab?left?'Провести опыт · осталось '+left:'Опыты закончились':'Доставить и вернуться';
+    $('stop').hidden=!running;$('stop').textContent=t?.kind==='delivery'?'Прервать выезд':'Остановить опыт';$('nextRound').hidden=running||!done||lab;$('nextRound').textContent=allDone?'Сыграть ещё раз ↻':'Следующий район →';
+    $('batteryRole').textContent=lab?'полигона':'доставки';
+    const f=lab?D.forecast(map(),s.route,model()):planning?.prediction;
+    $('forecastCard').hidden=review;$('tripResult').hidden=!review;$('forecastEnergy').textContent=f&&(lab?s.route.length>1:true)?'≈ '+f.spent+' заряда':lab?'Выбери путь опыта':'Пока нет маршрута';
+    $('forecastOutcome').textContent=f?.stalled?'По опыту робот ожидает застревание.':f&&f.spent>map().budget?'По оценке ИИ батареи не хватит. Можно рискнуть или изменить задание.':lab?'Здесь ты управляешь маршрутом. Ошибка тоже даёт опыт.':planning?'Оценка всего пути, включая возвращение. Путь выбрал ИИ по своим знаниям.':s.selected.length?'Робот считает пути непроходимыми. Новый опыт может изменить решение.':'Выбери один заказ или несколько.';
+    $('forecastConfidence').textContent=model().length?'Неизученных шагов в прогнозе: '+(f?.observations.filter(o=>!o.known).length||0)+'. Прогноз может ошибаться.':'Робот ещё не знает скрытых эффектов покрытий.';
+    $('qualitySummary').textContent=model().length+' примеров';$('train').disabled=running||!pending().length;$('train').classList.toggle('primary',pending().length>0&&!running);
+    $('newExperience').textContent=pending().length?'Не передано измерений: '+pending().reduce((n,t)=>n+t.steps,0)+'.':'Новых измерений пока нет.';
+    $('notebookButton').disabled=running||!s.trips.length;$('restartRobot').disabled=running;
+    $('campaignResult').hidden=!allDone||lab;
+    if(allDone)$('campaignResult').innerHTML='<strong>Партия: ★ '+score.stars+' / '+D.MAX_STARS+'</strong><span>Запас заряда: '+score.reserve+' · Лучшее: ★ '+best.stars+' / запас '+best.reserve+'</span>';
+    if(review){
+      const a=D.actual(t),p=frozen(t),v=t.kind==='delivery'?D.outcome(D.district(t.round),t.selected,a,t.interrupted):null;
+      $('lastPrediction').textContent=p.spent;$('lastActual').textContent=a.spent;$('resultStars').textContent=v?'★ +'+v.stars:'';$('resultTitle').textContent=v?v.success?'Робот вернулся!' :'Выезд завершён':'Опыт получен';
+      $('tripResult').dataset.outcome=v?.success?'success':a.stalled||a.exhausted||t.interrupted?'failure':'experiment';
+      $('tripOutcome').textContent=(t.interrupted?'Поездка прервана.':a.stalled?'Робот застрял: мокрые колёса скользят на подъёме.':a.exhausted?'До конца пути не хватило заряда.':'Маршрут пройден.')+(v?' Доставлено '+v.delivered.length+' из '+t.selected.length+'. '+(v.success?'Заработано '+v.stars+' ★.':!v.returned?'Робот не вернулся на базу — 0 ★.':'Не все заказы доставлены — 0 ★.'):' Измерения можно передать роботу.');
+      $('mistakeExplanation').textContent=mismatch(t,a);
+    }
+    drawRoute();save();publish();
+  }
+  function switchView(view){if(running)return;$('mapToast').hidden=true;s.view=view;live=last()&&last().round===s.round&&(last().kind==='experiment')===(view==='lab')?D.actual(last()):null;drawMap();draw();say(view==='lab'?'Здесь ты выбираешь маршрут опыта. На доставке робот поедет сам.':'Выбирай заказы. Зелёный путь строит ИИ по тому, чему ты его научил.');}
+  function order(id){if(running||delivered())return;const m=D.district(s.round),o=m.orders.find(o=>o.id===id);if(!o)return;
+    if(!s.selected.includes(id)&&D.cargo(m,s.selected)+o.size>D.CAPACITY){say('Заказ «'+o.title+'» занимает '+o.size+' места. Свободно: '+(D.CAPACITY-D.cargo(m,s.selected))+'. Сними другой заказ, чтобы освободить грузовой отсек.');return;}
+    $('mapToast').hidden=true;s.selected=s.selected.includes(id)?s.selected.filter(n=>n!==id):[...s.selected,id];live=null;draw();say('Груз выбран. ИИ спланировал доставки и возвращение. Прогноз зависит от его опыта; вес груза не меняет расход.');}
+  function node(id){if(running)return;if(s.view==='district'){if(map().orders.some(o=>o.id===id))order(id);else say('На доставке маршрут выбирает робот. Свой путь можно построить на полигоне.');return;}
+    if(delivered()){say('Этот выезд завершён. Перейди к следующему району или начни новую партию.');return;}
+    if(id===s.route.at(-1))return;if(s.route.length>=7){say('В одном опыте максимум 6 дорог. Можно отменить последний шаг.');return;}
+    if(!R.edgeBetween(map(),s.route.at(-1),id)){say('Нужна дорога между развилками. Добавляй соседние кружки.');return;}s.route.push(id);live=null;$('mapToast').hidden=true;draw();say('Можно проверить короткий путь или добавить ещё дороги. Каждый опыт расходует одну из двух попыток.');
+  }
+  function finish(interrupted=false){
+    clearTimeout(timer);cancelAnimationFrame(frame);running=false;const t=last();if(!t||t.ended)return;t.ended=true;t.interrupted=interrupted;live=D.actual(t);draw();
+    const v=t.kind==='delivery'?D.outcome(D.district(t.round),t.selected,live,t.interrupted):null;
+    $('mapToast').textContent=v?.success?'На базе! +'+v.stars+' ★':live.stalled?'Робот застрял':live.exhausted?'Заряда не хватило':interrupted?'Поездка остановлена':'Новый опыт!';$('mapToast').hidden=false;$('mapToast').className=v?.success?'celebrate':'';
+    if(v?.success)confetti();say($('tripOutcome').textContent+' '+mismatch(t,live));
+  }
+  function tick(){
+    if(!running)return;const t=last(),m=t.kind==='experiment'?D.laboratory():D.district(t.round),full=D.simulate(m,t.route),o=full.observations[t.steps];
+    if(!o){finish();return;}
+    const start=position(live?.observations.at(-1)),end=position(o),duration=matchMedia('(prefers-reduced-motion: reduce)').matches?12:280,begin=performance.now();
+    function animate(now){if(!running)return;const f=Math.min(1,(now-begin)/duration),x=start[0]+(end[0]-start[0])*f,y=start[1]+(end[1]-start[1])*f;$('robotSprite').setAttribute('transform',`translate(${x} ${y})`);if(f<1){frame=requestAnimationFrame(animate);return;}
+      t.steps++;live=D.actual(t);drawRoute();save();say(R.terrains[o.type].name+': −'+o.energy+' заряда. '+wheelEffect(live.observations));if(t.steps>=full.observations.length)finish();else timer=setTimeout(tick,matchMedia('(prefers-reduced-motion: reduce)').matches?0:50);
+    }frame=requestAnimationFrame(animate);
+  }
+  function run(){if($('run').disabled)return;const kind=s.view==='lab'?'experiment':'delivery',route=[...activeRoute()];s.trips.push({kind,round:s.round,route,selected:kind==='delivery'?[...s.selected]:[],learned:s.trips.map((t,i)=>t.taught?i:-1).filter(i=>i>=0),steps:0,taught:false,ended:false,interrupted:false});running=true;live=D.actual(last());$('mapToast').hidden=true;draw();say(kind==='delivery'?'Робот выполняет заказы сам. Прерывание расходует этот выезд.':'Собираем измерения. Обучение — только после нажатия «Передать опыт».');tick();}
+  function teach(){if($('train').disabled)return;const before=D.plan(D.district(s.round),s.selected,model());for(const t of pending())t.taught=true;const after=D.plan(D.district(s.round),s.selected,model());
+    const changed=before&&after&&before.route.join()!==after.route.join();$('learningEffect').textContent=changed?'После обучения ИИ выбрал другой путь к заказам.':before&&after?'Оценка набора: '+before.energy+' → '+after.energy+' заряда. Опыт сохранён.':'Опыт сохранён. Он повлияет на следующие решения робота.';draw();say('Обучение завершено. '+$('learningEffect').textContent);}
+  function next(){if(!delivered()||running)return;if(s.round===2){restart();return;}s.round++;s.selected=[];s.route=['S'];s.view='district';live=null;$('mapToast').hidden=true;drawMap();draw();say('Новый район, новые заказы. Знания робота сохранились. Есть ещё два опыта на полигоне.');}
+  function restart(){if(running)return;s=blank();live=null;$('mapToast').hidden=true;$('learningEffect').textContent='Новая партия — новый робот. Твой рекорд сохранён.';drawMap();draw();say('Три новых выезда в одинаковых условиях. Сравни звёзды, затем запас заряда.');}
+  function dialog(title,html){$('dialogTitle').textContent=title;$('dialogBody').innerHTML=html;$('robotDialog').showModal();}
+  const surfaceFacts={road:'Ровная дорога: уклон 0°. Предел робота на сухих колёсах — 28°.',mud:'Глубина грязи 6 см. Клиренс робота — 8 см. Глубина позволяет проехать; последствия для колёс ещё предстоит проверить.',water:'Глубина воды 12 см. Допустимо до 18 см. После брода состояние колёс может измениться.',gravel:'Камни высотой до 3 см. Клиренс — 8 см. Неровности воздействуют на колёса.',sand:'Рыхлый слой 4 см. Клиренс — 8 см. Проверь, что произойдёт с мокрыми колёсами.',hill:'Уклон 24°. Допустимо до 28° на сухих колёсах. При другом состоянии сцепление может измениться.'};
+  function surface(type){const rows=model().filter(o=>o.type===type);dialog(R.terrains[type].name,`<div class="surface-preview ${type}"><svg viewBox="0 0 300 65"><rect width="300" height="65" rx="12" fill="url(#texture-${type})"/></svg></div><p>${surfaceFacts[type]}</p><p><b>Базовый расход: ${R.terrains[type].base} заряда за шаг.</b> Это расход на чистых сухих колёсах. Длина дороги × расход даёт оценку, но состояние колёс может измениться в пути.</p><h3>Что знает твой робот</h3>${rows.length?'<table><tr><th>Колёса до</th><th>Расход</th><th>После</th></tr>'+rows.map(o=>'<tr><td>'+R.stateName(o.before)+'</td><td>'+o.energy+'</td><td>'+(o.stalled?'Застрял':R.stateName(o.after))+'</td></tr>').join('')+'</table>':'<p>Измерений этого покрытия в памяти пока нет.</p>'}`);}
+  function help(){dialog('Ты обучаешь — робот доставляет',`<ol><li><b>Выбери заказы.</b> В отсеке 3 места; заказы занимают 1 или 2. Груз не влияет на расход. Звёзды получишь только за все выбранные доставки и возвращение на базу. Заряд в пути не пополняется, даже при проезде через базу.</li><li><b>Проверь свою догадку на полигоне.</b> Перед каждым выездом есть 2 опыта, каждый до 6 дорог и с батареей 36. Сам построй путь и посмотри, как меняются колёса и расход.</li><li><b>Передай опыт роботу.</b> Он учится предсказывать расход, состояние колёс и застревание. По этим знаниям самостоятельно строит маршрут доставки.</li><li><b>Отправь и сравни.</b> Результат покажет, где ожидания не совпали с реальностью. Даже неудачную доставку можно использовать для обучения.</li></ol><p>В партии 3 выезда в разные районы. Соревнуйтесь по звёздам (до 17: 5 + 6 + 6 по районам), при равенстве — по запасу заряда успешных выездов. Одинаковые районы и условия для всех. Таймера нет.</p><p>Прерывание или перезагрузка во время поездки расходует попытку. Полученные измерения сохраняются. Смена вкладки останавливает поездку. Новая партия сбрасывает обучение, лучший результат остаётся.</p>`);}
+  function knowledge(){const rows=R.explain(model());dialog('Что выучил робот', '<p>Робот ищет правила по переданным измерениям: расход заряда, грязь, влажность и застревание. Затем сравнивает пути к выбранным заказам и обратно на базу.</p><p>Один опыт может подходить к нескольким правилам. Пока они дают разные ответы, робот использует <b>предположение</b>. Прогноз на карте не является гарантией.</p>'+rows.map(r=>'<section class="trip-entry"><h3>'+R.terrains[r.type].name+' · '+r.examples+' примеров</h3><p>'+(r.examples?(r.ambiguous?'Есть неоднозначность. Текущие предположения: ':'Правила согласуются с измерениями: ')+r.effects.join('; '):'Пока знает только базовый расход; предполагает, что колёса не изменятся и проезд возможен.')+'</p></section>').join(''));}
+  function notebook(){dialog('Опыт, на котором учится робот',s.trips.map((t,i)=>{const a=D.actual(t),p=frozen(t);return `<section class="trip-entry"><h3>${i+1}. ${t.kind==='delivery'?'Доставка: '+D.district(t.round).title:'Опыт на полигоне'}</h3><p>${routeName(t.route,t.kind==='experiment'?D.laboratory():D.district(t.round))}</p><p>Ожидал на путь: ${p.spent}. Потратил: ${a.spent}. ${t.taught?'Передано в обучение.':'Ещё не в памяти ИИ.'}</p><p>${mismatch(t,a)}</p><details><summary>Измерения: ${a.observations.length}</summary><table><tr><th>Покрытие</th><th>Колёса до</th><th>Расход</th><th>После</th></tr>${a.observations.map(o=>'<tr><td>'+R.terrains[o.type].name+'</td><td>'+R.stateName(o.before)+'</td><td>'+o.energy+'</td><td>'+(o.stalled?'Застрял':R.stateName(o.after))+'</td></tr>').join('')}</table></details></section>`;}).reverse().join(''));}
+  function confetti(){const layer=$('mapParticles');layer.replaceChildren();if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;for(let i=0;i<22;i++)layer.append(svg('path',{d:'m0-5 2 3 4 1-3 3v4l-3-2-4 2 1-4-3-3 4-1z',fill:i%2?'#f7d783':'#92e7b3',transform:`translate(${100+i*39} ${40+i%4*35})`,class:'spark',style:'--delay:'+i*.025+'s'}));}
+  function tab(city){if(running)finish(true);$('robotDialog').close();document.body.classList.toggle('city-active',city);$('robotView').hidden=city;$('epiView').hidden=!city;$('robotTutorial').hidden=city;for(const [id,on]of [['robotTab',!city],['epiTab',city]]){$(id).classList.toggle('active',on);$(id).setAttribute('aria-pressed',String(on));}history.replaceState(null,'',city?'#epidemic':location.pathname+location.search);$('epiView').contentWindow?.postMessage(city?'city-active':'pause',location.protocol==='file:'?'*':location.origin);}
+  $('labView').onclick=()=>switchView('lab');$('districtView').onclick=()=>switchView('district');$('run').onclick=run;$('stop').onclick=()=>finish(true);$('train').onclick=teach;$('nextRound').onclick=next;$('restartRobot').onclick=restart;
+  $('undo').onclick=()=>{if(running||s.route.length<2)return;s.route.pop();live=null;$('mapToast').hidden=true;draw();};$('clearRoute').onclick=()=>{if(running)return;s.route=['S'];live=null;$('mapToast').hidden=true;draw();};
+  $('robotTutorial').onclick=$('scoreRules').onclick=help;$('notebookButton').onclick=notebook;$('modelInfo').onclick=knowledge;$('dialogClose').onclick=()=>$('robotDialog').close();$('robotTab').onclick=()=>tab(false);$('epiTab').onclick=()=>tab(true);
+  window.resetRobotMission=()=>{clearTimeout(timer);cancelAnimationFrame(frame);running=false;session=FestivalSession.id;best={rules:D.VERSION,stars:0,reserve:0};restart();};
+  window.robotExpedition={publish,get restored(){return restored;},current:()=>({...structuredClone(s),stage:s.round,running,model:model(),best:{...best},score:D.score(s.trips),planning:structuredClone(planning)})};
+  restore();drawMap();draw();if(restored)say('Партия восстановлена. Прерванный выезд учтён, собранные измерения сохранены.');if(location.hash==='#epidemic')tab(true);
+})();

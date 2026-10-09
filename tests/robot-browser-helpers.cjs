@@ -1,55 +1,35 @@
 const assert=require('node:assert/strict');
-async function lesson(page,check=async()=>{}){
- const hadPassed=await page.evaluate(()=>trainingPassed);
- const actions=[['1. Выбери','[data-index="0"]'],['2. Сделай','#safe'],['3. Испытай','#probe'],['4. Изучи','[data-index="10"]'],['5. Предскажи','#unsafe'],['6. Проверь','#probe'],['7. Обучи','#train'],['8. Выполни','#run']];
- for(const [title,selector]of actions){
-  await page.locator('#tourTitle').filter({hasText:title}).waitFor();await check(page);
-  assert.equal(await page.locator('.tour-shade').count(),0,'Learning must never dim any part of the game');
-  const readable=await page.locator('.tour-card').evaluate(card=>{const r=card.getBoundingClientRect();return ['#tourTitle','#tourText'].every(s=>{const t=card.querySelector(s).getBoundingClientRect();return t.top>=r.top&&t.bottom<=r.bottom-4;});});
-  assert(readable,'Lesson text must fit: '+title);
-  if(selector==='#run'&&!hadPassed){assert(await page.locator('#nextMission').isDisabled(),'Two examples do not complete training until the robot finishes the trial');assert(!(await page.locator('#trainingMission').innerText()).startsWith('✓'));}
-  await page.locator(selector).click();
- }
- await page.locator('#gameTour').waitFor({state:'detached'});
-}
-async function teachMap(page){
- await page.evaluate(()=>{
-  const seen=new Set();grid.forEach((c,i)=>{if(c.type==='wall')return;const f=features(i),key=f.join(',');if(seen.has(key))return;seen.add(key);
-   document.querySelector(`[data-index="${i}"]`).click();document.getElementById(danger(f)?'unsafe':'safe').click();document.getElementById('probe').click();
-  });document.getElementById('train').click();
- });
-}
-async function teachTraining(page){
- await page.evaluate(()=>{
-  for(const sample of RobotEngine.examples()){
-   const i=grid.findIndex(c=>c.type===sample.type&&c.f.join(',')===sample.f.join(','));if(i<0)throw Error('Missing teaching example');
-   document.querySelector(`[data-index="${i}"]`).click();document.getElementById(sample.y?'unsafe':'safe').click();document.getElementById('probe').click();
-  }document.getElementById('train').click();
- });
-}
-async function adaptRain(page){
- await page.evaluate(()=>{
-  for(const type of Object.keys(RobotEngine.names))for(const y of [0,1]){
-   const i=grid.findIndex(c=>c.type===type&&+danger(RobotEngine.features(c,true))===y);if(i<0)continue;
-   if(RobotEngine.predict(model,features(i))!==y){document.querySelector(`[data-index="${i}"]`).click();document.getElementById(y?'unsafe':'safe').click();document.getElementById('probe').click();document.getElementById('train').click();}
+const routes={direct:['S','W','X','Y'],wash:['S','W','U','V','T','G'],wetHill:['S','W','L','M','X','Y']};
+const campaign=[{"round": 0, "experiments": [["S", "W", "L", "M", "X", "Y"], ["S", "W", "U", "W", "S", "U"]], "selected": ["L", "Y"], "stars": 5, "predicted": 59, "spent": 59, "route": ["S", "L", "W", "X", "Y", "X", "W", "S"]}, {"round": 1, "experiments": [["S", "W", "U", "W", "X", "M", "N"], ["S", "W", "U", "W", "U", "W", "L"]], "selected": ["L", "M"], "stars": 6, "predicted": 47, "spent": 47, "route": ["S", "L", "M", "L", "W", "S"]}, {"round": 2, "experiments": [["S", "W", "X", "V"], ["S", "W", "X", "Y"]], "selected": ["Y", "G"], "stars": 6, "predicted": 56, "spent": 56, "route": ["S", "W", "X", "Y", "G", "Y", "X", "W", "S"]}];
+const schedule=campaign.map(r=>r.experiments);
+async function draw(page,route){await page.locator('#labView').click();if(await page.locator('#clearRoute').isEnabled())await page.locator('#clearRoute').click();for(const id of route.slice(1))await page.locator('[data-node="'+id+'"]').click();assert.deepEqual(await page.evaluate(()=>robotExpedition.current().route),route);}
+async function run(page,route){if(route)await draw(page,route);await page.locator('#run').click();await page.waitForFunction(()=>!robotExpedition.current().running);return page.evaluate(()=>robotExpedition.current().trips.at(-1));}
+async function teach(page){await page.locator('#train').click();}
+async function orders(page,ids){await page.locator('#districtView').click();const selected=await page.evaluate(()=>robotExpedition.current().selected);for(const id of selected)await page.locator('[data-order="'+id+'"]').click();for(const id of ids)await page.locator('[data-order="'+id+'"]').click();}
+async function complete(page,check=async()=>{}){
+ for(let round=0;round<3;round++){
+  for(let i=0;i<2;i++){
+   await draw(page,schedule[round][i]);const before=await page.evaluate(()=>robotExpedition.current().model);
+   await run(page);assert.deepEqual(await page.evaluate(()=>robotExpedition.current().model),before,'Measurements never silently retrain');
+   const frozen=await page.locator('#lastPrediction').innerText();assert(await page.locator('#tripResult').isVisible());await check('experiment-'+round+'-'+i);
+   await teach(page);assert.equal(await page.locator('#lastPrediction').innerText(),frozen,'Training cannot rewrite a historical prediction');assert(await page.evaluate(()=>RobotDelivery.validate(FestivalSession.read('robot'))));
   }
- });
-}
-async function deliver(page){await page.locator('#run').click();await page.waitForFunction(()=>!running);return page.locator('#status').innerText();}
-async function transferChecks(page){
- for(const y of [0,1]){
-  if(await page.evaluate(y=>transferChecks[stage].some(check=>check.y===y),y))continue;
-  const candidate=await page.evaluate(y=>grid.findIndex((c,i)=>c.type!=='wall'&&+danger(features(i))===y&&RobotEngine.transfer(model,features(i)).label===y),y);
-  assert(candidate>=0,'The model offers an independently verifiable transfer example for '+y);
-  await page.locator('[data-index="'+candidate+'"]').click();await page.locator(y?'#unsafe':'#safe').click();await page.locator('#probe').click();
+  assert(await page.locator('#run').isDisabled(),'Only two experiments before each delivery');
+  await orders(page,campaign[round].selected);
+  const predictedRoute=await page.evaluate(()=>robotExpedition.current().planning.route);await check('planned-'+round);
+  const previousStars=await page.locator('#stars').innerText();await page.locator('#run').click();
+  await page.waitForFunction(()=>{const s=robotExpedition.current(),t=s.trips.at(-1);return s.running&&t.selected.every(id=>RobotDelivery.actual(t).observations.some(o=>o.to===id&&o.fraction===1&&!o.stalled));});
+  assert.equal(await page.locator('#stars').innerText(),previousStars,'No stars before returning to base');assert((await page.locator('#deliveryProgress').innerText()).includes('Возвращается'));
+  await page.waitForFunction(()=>!robotExpedition.current().running);const trip=await page.evaluate(()=>robotExpedition.current().trips.at(-1));assert.equal(trip.route.at(-1),'S');assert((await page.locator('#deliveryProgress').innerText()).includes('На базе'));assert.deepEqual(trip.route,predictedRoute,'Robot actually executes its own plan');assert.equal(await page.locator('#resultStars').innerText(),'★ +'+campaign[round].stars);await check('delivery-'+round);await teach(page);
+  assert(await page.evaluate(()=>RobotDelivery.validate(FestivalSession.read('robot'))),'Campaign checkpoint is valid after learning and delivery');
+  if(round<2)await page.locator('#nextRound').click();
  }
- assert.equal(await page.evaluate(()=>transferChecks[stage].length),2);
- if(await page.locator('#run').isDisabled()&&!await page.evaluate(()=>delivered===mission.cargo))await page.locator('#train').click();
+ assert.equal(await page.locator('#stars').innerText(),'★ 17');assert.equal(await page.locator('#overallScore').innerText(),'50');assert((await page.locator('#missionProgress').innerText()).includes('2 / 3'));
+ await page.locator('#notebookButton').click();assert.equal(await page.locator('.trip-entry').count(),9);
+ const histories=page.locator('.trip-entry > p:first-of-type');
+ assert.equal(await histories.nth(6).innerText(),'База → Лесники → А → Б → Связисты → Б → А → База','The first delivery retains its original recipients after reaching the third district');
+ assert.equal(await histories.nth(3).innerText(),'База → Смотрители → Спасатели → Смотрители → А → База','The second delivery keeps the second district recipients');
+ assert.equal(await histories.nth(8).innerText(),'База → А → Ж → З → Б → В','Laboratory records keep junction names instead of adopting delivery recipients');
+ await page.locator('.trip-entry summary').first().click();assert(await page.locator('.trip-entry table').first().isVisible());await page.locator('#robotDialog').press('Escape');await check('complete');
 }
-async function optimalDelivery(page){if(await page.locator('#run').isDisabled())await page.locator('#train').click();const text=await deliver(page);assert(text.includes('Минимум энергии найден!'),text);await transferChecks(page);}
-async function adaptGorge(page){
- assert(await page.locator('#run').isDisabled(),'Dry lab examples alone cannot solve the rockfall');
- await page.locator('[data-index="55"]').click();await page.locator('#safe').click();await page.locator('#probe').click();await page.locator('#train').click();
- assert((await page.locator('#model').innerText()).includes('Опыт перенесён'),'Training shows its actual effect');
-}
-module.exports={lesson,teachMap,teachTraining,adaptGorge,adaptRain,deliver,optimalDelivery,transferChecks};
+module.exports={routes,schedule,campaign,draw,run,teach,orders,complete};
