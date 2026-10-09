@@ -39,9 +39,14 @@ const server = http.createServer((req, res) => {
       async function readableCity(scope){
         const problems=await scope.evaluate(()=>{
           const result=[],map=document.querySelector('#map').getBoundingClientRect(),groups=[...document.querySelectorAll('#cityBadges>g')],boxes=groups.map(g=>g.querySelector('rect').getBoundingClientRect());
+          const buildings=[...document.querySelectorAll('#map .building-sprite')].map(el=>el.getBoundingClientRect());
+          if(buildings.length!==15)result.push('The full city must contain all 15 buildings');
+          if(Math.min(...buildings.map(b=>b.width))<(innerWidth>=2200?110:75))result.push('City buildings are too small to explore');
+          const sceneWidth=Math.max(...buildings.map(b=>b.right))-Math.min(...buildings.map(b=>b.left)),sceneHeight=Math.max(...buildings.map(b=>b.bottom))-Math.min(...buildings.map(b=>b.top));
+          if(sceneWidth<map.width*.52||sceneHeight<map.height*.7)result.push('Painted city occupies too little of its map');
           groups.forEach((g,i)=>{
             const box=boxes[i];if(box.left<map.left||box.right>map.right||box.top<map.top||box.bottom>map.bottom)result.push('Label outside map: '+g.getAttribute('aria-label'));
-            [...g.querySelectorAll('text')].forEach((t,j)=>{const font=parseFloat(getComputedStyle(t).fontSize)*Math.abs(t.getScreenCTM().a),r=t.getBoundingClientRect();if(font<(j?12:14)-.05)result.push('Unreadable label: '+t.textContent+' '+font);if(r.left<box.left||r.right>box.right||r.top<box.top||r.bottom>box.bottom)result.push('Clipped label: '+t.textContent);});
+            [...g.querySelectorAll('text')].forEach((t,j)=>{const font=parseFloat(getComputedStyle(t).fontSize)*Math.abs(t.getScreenCTM().a),minimum=innerWidth>=2200?(j?18:20):(j?14:16),r=t.getBoundingClientRect();if(font<minimum-.05)result.push('Unreadable label: '+t.textContent+' '+font);if(r.left<box.left||r.right>box.right||r.top<box.top||r.bottom>box.bottom)result.push('Clipped label: '+t.textContent);});
             for(let j=i+1;j<boxes.length;j++){const b=boxes[j];if(Math.min(box.right,b.right)-Math.max(box.left,b.left)>1&&Math.min(box.bottom,b.bottom)-Math.max(box.top,b.top)>1)result.push('Labels overlap: '+g.getAttribute('aria-label')+' / '+groups[j].getAttribute('aria-label'));}
           });return result;
         });assert.deepEqual(problems,[],'City labels must be readable at their actual screen size');
@@ -82,7 +87,6 @@ const server = http.createServer((req, res) => {
       if(await city.locator('.tour-card').count()) await city.locator('.tour-card').press('Escape');
       await readableCity(frame);
       await fits(frame,['#map','#map .building-sprite','#observeCity','#beginCity','#mayorStatus','#cityLocalScore','#cityRounds','#projectSummary']);
-      assert.equal(await city.locator('#map').getAttribute('viewBox'),'0 0 1750 1080','Every building stays in the full city view');
       await city.locator('#cityTutorial').click(); await fits(frame,['.tour-card','#tourTitle','#tourText','#observeCity']);
       await city.locator('#observeCity').click();
       await city.locator('.tour-watching').waitFor(); await lit(frame,['#map','#citizenStory']);

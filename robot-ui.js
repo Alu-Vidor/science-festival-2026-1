@@ -73,7 +73,7 @@
     $('stop').hidden=!running;$('stop').textContent=t?.kind==='delivery'?'Прервать выезд':'Остановить опыт';$('nextRound').hidden=running||!done||lab;$('nextRound').textContent=allDone?'Сыграть ещё раз ↻':'Следующий район →';
     $('batteryRole').textContent=lab?'полигона':'доставки';
     const f=lab?D.forecast(map(),s.route,model()):planning?.prediction;
-    $('forecastCard').hidden=review;$('tripResult').hidden=!review;$('forecastEnergy').textContent=f&&(lab?s.route.length>1:true)?'≈ '+f.spent+' заряда':lab?'Выбери путь опыта':'Пока нет маршрута';
+    $('forecastCard').hidden=review;$('tripResult').hidden=!review;$('forecastEnergy').textContent=f&&(lab?s.route.length>1:true)?'≈ '+f.spent+' заряда':lab?'Опыт не выбран':'Нет маршрута';
     $('forecastOutcome').textContent=f?.stalled?'По опыту робот ожидает застревание.':f&&f.spent>map().budget?'По оценке ИИ батареи не хватит. Можно рискнуть или изменить задание.':lab?'Здесь ты управляешь маршрутом. Ошибка тоже даёт опыт.':planning?'Оценка всего пути, включая возвращение. Путь выбрал ИИ по своим знаниям.':s.selected.length?'Робот считает пути непроходимыми. Новый опыт может изменить решение.':'Выбери один заказ или несколько.';
     $('forecastConfidence').textContent=!f||lab&&s.route.length<2?'Маршрут ещё не выбран — оценивать точность пока рано.':model().length?'Неизученных шагов в прогнозе: '+f.observations.filter(o=>!o.known).length+'. Прогноз может ошибаться.':'Робот ещё не знает скрытых эффектов покрытий.';
     $('qualitySummary').textContent=model().length+' примеров';$('train').disabled=running||!pending().length;$('train').classList.toggle('primary',pending().length>0&&!running);

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
+const { pathToFileURL } = require('node:url');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..');
@@ -28,6 +29,34 @@ async function waitForCity(scope) {
       else if (performance.now() > deadline) { clearInterval(timer); reject(Error('City run did not finish')); }
     }, 20);
   }));
+}
+
+async function cityGeometry(city, width) {
+  const metrics = await city.locator('#map').evaluate(map => {
+    const bounds = map.getBoundingClientRect(), buildings = [...map.querySelectorAll('.building-sprite')].map(sprite => sprite.getBoundingClientRect());
+    const union = { left: Math.min(...buildings.map(r => r.left)), right: Math.max(...buildings.map(r => r.right)),
+      top: Math.min(...buildings.map(r => r.top)), bottom: Math.max(...buildings.map(r => r.bottom)) };
+    const labelFailures = [];
+    for (const badge of map.querySelectorAll('#cityBadges > g')) {
+      const background = badge.querySelector('rect').getBoundingClientRect();
+      for (const text of badge.querySelectorAll('text')) {
+        const rect = text.getBoundingClientRect();
+        if (rect.left < background.left - 1 || rect.right > background.right + 1 || rect.top < background.top - 1 || rect.bottom > background.bottom + 1)
+          labelFailures.push('Text outside its badge: ' + text.textContent);
+        if (rect.left < bounds.left - 1 || rect.right > bounds.right + 1 || rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1)
+          labelFailures.push('Text outside the map: ' + text.textContent);
+      }
+    }
+    return { count: buildings.length, smallest: Math.min(...buildings.map(r => r.width)),
+      widthRatio: (union.right - union.left) / bounds.width, heightRatio: (union.bottom - union.top) / bounds.height,
+      outside: buildings.some(r => r.left < bounds.left - 1 || r.right > bounds.right + 1 || r.top < bounds.top - 1 || r.bottom > bounds.bottom + 1), labelFailures };
+  });
+  assert.equal(metrics.count, 15);
+  assert.equal(metrics.outside, false, 'All fifteen city buildings remain visible in the larger map');
+  assert.deepEqual(metrics.labelFailures, [], 'Both label lines remain inside their badge and the city map');
+  assert(metrics.smallest >= (width >= 2200 ? 110 : 75), 'Individual city buildings are large enough to inspect on the monitor: ' + JSON.stringify(metrics));
+  assert(metrics.widthRatio >= .52 && metrics.heightRatio >= .70,
+    'The painted city occupies the map area instead of leaving a small island: ' + JSON.stringify(metrics));
 }
 
 async function mapGeometry(page, stage, width) {
@@ -202,6 +231,8 @@ async function cityAudit(page, width) {
   assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.trials().length), 0);
   await city.locator('#gameTour').press('Escape');
   await city.locator('#beginCity').click();
+  await cityGeometry(city, width);
+  await page.screenshot({ path: path.join(root, 'test-artifacts', `audit-city-native-${width}.png`) });
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   const initial = await city.locator('body').evaluate(() => JSON.stringify(cityCampaignGame.current()));
   await city.locator('#trialCity').dblclick();
@@ -291,24 +322,212 @@ async function cityAudit(page, width) {
   console.log('City double-clicks, copy fairness, shown history, frozen reload and reset:', width);
 }
 
+async function fileLoadingAudit(browser) {
+  const context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: 'reduce' });
+  const page = await context.newPage(), errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  try {
+    // The controller may finish before the tutorial's script on a first local-file load.
+    await page.route('**/learning-ui.js*', async route => {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await route.continue();
+    });
+    await page.goto(pathToFileURL(path.join(root, 'index.html')).href + '#epidemic');
+    const city = page.frameLocator('#epiView');
+    await city.locator('#tourSkip').waitFor({ state: 'visible' });
+    assert.equal(await city.locator('#tourTitle').innerText(), 'Сначала наблюдай');
+    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 0);
+    await city.locator('#tourSkip').click();
+    await city.locator('#beginCity').click();
+    assert.equal(await city.locator('#trialCity').isEnabled(), true);
+    assert.deepEqual(errors, []);
+    console.log('Local-file tutorial opens after a delayed script on a direct city link');
+  } finally { await context.close(); }
+}
+
+async function fileAudit(browser, width, height) {
+  const context = await browser.newContext({ viewport: { width, height }, reducedMotion: 'reduce' });
+  const page = await context.newPage(), errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  try {
+    await page.goto(pathToFileURL(path.join(root, 'index.html')).href);
+    await page.locator('#labView').click();
+    await page.locator('[data-node="W"]').press('Enter');
+    await page.locator('#run').click();
+    await page.waitForFunction(() => !robotExpedition.current().running);
+    await page.locator('#train').click();
+    const learned = await page.evaluate(() => robotExpedition.current().model);
+    assert(learned.length > 0);
+    await page.locator('#districtView').click();
+    await page.locator('[data-order="L"]').click();
+    await page.locator('#run').click();
+    await page.waitForFunction(() => !robotExpedition.current().running);
+    const robot = await page.evaluate(() => robotExpedition.current());
+    assert(robot.score.stars > 0);
+    const robotPoints = Number(await page.locator('#overallScore').innerText());
+    await page.reload();
+    assert.deepEqual(await page.evaluate(() => robotExpedition.current().trips), robot.trips);
+    assert.deepEqual(await page.evaluate(() => robotExpedition.current().model), learned);
+    assert.equal(Number(await page.locator('#overallScore').innerText()), robotPoints);
+
+    await page.locator('#epiTab').click();
+    const city = page.frameLocator('#epiView');
+    await city.locator('#mayor').waitFor();
+    await city.locator('#tourSkip').click();
+    await city.locator('#beginCity').click();
+    assert.equal(await city.locator('body').evaluate(body => body.classList.contains('monitor-layout')), true,
+      'The file iframe uses desktop layout even when its parent window has an opaque origin');
+    await cityGeometry(city, width);
+    const layoutFailures = await city.locator('body').evaluate(body => {
+      const failures = [];
+      if (document.documentElement.scrollWidth > innerWidth + 1 || document.documentElement.scrollHeight > innerHeight + 1)
+        failures.push('The city requires viewport scrolling');
+      for (const id of ['map', 'cityGoalGrid', 'mayorPolicies', 'trialCity', 'tryCity', 'flowButtons']) {
+        const element = document.getElementById(id), rect = element.getBoundingClientRect();
+        if (!rect.width || !rect.height || rect.left < -1 || rect.top < -1 || rect.right > innerWidth + 1 || rect.bottom > innerHeight + 1)
+          failures.push(id + ' is hidden or outside the iframe viewport');
+      }
+      if (!body.classList.contains('monitor-embedded')) failures.push('Missing embedded monitor layout');
+      return failures;
+    });
+    assert.deepEqual(layoutFailures, [], 'The local-file city and its controls fit the festival monitor');
+    await page.screenshot({ path: path.join(root, 'test-artifacts', `audit-file-city-${width}.png`) });
+    await city.locator('#pick-bus-frequent').click();
+    const initial = await city.locator('body').evaluate(() => JSON.stringify(cityCampaignGame.current()));
+    await city.locator('#trialCity').click();
+    await waitForCity(city);
+    assert.equal(await city.locator('body').evaluate(() => JSON.stringify(cityCampaignGame.current())), initial);
+    const expected = await city.locator('body').evaluate(() => cityCampaignGame.trial().result);
+    await city.locator('#tryCity').click();
+    await waitForCity(city);
+    assert.deepEqual(await city.locator('body').evaluate(() => cityCampaignGame.current().results[0]), expected);
+    const cityPoints = parseInt(await city.locator('#cityLocalScore').innerText(), 10);
+    assert(cityPoints > 0);
+    await page.waitForFunction(total => Number(document.querySelector('#overallScore').textContent) === total,
+      robotPoints + cityPoints);
+    await page.reload();
+    await city.locator('#mayor').waitFor();
+    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 4);
+    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.trials().length), 1);
+    assert.equal(Number(await page.locator('#overallScore').innerText()), robotPoints + cityPoints);
+    assert.deepEqual(await page.evaluate(() => robotExpedition.current().trips), robot.trips);
+
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await city.locator('#trialCity').click();
+    await city.locator('#pauseCity').click();
+    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.isPending()), true);
+    await page.waitForFunction(() => FestivalSession.read('city')?.pending?.kind === 'trial');
+    const frozen = await page.evaluate(() => FestivalSession.read('city').pending);
+    const pausedCalendar = await city.locator('#cityCalendar').innerText();
+    await page.reload();
+    await city.locator('#mayor').waitFor();
+    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.isPending()), true);
+    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.isPlaying()), false);
+    assert.deepEqual(await page.evaluate(() => FestivalSession.read('city').pending), frozen);
+    assert.equal(await city.locator('#cityCalendar').innerText(), pausedCalendar);
+    assert.equal(await city.locator('#cityTutorial').isDisabled(), true);
+    await page.locator('#newParticipant').click();
+    await page.locator('#epiTab').click();
+    await city.locator('#mayor').waitFor();
+    await city.locator('body').evaluate(() => new Promise((resolve, reject) => {
+      const deadline = performance.now() + 5000;
+      const timer = setInterval(() => {
+        if (cityCampaignGame.current().game.day === 0 && !cityCampaignGame.isPending()) { clearInterval(timer); resolve(); }
+        else if (performance.now() > deadline) { clearInterval(timer); reject(Error('File city did not reset')); }
+      }, 20);
+    }));
+    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.trials().length), 0);
+    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().funds), 200);
+    assert.equal(await page.locator('#overallScore').innerText(), '0');
+    assert.equal(await page.evaluate(() => robotExpedition.current().trips.length), 0);
+    await page.reload();
+    await city.locator('#mayor').waitFor();
+    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 0);
+    assert.equal(await page.locator('#overallScore').innerText(), '0');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await city.locator('#tourSkip').click();
+    await city.locator('#beginCity').click();
+    await city.locator('#pick-bus-frequent').click();
+    await city.locator('#tryCity').click();
+    await waitForCity(city);
+    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 4);
+    assert.equal(await city.locator('#cityLocalScore').innerText(), '16 / 50');
+    await page.waitForFunction(() => document.querySelector('#overallScore').textContent === '16');
+    const session = await page.evaluate(() => FestivalSession.id);
+    assert.notEqual(session, 'initial');
+    assert.equal(await city.locator('body').evaluate(() => new URLSearchParams(location.search).get('session')), session);
+
+    const forged = await page.evaluate(() => ({ kind: 'city-score', version: GameScore.VERSION,
+      session: FestivalSession.id, score: 50, completed: true, auditToken: 'unrelated-frame' }));
+    const checkpoint = await page.evaluate(() => JSON.stringify(FestivalSession.read('city')));
+    await page.evaluate(payload => new Promise((resolve, reject) => {
+      const frame = document.createElement('iframe');
+      frame.hidden = true; frame.sandbox = 'allow-scripts';
+      const timer = setTimeout(() => { cleanup(); reject(Error('Forged iframe message did not arrive')); }, 5000);
+      const listener = event => { if (event.data?.auditToken === payload.auditToken) { cleanup(); resolve(); } };
+      function cleanup() { clearTimeout(timer); removeEventListener('message', listener); frame.remove(); }
+      addEventListener('message', listener);
+      frame.srcdoc = '<script>const payload=' + JSON.stringify(payload) + ';' +
+        'parent.postMessage({...payload,kind:"festival-session-save",version:1,name:"city",value:{rules:"forged"},auditToken:"forged-checkpoint"},"*");' +
+        'parent.postMessage(payload,"*")<\/script>';
+      document.body.appendChild(frame);
+    }), forged);
+    assert.equal(await page.locator('#overallScore').innerText(), '16', 'An unrelated opaque iframe cannot forge city points');
+    assert.equal(await page.evaluate(() => JSON.stringify(FestivalSession.read('city'))), checkpoint,
+      'An unrelated opaque iframe cannot overwrite the current city checkpoint');
+    await page.evaluate(() => {
+      window.auditStaleMessage = new Promise(resolve => {
+        const listener = event => { if (event.data?.auditToken === 'stale-session') { removeEventListener('message', listener); resolve(); } };
+        addEventListener('message', listener);
+      });
+    });
+    await city.locator('body').evaluate((body, payload) => {
+      parent.postMessage({ ...payload, kind: 'festival-session-save', version: 1, name: 'city',
+        value: { rules: 'forged' }, session: 'initial', auditToken: 'stale-checkpoint' }, '*');
+      parent.postMessage({ ...payload, session: 'initial', auditToken: 'stale-session' }, '*');
+    }, forged);
+    await page.evaluate(() => window.auditStaleMessage);
+    assert.equal(await page.locator('#overallScore').innerText(), '16', 'The real city frame cannot publish an old participant score');
+    assert.equal(await page.evaluate(() => JSON.stringify(FestivalSession.read('city'))), checkpoint,
+      'A stale participant cannot overwrite the current city checkpoint');
+
+    await page.reload();
+    await city.locator('#mayor').waitFor();
+    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 4);
+    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.trials().length), 0);
+    assert.equal(await city.locator('#cityLocalScore').innerText(), '16 / 50');
+    assert.equal(await page.locator('#overallScore').innerText(), '16');
+    assert.equal(await page.evaluate(() => FestivalSession.id), session);
+    assert.deepEqual(errors, [], 'Opening local files, switching games and resetting must not raise cross-origin errors');
+    console.log('Local-file desktop layout, both saves, guarded score bridge and a new saved participant:', width, height);
+  } finally {
+    await context.close();
+  }
+}
+
 (async () => {
   fs.mkdirSync(path.join(root, 'test-artifacts'), { recursive: true });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const fileOnly = process.argv.includes('--file-only');
+  if (!fileOnly) await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const browser = await chromium.launch();
   try {
     for (const [width, height] of [[1920, 1080], [2560, 1440]]) {
-      const context = await browser.newContext({ viewport: { width, height }, reducedMotion: 'no-preference' });
-      const page = await context.newPage();
-      const errors = [];
-      page.on('pageerror', error => errors.push(error.message));
-      await page.goto('http://127.0.0.1:' + server.address().port);
-      await robotAudit(page, width);
-      await cityAudit(page, width);
-      assert.deepEqual(errors, []);
-      await context.close();
+      if (!fileOnly) {
+        const context = await browser.newContext({ viewport: { width, height }, reducedMotion: 'no-preference' });
+        const page = await context.newPage();
+        const errors = [];
+        page.on('pageerror', error => errors.push(error.message));
+        await page.goto('http://127.0.0.1:' + server.address().port);
+        await robotAudit(page, width);
+        await cityAudit(page, width);
+        assert.deepEqual(errors, []);
+        await context.close();
+      }
+      await fileAudit(browser, width, height);
+      if (width === 1920) await fileLoadingAudit(browser);
     }
   } finally {
     await browser.close();
-    server.close();
+    if (server.listening) server.close();
   }
 })().catch(error => { console.error(error); server.close(); process.exitCode = 1; });

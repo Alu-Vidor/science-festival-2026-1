@@ -36,7 +36,7 @@
   const currentScore=()=>C.cityScore(campaign);
   function persist(){if(!restoring)window.FestivalSession?.save('city',{rules:C.VERSION,actions,plan,started,best,completedOnce,attempts,trials,hypothesis:$('cityHypothesis').value,
     previewId:preview?.id??null,pending:pending&&pending.kind!=='lesson'?{kind:pending.kind,plan:pending.plan,trialId:pending.trialId,index:pending.nextIndex-1}:null},session);}
-  function publish(){persist();$('cityStars').textContent='★ '+campaign.score+' / 9';$('cityLocalScore').textContent=currentScore()+' / 50';$('cityBestScore').textContent=best+' / 50';if(window!==parent)parent.postMessage({kind:'city-score',version:GameScore.VERSION,session,score:best,completed:completedOnce},location.origin==='null'?'*':location.origin);}
+  function publish(){persist();$('cityStars').textContent='★ '+campaign.score+' / 9';$('cityLocalScore').textContent=currentScore()+' / 50';$('cityBestScore').textContent=best+' / 50';if(window!==parent)parent.postMessage({kind:'city-score',version:GameScore.VERSION,session,score:best,completed:completedOnce},location.protocol==='file:'||location.origin==='null'?'*':location.origin);}
   function recordProgress(){best=Math.max(best,currentScore());completedOnce ||=C.succeeded(campaign);}
   function initialHistory(game) {
     return { day: 0, phase: 4, state: game.people.map((_, i) => i ? 'S' : 'I'), loc: game.people.map(p => p.home), events: [], S: game.people.length - 1, I: 1, R: 0, outside: 0,

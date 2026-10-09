@@ -15,11 +15,15 @@
     // Controllers insert their shell first; navigation belongs above all modes.
     document.body.insertBefore(nav, document.body.firstChild);
     document.dispatchEvent(new CustomEvent('city-mode-ready', { detail: mode }));
+    if (location.protocol === 'file:' && window !== parent) parent.postMessage({
+      kind: 'city-ready', version: 1, session: window.FestivalSession?.id || 'initial'
+    }, '*');
   }
   if (mode === 'lab') { document.body.classList.add('lab-mode'); ready(); return; }
   const script = document.createElement('script');
-  script.src = (mode === 'mayor' ? 'mayor-ui.js?v=review-20261009-1' : 'contest-ui.js?v=20261006-missions');
+  script.src = (mode === 'mayor' ? 'mayor-ui.js?v=review-20261009-2' : 'contest-ui.js?v=20261006-missions');
   script.onload = ready;
   script.onerror = () => { help.disabled = true; help.textContent = 'Не удалось загрузить игру — обнови страницу'; };
-  document.body.appendChild(script);
+  if (window.FestivalSession?.ready) window.FestivalSession.ready.then(() => document.body.appendChild(script));
+  else document.body.appendChild(script);
 })();

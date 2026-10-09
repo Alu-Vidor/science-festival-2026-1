@@ -1,7 +1,10 @@
 /* A complete game fits one desktop viewport; optional tools stay in dialogs. */
 (function () {
   'use strict';
-  const desktop = (window === parent ? window : parent).matchMedia('(min-width: 1000px) and (min-height: 640px)');
+  const monitorQuery = '(min-width: 1000px) and (min-height: 640px)';
+  let desktop;
+  try { desktop = (window === parent ? window : parent).matchMedia(monitorQuery); }
+  catch { desktop = window.matchMedia(monitorQuery); } // Local file frames can have separate opaque origins.
   const wired = new WeakSet(), moves = [], $ = id => document.getElementById(id);
   let active = false, dialog, opened, observer;
   function move(node, parent, first = false) {

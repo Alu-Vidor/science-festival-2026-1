@@ -2,8 +2,8 @@
 (function(root){
   'use strict';
   const NS='http://www.w3.org/2000/svg', $=id=>document.getElementById(id);
-  const points={S:[102,254],W:[330,249],X:[568,241],Y:[807,254],G:[1090,249],
-    U:[330,94],V:[568,96],T:[807,91],L:[330,408],M:[568,406],N:[807,411]};
+  const points={S:[100,235],W:[375,234],X:[675,225],Y:[975,236],G:[1300,235],
+    U:[375,94],V:[675,96],T:[975,91],L:[375,371],M:[675,370],N:[975,373]};
   const bends=[-17,-25,30,15,-17,17,-15,17,-15,17,16,-17,-20,13,-17,-23,26,15];
   const artwork={
     'Лесники':'h1','Метеостанция':'robot/weather-station.png','Связисты':'robot/radio-station.png','Дальний лагерь':'camp',
@@ -64,13 +64,13 @@
     const layer=$('mapDecor');layer.replaceChildren();
     // These biomes are decoration, never an input to the learner or a change in road physics.
     if(!lab&&round===1){
-      for(const [x,y,scale]of [[185,43,1.1],[436,38,.7],[690,445,.8],[993,411,1.15]]){
+      for(const [x,y,scale]of [[185,43,1.1],[490,38,.7],[840,420,.8],[1120,390,1.15]]){
         const rock=element('g',{transform:`translate(${x} ${y}) scale(${scale})`,class:'map-rock'});
         rock.append(element('ellipse',{cy:18,rx:32,ry:9,fill:'#28433c',opacity:'.25'}),element('path',{d:'M-30 15-18-12 4-25 27-8 35 15Z',fill:'#a5aba0',stroke:'#627467','stroke-width':2}),element('path',{d:'M-18-12 4-25 1 13M4-25 27-8 1 13',fill:'none',stroke:'#d3d5c2','stroke-width':2}));layer.append(rock);
       }
     }else if(!lab&&round===2){
       const pond=element('g',{class:'map-pond'});
-      pond.append(element('path',{d:'M994 68Q1060 32 1150 69Q1200 100 1163 148Q1100 166 1024 127Q978 106 994 68Z',fill:'url(#scenicWater)',stroke:'#b4ac77','stroke-width':4}));layer.append(pond);
+      pond.append(element('path',{d:'M1185 68Q1250 32 1350 69Q1400 100 1363 148Q1300 166 1215 127Q1168 106 1185 68Z',fill:'url(#scenicWater)',stroke:'#b4ac77','stroke-width':4}));layer.append(pond);
     }
   }
   function stop(id,title,order,lab,onNode){
@@ -90,10 +90,11 @@
       }else if(id==='S'){
         g.append(element('rect',{class:'base-sign',x:-26,y:9,width:52,height:24,rx:6}),element('text',{class:'base-sign-text',y:21},'БАЗА'));
       }
-      const name=order?order.title:title,nameY=y<140?-76:57;
+      const name=order?order.title:title,nameY=y<140?-76:y<300?40:57;
       g.append(element('text',{class:'node-name',y:nameY},name));
     }else{
-      g.append(element('ellipse',{class:'junction-disc',rx:22,ry:14}),element('circle',{class:'junction-hit',r:33,fill:'transparent'}),element('path',{class:'sign-pole',d:'M26-8v-35'}),element('path',{class:'junction-sign',d:'M8-57H40L47-43 40-29H8Z'}),element('text',{class:'junction-letter',x:26,y:-43},title));
+      const shift=id==='L'||id==='N'?-52:0;
+      g.append(element('ellipse',{class:'junction-disc',rx:22,ry:14}),element('circle',{class:'junction-hit',r:33,fill:'transparent'}),element('path',{class:'sign-pole',d:'M26-8v-35',transform:`translate(${shift} 0)`}),element('path',{class:'junction-sign',d:'M8-57H40L47-43 40-29H8Z',transform:`translate(${shift} 0)`}),element('text',{class:'junction-letter',x:26+shift,y:-43},title));
     }
     g.onclick=()=>onNode(id);g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onNode(id);}};return g;
   }
