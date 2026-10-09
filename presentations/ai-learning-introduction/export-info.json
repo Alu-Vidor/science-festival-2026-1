@@ -1,0 +1,62 @@
+{
+  "slides": 6,
+  "guide_pages": 6,
+  "files": [
+    {
+      "name": "README.txt",
+      "bytes": 2078
+    },
+    {
+      "name": "index.html",
+      "bytes": 3510
+    },
+    {
+      "name": "slide-01.png",
+      "bytes": 1474234
+    },
+    {
+      "name": "slide-02.png",
+      "bytes": 166446
+    },
+    {
+      "name": "slide-03.png",
+      "bytes": 163011
+    },
+    {
+      "name": "slide-04.png",
+      "bytes": 161972
+    },
+    {
+      "name": "slide-05.png",
+      "bytes": 162592
+    },
+    {
+      "name": "slide-06.png",
+      "bytes": 166389
+    },
+    {
+      "name": "ai-learning-introduction.pptx",
+      "bytes": 1874314
+    },
+    {
+      "name": "ai-learning-introduction.pdf",
+      "bytes": 575968
+    },
+    {
+      "name": "facilitator-guide.docx",
+      "bytes": 44902
+    },
+    {
+      "name": "facilitator-guide.pdf",
+      "bytes": 105661
+    },
+    {
+      "name": "facilitator-guide.txt",
+      "bytes": 22662
+    },
+    {
+      "name": "presenter-notes.txt",
+      "bytes": 6035
+    }
+  ]
+}
