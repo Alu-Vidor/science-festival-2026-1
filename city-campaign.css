@@ -33,7 +33,7 @@
 .campaign-city .city-start p{font-size:13px;line-height:1.3;min-width:0}
 .campaign-city .city-start button{font-size:14px;min-height:44px}
 .campaign-city #beginCity{width:100%}
-.monitor-layout.campaign-city #mayor{gap:6px}
+.monitor-layout.campaign-city #mayor{gap:5px}
 .monitor-layout.campaign-city .mayor-title{flex-wrap:wrap;gap:6px 10px}
 .monitor-layout.campaign-city .mayor-title>div{min-width:240px}
 .monitor-layout.campaign-city .mayor-title h1{font-size:23px}
@@ -134,3 +134,85 @@
 #planExpense{font-size:14px;color:#f1d997;line-height:1.4;margin:5px 0}
 
 .campaign-city .city-goal[data-waiting=true] strong{color:#e4ce9f}
+
+/* The map keeps the height of the playground. Award conditions use the
+   otherwise empty side of the scene instead of taking a row above it. */
+.monitor-layout.campaign-city #mayor .city-map-area{
+ display:grid;grid-template-columns:clamp(210px,15vw,280px) minmax(0,1fr);
+ grid-template-rows:auto minmax(0,1fr) auto auto auto auto;gap:6px 10px;
+}
+.monitor-layout.campaign-city #mayor .city-map-area>#cityGoalTitle{
+ grid-column:1;grid-row:1;font-size:18px;line-height:1.25;margin:0;align-self:start;
+}
+.monitor-layout.campaign-city #mayor .city-map-area>#cityGoalGrid{
+ grid-column:1;grid-row:2;grid-template-columns:1fr;grid-template-rows:repeat(3,minmax(0,1fr));
+ gap:8px;margin:0;min-height:0;
+}
+.monitor-layout.campaign-city #mayor #cityGoalGrid .city-goal{
+ min-height:0;padding:10px 12px;justify-content:center;gap:7px;
+}
+.monitor-layout.campaign-city #mayor #cityGoalGrid .city-goal b{font-size:16px;line-height:1.25}
+.monitor-layout.campaign-city #mayor #cityGoalGrid .city-goal small{font-size:14px;line-height:1.3;margin-top:4px}
+.monitor-layout.campaign-city #mayor #cityGoalGrid .city-goal strong{font-size:19px;line-height:1.25}
+.monitor-layout.campaign-city #mayor .city-map-area>#cityNeeds{
+ grid-column:1;grid-row:3;font-size:13px;line-height:1.3;margin:0!important;
+}
+.monitor-layout.campaign-city #mayor #mayorMapSlot{grid-column:2;grid-row:1/4;margin:0;min-height:0}
+.monitor-layout.campaign-city #mayor #mayorMapSlot .city{border:0;gap:0}
+.monitor-layout.campaign-city #mayor .city .legend{font-size:12px;line-height:1.25;padding:0 3px;margin:0 0 5px}
+.monitor-layout.campaign-city #mayor .mapscroll{padding:3px;min-height:0}
+.monitor-layout.campaign-city #mayor #citizenStory{
+ grid-column:1;grid-row:4/7;font-size:14px;line-height:1.3;margin:0;padding:8px 10px;align-self:stretch;
+}
+.monitor-layout.campaign-city #mayor #flowButtons{grid-column:2;grid-row:4;margin:0;gap:7px}
+.monitor-layout.campaign-city #mayor #flowButtons button{min-height:44px;font-size:14px;padding:7px!important}
+.monitor-layout.campaign-city #mayor #cityComparison{grid-column:2;grid-row:5;margin:0;padding:5px 8px!important}
+.monitor-layout.campaign-city #mayor #mayorStatus{grid-column:2;grid-row:6;margin:0;font-size:14px;line-height:1.3;padding:6px 9px}
+.monitor-layout.campaign-city #mayor .city-decisions fieldset{margin:4px 0}
+.monitor-layout.campaign-city #mayor #trialControls{margin-top:6px;padding-top:7px}
+.monitor-layout.campaign-city #mayor #cityExperiment{margin-top:6px}
+.monitor-layout.campaign-city #mayor .city-choice{font-size:16px}
+.monitor-layout.campaign-city #mayor #cityHypothesis,.monitor-layout.campaign-city #mayor #trialCity{font-size:16px}
+.monitor-layout.campaign-city.campaign-intro #mayor .city-map-area{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto auto auto auto}
+.monitor-layout.campaign-city.campaign-intro #mayor #mayorMapSlot{grid-column:1;grid-row:1}
+.monitor-layout.campaign-city.campaign-intro #mayor .mapscroll{display:flex;justify-content:center;width:auto;align-self:center}
+.monitor-layout.campaign-city.campaign-intro #mayor #map{width:auto;aspect-ratio:1660/970;margin:0 auto}
+.monitor-layout.campaign-city.campaign-intro #mayor #citizenStory{grid-column:1;grid-row:2}
+.monitor-layout.campaign-city.campaign-intro #mayor #flowButtons{grid-column:1;grid-row:3}
+.monitor-layout.campaign-city.campaign-intro #mayor #cityComparison{grid-column:1;grid-row:4}
+.monitor-layout.campaign-city.campaign-intro #mayor #mayorStatus{grid-column:1;grid-row:5}
+@media(max-height:800px){
+ .monitor-layout.campaign-city #mayor .city-decisions{padding:8px}
+ .monitor-layout.campaign-city #mayor .city-decisions fieldset{margin:2px 0}
+ .monitor-layout.campaign-city #mayor .city-decisions legend{margin-bottom:2px}
+ .monitor-layout.campaign-city #mayor #allocationSummary{padding:8px;margin:4px 0}
+ .monitor-layout.campaign-city #mayor #planExpense{margin:4px 0}
+ .monitor-layout.campaign-city #mayor #trialControls{gap:4px;margin-top:4px;padding-top:5px}
+ .monitor-layout.campaign-city #mayor .city-time-controls{margin-top:6px}
+ .monitor-layout.campaign-city #mayor .round-outcome{margin-top:5px!important}
+ .monitor-layout.campaign-city #mayor #cityExperiment{margin-top:4px}
+ .monitor-layout.campaign-city #mayor #cityExperiment>summary{min-height:40px;padding:8px}
+}
+@media(min-width:2200px){
+ .monitor-layout.campaign-city #mayor .city-playground{grid-template-columns:minmax(0,1fr) 460px}
+ .monitor-layout.campaign-city #mayor .city-map-area{grid-template-columns:320px minmax(0,1fr);gap:8px 12px}
+ .monitor-layout.campaign-city #mayor .city-map-area>#cityGoalTitle{font-size:23px}
+ .monitor-layout.campaign-city #mayor #cityGoalGrid .city-goal b{font-size:20px}
+ .monitor-layout.campaign-city #mayor #cityGoalGrid .city-goal small{font-size:18px}
+ .monitor-layout.campaign-city #mayor #cityGoalGrid .city-goal strong{font-size:24px}
+ .monitor-layout.campaign-city #mayor .city-map-area>#cityNeeds{font-size:17px}
+ .monitor-layout.campaign-city #mayor #citizenStory,.monitor-layout.campaign-city #mayor #mayorStatus{font-size:18px}
+ .monitor-layout.campaign-city #mayor #flowButtons button{font-size:18px;min-height:50px}
+ .monitor-layout.campaign-city #mayor .city .legend{font-size:16px}
+ .monitor-layout.campaign-city #mayor .mayor-title p,.monitor-layout.campaign-city #mayor .city-round-brief{font-size:18px}
+ .monitor-layout.campaign-city #mayor .mayor-title summary{font-size:17px}
+ .monitor-layout.campaign-city #mayor .city-rounds span{font-size:17px;padding:8px 10px}
+ .monitor-layout.campaign-city #mayor .city-decisions legend{font-size:20px}
+ .monitor-layout.campaign-city #mayor .city-choice{font-size:19px;min-height:54px}
+ .monitor-layout.campaign-city #mayor #allocationSummary,.monitor-layout.campaign-city #mayor #trialSummary,
+ .monitor-layout.campaign-city #mayor #planExpense,.monitor-layout.campaign-city #mayor .round-outcome{font-size:18px}
+ .monitor-layout.campaign-city #mayor #trialControls label{font-size:19px}
+ .monitor-layout.campaign-city #mayor #cityHypothesis,.monitor-layout.campaign-city #mayor #trialCity,
+ .monitor-layout.campaign-city #mayor .city-time-controls #tryCity,.monitor-layout.campaign-city #mayor #pauseCity,
+ .monitor-layout.campaign-city #mayor #cityExperiment>summary{font-size:20px;min-height:54px}
+}

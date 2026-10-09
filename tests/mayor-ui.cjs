@@ -4,6 +4,7 @@ class El{constructor(tag='div'){this.tag=tag;this.children=[];this.attrs={};this
 const body=new El('body'),main=new El('main'),city=new El('section');body.appendChild(main);main.appendChild(city);let renders=0,lastGame;
 const window={renderMayor(g,h,i){renders++;lastGame=g;assert(i<h.length);assert(h[i].loc.length===g.people.length);}};
 ids.map=new El('svg');
+ids.cityTutorial=new El('button');
 const document={body,createElement:tag=>new El(tag),createElementNS:(ns,tag)=>new El(tag),getElementById:id=>ids[id],querySelector:q=>q==='.city'?city:null};
 const ctx={structuredClone,document,window,parent:window,location:{search:''},URLSearchParams,GameScore:require('../game-score.js'),CityCampaign:require('../city-campaign.js'),Mayor:M,Epidemic:E,console,setTimeout:f=>{queue.push(f);return queue.length;},clearTimeout(){queue.length=0;}};
 vm.createContext(ctx);vm.runInContext(fs.readFileSync(require('path').join(__dirname,'../mayor-ui.js'),'utf8'),ctx);
@@ -12,13 +13,23 @@ function flush(){while(queue.length)queue.shift()();}
 function round(){ids.tryCity.onclick();flush();}
 ids.cityHypothesis.value='transport';
 assert(window.cityTourHooks.before());ids.observeCity.onclick();flush();assert(window.cityLesson.observed());assert.equal(lastGame.day,1);
-ids['pick-bus-frequent'].onclick();ids.tryCity.onclick();flush();assert(window.cityLesson.attempted());assert.equal(lastGame.day,1,'Both teaching plans start on the same day');window.cityTourHooks.after();assert.equal(window.cityCampaignGame.current().game.day,0);
+ids['pick-bus-frequent'].onclick();ids.tryCity.onclick();flush();assert(window.cityLesson.attempted());assert.equal(lastGame.day,1,'Both teaching plans start on the same day');
+// Tour Back must reopen free actions, without touching the real campaign or trial slots.
+const lessonCheckpoint=JSON.stringify(window.cityCampaignGame.current());
+window.cityTourHooks.prepare('test');assert(!window.cityLesson.attempted());assert(!ids.tryCity.disabled);ids.tryCity.onclick();flush();assert(window.cityLesson.attempted());
+window.cityTourHooks.prepare('choose');assert(!window.cityLesson.attempted());assert.equal(ids['pick-bus-normal'].attrs['aria-pressed'],true);assert(!ids['pick-bus-frequent'].disabled);
+window.cityTourHooks.prepare('observe');assert(!window.cityLesson.observed());assert(!ids.observeCity.hidden);assert(!ids.observeCity.disabled);ids.observeCity.onclick();flush();assert(window.cityLesson.observed());
+assert.equal(JSON.stringify(window.cityCampaignGame.current()),lessonCheckpoint);assert.equal(window.cityCampaignGame.trials().length,0);assert.equal(ids.cityLocalScore.textContent,'0 / 50');
+window.cityTourHooks.after();assert.equal(window.cityCampaignGame.current().game.day,0);
 ids.beginCity.onclick();ids['pick-bus-frequent'].onclick();
 let checkpoint=JSON.stringify(window.cityCampaignGame.current());ids.trialCity.onclick();assert(window.cityCampaignGame.isPlaying());assert(ids['pick-bus-normal'].disabled);assert(ids['build-bus'].disabled);
-window.mayorCitizenSelect(2);assert(!window.cityCampaignGame.isPlaying());assert(window.cityCampaignGame.isPending());assert.equal(queue.length,0);ids.tryCity.onclick();flush();
+assert(ids.cityTutorial.disabled);window.mayorCitizenSelect(2);assert(!window.cityCampaignGame.isPlaying());assert(window.cityCampaignGame.isPending());assert(ids.cityTutorial.disabled);assert.equal(queue.length,0);ids.tryCity.onclick();flush();assert(!ids.cityTutorial.disabled);
 assert.equal(JSON.stringify(window.cityCampaignGame.current()),checkpoint);assert.equal(ids.cityLocalScore.textContent,'0 / 50');assert.equal(window.cityCampaignGame.trial().result.score,3);
 ids.trialCity.onclick();flush();assert(ids.trialCity.disabled,'Two trials per round');ids.trialCity.onclick();assert.equal(window.cityCampaignGame.trials().length,2);
 const prediction=JSON.stringify(window.cityCampaignGame.trial().result);round();assert.equal(window.cityCampaignGame.current().game.day,4);assert.equal(JSON.stringify(window.cityCampaignGame.current().results[0]),prediction);assert.equal(ids.cityLocalScore.textContent,'16 / 50');
+// Replaying a profitable first round in a new party cannot add it to the old one.
+ids.restartEarly.onclick();assert.equal(ids.cityLocalScore.textContent,'0 / 50');assert.equal(ids.cityBestScore.textContent,'16 / 50');assert.equal(window.cityCampaignGame.trials().length,0);
+ids['pick-bus-frequent'].onclick();round();assert.equal(ids.cityLocalScore.textContent,'16 / 50');assert.equal(ids.cityBestScore.textContent,'16 / 50');
 ids['build-market'].onclick();round();assert.equal(ids.cityLocalScore.textContent,'33 / 50');ids['refund-market'].onclick();ids['build-clinic'].onclick();ids['pick-bus-normal'].onclick();round();
 assert.equal(ids.cityLocalScore.textContent,'50 / 50');assert.equal(ids.cityStars.textContent,'★ 9 / 9');assert(ids.tryCity.disabled);assert.equal(ids.cityAttempts.children.length,1);
 ids['inspect-care'].onclick();assert(ids.cityFlow.open);assert(ids.flowPanel.children.some(e=>e.className==='flow-chain'));

@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict');
 const routes={direct:['S','W','X','Y'],wash:['S','W','U','V','T','G'],wetHill:['S','W','L','M','X','Y']};
-const campaign=[{"round": 0, "experiments": [["S", "W", "L", "M", "X", "Y"], ["S", "W", "U", "W", "S", "U"]], "selected": ["L", "Y"], "stars": 5, "predicted": 59, "spent": 59, "route": ["S", "L", "W", "X", "Y", "X", "W", "S"]}, {"round": 1, "experiments": [["S", "W", "U", "W", "X", "M", "N"], ["S", "W", "U", "W", "U", "W", "L"]], "selected": ["L", "M"], "stars": 6, "predicted": 47, "spent": 47, "route": ["S", "L", "M", "L", "W", "S"]}, {"round": 2, "experiments": [["S", "W", "X", "V"], ["S", "W", "X", "Y"]], "selected": ["Y", "G"], "stars": 6, "predicted": 56, "spent": 56, "route": ["S", "W", "X", "Y", "G", "Y", "X", "W", "S"]}];
+const campaign=[{"round": 0, "experiments": [["S", "W", "L", "M", "X", "Y"], ["S", "W", "U", "W", "S", "U"]], "selected": ["L", "Y"], "stars": 5, "predicted": 59, "spent": 59, "route": ["S", "L", "W", "X", "Y", "X", "W", "S"]}, {"round": 1, "experiments": [["S", "W", "U", "W", "X", "M", "N"], ["S", "W", "U", "W", "U", "W", "L"]], "selected": ["L", "M"], "stars": 6, "predicted": 53, "spent": 53, "route": ["S", "W", "U", "V", "X", "M", "L", "S"]}, {"round": 2, "experiments": [["S", "W", "X", "V"], ["S", "W", "X", "Y"]], "selected": ["Y", "G"], "stars": 6, "predicted": 56, "spent": 56, "route": ["S", "W", "X", "Y", "G", "Y", "X", "W", "S"]}];
 const schedule=campaign.map(r=>r.experiments);
 async function draw(page,route){await page.locator('#labView').click();if(await page.locator('#clearRoute').isEnabled())await page.locator('#clearRoute').click();for(const id of route.slice(1))await page.locator('[data-node="'+id+'"]').click();assert.deepEqual(await page.evaluate(()=>robotExpedition.current().route),route);}
 async function run(page,route){if(route)await draw(page,route);await page.locator('#run').click();await page.waitForFunction(()=>!robotExpedition.current().running);return page.evaluate(()=>robotExpedition.current().trips.at(-1));}
@@ -28,7 +28,7 @@ async function complete(page,check=async()=>{}){
  await page.locator('#notebookButton').click();assert.equal(await page.locator('.trip-entry').count(),9);
  const histories=page.locator('.trip-entry > p:first-of-type');
  assert.equal(await histories.nth(6).innerText(),'База → Лесники → А → Б → Связисты → Б → А → База','The first delivery retains its original recipients after reaching the third district');
- assert.equal(await histories.nth(3).innerText(),'База → Смотрители → Спасатели → Смотрители → А → База','The second delivery keeps the second district recipients');
+ assert.equal(await histories.nth(3).innerText(),'База → А → Г → Д → Геологи → Спасатели → Смотрители → База','The second delivery keeps the second district recipients');
  assert.equal(await histories.nth(8).innerText(),'База → А → Ж → З → Б → В','Laboratory records keep junction names instead of adopting delivery recipients');
  await page.locator('.trip-entry summary').first().click();assert(await page.locator('.trip-entry table').first().isVisible());await page.locator('#robotDialog').press('Escape');await check('complete');
 }

@@ -5,7 +5,7 @@
   const VERSION=R.VERSION,ROUNDS=3,EXPERIMENTS=2,CAPACITY=3,MAX_STARS=17;
   function district(round){
     const m=R.create(round===1?1:0);m.stage=round;m.title=['Лесная долина','Каменный перевал','Озёрный край'][round];
-    m.budget=[68,68,58][round];m.capacity=CAPACITY;
+    m.budget=[68,58,58][round];m.capacity=CAPACITY;
     if(round===2)for(const [i,type,length]of [[0,'water',2],[1,'gravel',5],[2,'mud',2],[3,'hill',1],[4,'sand',2],[5,'road',3],[6,'hill',2],[7,'road',3],[8,'water',1],[9,'gravel',2],[10,'sand',2],[11,'water',1],[12,'road',3],[13,'mud',2],[14,'hill',2],[15,'road',4],[16,'hill',2],[17,'road',4]])Object.assign(m.edges[i],{type,length});
     const targets=[['L','M','Y','G'],['X','L','Y','M'],['T','Y','U','G']][round];
     const titles=[['Лесники','Метеостанция','Связисты','Дальний лагерь'],['Геологи','Смотрители','Альпинисты','Спасатели'],['Причал','Биологи','Смотрители','Озёрный лагерь']][round];

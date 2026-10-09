@@ -102,7 +102,9 @@
     return out;
   }
   function replay(actions) {
-    if (!Array.isArray(actions) || actions.length > 500) throw Error('Некорректная история города.');
+    // Project choices are reversible and have no UI attempt limit. Every valid
+    // trace must remain replayable, including repeated investments and refunds.
+    if (!Array.isArray(actions)) throw Error('Некорректная история города.');
     let campaign = create(); const starts = [];
     for (const action of actions) {
       if (action.kind === 'invest') campaign = invest(campaign, action.id);
