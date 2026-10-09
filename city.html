@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Обучи ИИ-светофор · Живой город</title>
+  <link rel="stylesheet" href="traffic-city.css?v=traffic-school-3">
+  <script src="session-store.js?v=review-20261009-2"></script>
+</head>
+<body>
+  <main id="signalCity">
+    <header class="traffic-heading">
+      <div><h1>Обучи ИИ-светофор</h1><p>Помоги жителям успеть: научи ИИ управлять движением.</p></div>
+      <div class="traffic-record"><span>Рекорд</span><strong id="cityBestScore">0 / 50</strong><span id="cityBestWait" hidden></span></div>
+      <button id="cityTutorial" class="help-button">Как играть</button>
+    </header>
+    <nav class="traffic-modes" aria-label="Режим города">
+      <button id="teachMode" aria-pressed="true">1. Ты показываешь</button>
+      <button id="checkMode" aria-pressed="false">2. ИИ управляет</button>
+      <button id="openExamples" class="memory-button">Память ИИ · <b id="exampleCount">0 примеров</b></button>
+    </nav>
+    <section class="traffic-workspace">
+      <section class="traffic-map-panel" aria-label="Город и движение">
+        <div class="traffic-map-heading"><h2 id="caseTitle"></h2><span id="cityProgress"></span></div>
+        <div class="traffic-map-wrap"><svg id="map" role="img" aria-label="Город: очереди, светофоры и жители"></svg></div>
+        <div id="roundResult" class="traffic-feedback" aria-live="polite"></div>
+      </section>
+      <aside class="traffic-console">
+        <section id="teachingControls">
+          <span id="teachingJunction" class="role-label">ТЫ ОБУЧАЕШЬ СВЕТОФОР A</span>
+          <p id="caseDescription"></p>
+          <div id="queueReadout" class="queue-readout"></div>
+          <h3>Какая дорога поедет?</h3>
+          <div class="axis-choices"><button id="axisEW" aria-pressed="false" aria-label="Главная дорога: зелёный в обе стороны"><span class="axis-icon" aria-hidden="true">↔</span><span>Главная</span></button><button id="axisNS" aria-pressed="false" aria-label="Поперечная дорога: зелёный в обе стороны"><span class="axis-icon" aria-hidden="true">↕</span><span>Поперечная</span></button><button id="axisBOTH" aria-pressed="false" title="Одновременный зелёный пересекающимся дорогам может вызвать столкновение"><span class="axis-icon" aria-hidden="true">↔↕</span><span>Всем сразу</span></button></div>
+          <h3>Длительность зелёного</h3>
+          <div class="duration-choices" aria-label="Длительность зелёного"><button id="duration4" aria-pressed="false">4 с</button><button id="duration8" aria-pressed="true">8 с</button><button id="duration12" aria-pressed="false">12 с</button></div>
+          <p class="physics-note">1 машина или группа/с с каждой стороны. Между командами — 2 с жёлтого.</p>
+          <button id="demonstrate" class="primary" disabled>Показать решение</button>
+          <button id="saveExample" class="primary" hidden>Передать пример ИИ</button>
+          <div class="case-navigation"><button id="previousCase" aria-label="Предыдущая ситуация">←</button><button id="nextCase">Другая ситуация →</button></div>
+        </section>
+        <section id="autonomousControls" hidden>
+          <span class="role-label">ИИ УПРАВЛЯЕТ САМ</span>
+          <p>Твои примеры → решения ИИ → движение в городе.</p>
+          <div id="liveDecision" class="live-decision"></div>
+          <div id="aiQueueReadout" class="queue-readout" hidden></div>
+          <label for="practiceScenario">Свободная проверка</label><select id="practiceScenario"></select>
+          <button id="testAI">Посмотреть работу ИИ</button>
+          <div class="exam-card"><h3>Заезд на результат</h3><p>Три карты: 2, 3 и 4 перекрёстка. Больше жителей вовремя — выше результат. При равенстве важнее меньше ждать.</p><button id="startExam" class="primary">Запустить заезд</button><span id="attemptsLeft"></span></div>
+          <div class="traffic-result-score"><span>Последний результат</span><strong id="cityLocalScore">0 / 50</strong></div>
+        </section>
+        <section id="playbackControls" hidden><button id="pauseCity">Ⅱ Пауза</button><button id="resumeCity" class="primary" hidden>▶ Продолжить</button><button id="stopCity">Завершить этот просмотр</button></section>
+        <p id="cityStatus" role="status" aria-live="polite"></p>
+        <button id="restartCity" class="quiet-button">Новая партия</button>
+      </aside>
+    </section>
+  </main>
+  <dialog id="trafficInfo" aria-labelledby="infoTitle"><div class="info-heading"><h2 id="infoTitle"></h2><button id="closeInfo">Закрыть ✕</button></div><div id="infoContent"></div></dialog>
+  <script src="game-score.js?v=city-experiments-1"></script>
+  <script src="traffic-engine.js?v=traffic-school-3"></script>
+  <script src="traffic-learning.js?v=traffic-school-3"></script>
+  <script src="traffic-map.js?v=traffic-school-3"></script>
+  <script src="traffic-ui.js?v=traffic-school-3"></script>
+</body>
+</html>
