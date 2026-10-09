@@ -51,8 +51,128 @@ for(let round=0;round<3;round++){
  for(const mutate of [x=>x.trips.at(-1).route=['S','G'],x=>x.selected=m.orders.map(o=>o.id),x=>x.trips.at(-1).selected=m.orders.map(o=>o.id)]){const corrupt=structuredClone(s);mutate(corrupt);assert(!D.validate(corrupt));}
  assert.equal(D.outcome(m,selected,a,true).stars,0,'Abort cannot retain points');
 }
-assert.deepEqual(D.score(trips),{stars:17,reserve:32,deliveries:3});assert.equal(trips.length,9);
+assert.deepEqual(D.score(trips),{stars:17,reserve:16,deliveries:3});assert.equal(trips.length,9);
 assert(D.simulate(D.laboratory(),['S','W','S']).state.dirty,'Passing the base does not reset wheels');
 const broken={rules:D.VERSION,round:0,view:'lab',selected:[],route:['S'],trips:[...trips.slice(0,2),{...trips[0]}]};assert(!D.validate(broken));assert(!D.validate({...broken,trips:[],route:['S','G']}));
 for(const ids of [[],['L','L'],['?'],['Y','G']])assert.equal(D.plan(D.district(0),ids,[]),null);
 console.log('Delivery: cargo, mandatory return, independent optimal tours, blind-strategy ceiling, 17 attainable stars, frozen history and attempt limits passed');
+
+// The visible safe-looking upper corridor is a distance tradeoff, not a free win.
+const upper=['S','U','V','T','G'],upperTour=[...upper,...upper.slice(0,-1).reverse()];
+assert(D.steps(D.district(0),upper).every(s=>s.type==='road'));
+assert.equal(D.simulate({...D.district(0),budget:Infinity},upper).spent,38);
+for(let round=0;round<3;round++){
+ const m=D.district(round),unlimited=D.simulate({...m,budget:Infinity},upperTour),actual=D.simulate(m,upperTour);
+ assert.equal(unlimited.spent,[76,114,82][round]);
+ assert(unlimited.spent>m.budget,'The upper corridor cannot complete a return trip within the battery');
+ assert(!actual.finished,'A long safe-looking route must actually run out of charge');
+}
+const asphaltModel=R.train(D.simulate(D.laboratory(),upper).observations);
+assert.equal(asphaltModel.length,1);assert.equal(asphaltModel[0].type,'road');
+const asphaltCeiling=Array.from({length:3},(_,round)=>{
+ const m=D.district(round);
+ return Math.max(...sets(m).map(ids=>{const p=D.plan(m,ids,asphaltModel);return p?D.outcome(m,ids,D.simulate(m,p.route)).stars:0;}));
+}).reduce((a,b)=>a+b,0);
+assert.equal(asphaltCeiling,8,'Training only on clean dry asphalt cannot replace exploring wheel effects');
+
+// Give the lazy strategies every advantage: they may choose the best actual
+// outcome in each district and explicitly learn from every completed delivery.
+// A repeated lab route produces identical observations, so teaching it again
+// between districts cannot add data. Cache only physically identical data sets.
+const maps=Array.from({length:3},(_,r)=>D.district(r)),choices=maps.map(sets),lab=D.laboratory();
+const learnedModels=new Map(),decisions=new Map(),futureScores=new Map();
+const learnedKey=m=>m.map(R.key).sort().join('|');
+function remember(rows){
+ const m=R.train(rows),key=learnedKey(m);if(!learnedModels.has(key))learnedModels.set(key,m);return key;
+}
+function bestRemainder(round,key){
+ if(round===D.ROUNDS)return 0;
+ const cacheKey=round+'#'+key;if(futureScores.has(cacheKey))return futureScores.get(cacheKey);
+ let best=-Infinity;
+ for(const selected of choices[round]){
+  const decisionKey=cacheKey+'#'+selected.join(','),map=maps[round];let decision=decisions.get(decisionKey);
+  if(!decisions.has(decisionKey)){
+   const m=learnedModels.get(key),p=D.plan(map,selected,m);
+   if(!p)decision=null;
+   else{
+    const a=D.simulate(map,p.route),v=D.outcome(map,selected,a);
+    decision={stars:v.stars,next:remember([...m,...a.observations])};
+   }
+   decisions.set(decisionKey,decision);
+  }
+  if(decision)best=Math.max(best,decision.stars+bestRemainder(round+1,decision.next));
+ }
+ futureScores.set(cacheKey,best);return best;
+}
+assert.equal(bestRemainder(0,remember([])),12,'Learning only from deliveries cannot approach 17 by taking the easy first pair');
+const repeatedModels=new Map(),prefixModels=new Map();let routeCount=0,prefixCount=0;
+function visitLab(route){
+ if(route.length>1){
+  routeCount++;const observations=D.simulate(lab,route).observations,key=remember(observations);
+  if(!repeatedModels.has(key))repeatedModels.set(key,route);
+  for(let n=0;n<=observations.length;n++){
+   prefixCount++;const prefixKey=remember(observations.slice(0,n));
+   if(!prefixModels.has(prefixKey))prefixModels.set(prefixKey,new Set());
+   prefixModels.get(prefixKey).add(key);
+  }
+ }
+ if(route.length===7)return;
+ for(const e of lab.edges){const next=e.a===route.at(-1)?e.b:e.b===route.at(-1)?e.a:null;if(next)visitLab([...route,next]);}
+}
+visitLab(['S']);
+assert.equal(routeCount,1745);assert.equal(repeatedModels.size,112);
+const repeatedCeilings=[...repeatedModels.keys()].map(key=>bestRemainder(0,key));
+assert.equal(Math.max(...repeatedCeilings),13,'No single repeated experiment, even with optimal orders and learning from deliveries, can win');
+assert.equal(repeatedCeilings.filter(n=>n===13).length,1);
+assert.equal(prefixCount,22010);assert.equal(prefixModels.size,143);
+assert.equal(Math.max(...[...prefixModels.keys()].map(key=>bestRemainder(0,key))),13,'Stopping the same experiment halfway does not defeat its ceiling');
+let firstRoundModels=0;
+for(const [key,extensions] of prefixModels){
+ const m=learnedModels.get(key);
+ for(const selected of choices[0]){
+  const p=D.plan(maps[0],selected,m);if(!p)continue;
+  const a=D.simulate(maps[0],p.route);if(D.outcome(maps[0],selected,a).stars!==5)continue;
+  firstRoundModels++;
+  assert.deepEqual([...extensions],[key],'The only data capable of 5 stars already exhaust the repeated route; changing the later stop adds nothing');
+  for(const nextModel of [m,R.train([...m,...a.observations])]){
+   for(const second of choices[1].filter(ids=>maps[1].orders.filter(o=>ids.includes(o.id)).reduce((n,o)=>n+o.stars,0)===6)){
+    const next=D.plan(maps[1],second,nextModel);
+    assert(!next||D.outcome(maps[1],second,D.simulate(maps[1],next.route)).stars===0,'Skipping delivery teaching cannot rescue the repeated route at the second district');
+   }
+  }
+ }
+}
+assert.equal(firstRoundModels,1,'Only one prefix model and one actual 5-star assignment require the teaching-skip check');
+const singleCeiling=maps.reduce((total,map,round)=>total+Math.max(...choices[round].filter(ids=>ids.length===1).map(ids=>{
+ const p=D.plan(map,ids,oracle);return D.outcome(map,ids,D.simulate(map,p.route)).stars;
+})),0);
+assert.equal(singleCeiling,12,'Taking only individual orders cannot earn all stars, even with complete knowledge');
+const fixedOrderCeiling=Math.max(...sets(maps[0]).map(ids=>{
+ const positions=ids.map(id=>maps[0].orders.findIndex(o=>o.id===id));
+ return maps.reduce((total,map)=>{const selected=positions.map(i=>map.orders[i].id),p=D.plan(map,selected,oracle);return total+D.outcome(map,selected,D.simulate(map,p.route)).stars;},0);
+}));
+assert.equal(fixedOrderCeiling,15,'A universal cargo selection cannot win even with complete knowledge');
+
+// Every animation checkpoint is reloadable. Interrupting after any displayed
+// step preserves measurements but never rewards an unfinished delivery.
+let checkpoints=0;
+for(let i=0;i<trips.length;i++){
+ const original=trips[i],before=trips.slice(0,i),beforeScore=D.score(before),beforeModel=D.model(before);
+ for(let count=0;count<=original.steps;count++){
+  const partial={...structuredClone(original),steps:count,ended:false,taught:false,interrupted:false};
+  const state={rules:D.VERSION,round:original.round,view:original.kind==='experiment'?'lab':'district',selected:original.selected,route:original.kind==='experiment'?original.route:['S'],trips:[...before,partial]};
+  assert(D.validate(state),'Every displayed checkpoint must survive reload');
+  assert.equal(D.measured(partial).length,count,'Unshown future steps cannot enter training');
+  partial.ended=true;partial.interrupted=true;
+  assert(D.validate(state));assert.deepEqual(D.model(state.trips),beforeModel,'Reload cannot silently transfer measurements');
+  assert.deepEqual(D.score(state.trips),beforeScore,'Interruptions never add stars or reserve');
+  assert.deepEqual(D.actual(partial),D.actual(JSON.parse(JSON.stringify(partial))),'Restoring an interruption preserves the same measured result');
+  checkpoints++;
+ }
+}
+const duplicated={rules:D.VERSION,round:0,view:'district',selected:trips[2].selected,route:['S'],trips:[...trips.slice(0,3),trips[2]]};
+assert(!D.validate(duplicated),'A repeated scored departure is never a valid saved party');
+assert(!D.validate({rules:'cargo-school-2',round:2,view:'district',selected:trips.at(-1).selected,route:['S'],trips}),'The changed roads and battery cannot reinterpret an older party');
+const newParty={rules:D.VERSION,round:0,view:'district',selected:[],route:['S'],trips:[]};
+assert(D.validate(newParty));assert.deepEqual(D.score(newParty.trips),{stars:0,reserve:0,deliveries:0});assert.deepEqual(D.model(newParty.trips),[]);
+console.log(`Robot strategy audit: 1745 routes / 22010 stoppable prefixes, ceilings 8/12/13/12/15 vs attainable 17; ${checkpoints} reload and interruption checkpoints passed`);

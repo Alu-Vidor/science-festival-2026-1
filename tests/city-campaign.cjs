@@ -59,6 +59,13 @@ const oneDay=C.advance(funded,base);assert.throws(()=>C.invest(oneDay,'market'))
 const actions=[];for(const [i,w]of winning.entries()){const active=C.replay(actions).campaign;for(const id of active.projects)if(!w.build.includes(id))actions.push({kind:'refund',id});for(const id of w.build)if(!active.projects.includes(id))actions.push({kind:'invest',id});for(let d=0;d<4;d++)actions.push({kind:'day',plan:w.plan});}
 assert.deepEqual(C.replay(actions).campaign,c);assert.throws(()=>C.replay([{kind:'day',plan:{...base,bus:'wrong'}}]));
 const priorHistory=JSON.stringify(careStart.game.history),priorCash=careStart.game.cash;const refund=C.refund(careStart,'clinic');assert.equal(JSON.stringify(refund.game.history),priorHistory);assert.equal(refund.game.cash,priorCash);
+// Ordinary project toggling can exceed the former 500-action save limit.
+// It must neither mint funds nor invalidate a real scored checkpoint.
+const longActions=[];for(let n=0;n<251;n++)longActions.push({kind:'invest',id:'bus'},{kind:'refund',id:'bus'});
+for(let n=0;n<4;n++)longActions.push({kind:'day',plan:base});
+const longReplay=C.replay(longActions).campaign;
+assert.equal(longReplay.game.day,4);assert.equal(longReplay.funds,200);assert.deepEqual(longReplay.projects,[]);
+assert.deepEqual(longReplay.results,C.round(C.create(),base).results);assert.equal(C.round(longReplay,base).game.day,8);
 console.log('City: 9 attainable stars, alternative solutions, conserved service chains, independent scoring, fair trials, transport/capacity bottlenecks, persistent consequences and replay passed');
 
 // Three whole successful campaigns use different investments and operating decisions.
@@ -68,3 +75,13 @@ for(const alt of [economic,transport]){assert.equal(alt.score,9);independentChec
 assert.equal(new Set([c,economic,transport].map(x=>x.funds)).size,3);
 assert.equal(new Set([c,economic,transport].map(x=>x.results.reduce((n,r)=>n+r.expense,0))).size,3);
 console.log('Three complete 9/9 strategies with different operating costs and remaining project funds passed');
+
+// Adapting the project bundle is a real decision even when the switches stay fixed.
+// Do not accidentally require changing every control as an artificial winning rule.
+const fixedPlan={school:'normal',bus:'normal',shops:'both'};
+let adaptedProjects=C.invest(C.create(),'bus');adaptedProjects=C.round(adaptedProjects,fixedPlan);
+adaptedProjects=C.invest(adaptedProjects,'market');adaptedProjects=C.round(adaptedProjects,fixedPlan);
+adaptedProjects=C.refund(C.refund(adaptedProjects,'market'),'bus');adaptedProjects=C.invest(adaptedProjects,'clinic');adaptedProjects=C.round(adaptedProjects,fixedPlan);
+assert.equal(adaptedProjects.score,9);independentChecks(adaptedProjects);
+assert.deepEqual(adaptedProjects.results.map(r=>r.expense),[324,340,328]);
+console.log('A constant operating plan can reach 9/9 only after genuine project adaptation; constant plan and constant projects remain capped at 6/9');

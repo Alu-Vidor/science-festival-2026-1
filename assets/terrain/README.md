@@ -25,7 +25,7 @@ The robot uses separate authored SVG textures with distinct colors and large pat
 | Ice | Cyan fractures (`ice.svg`) |
 | Wall | Masonry blocks, impassable (`wall.svg`) |
 
-Legend swatches and map cells use the same textures. Material describes energy cost; sensor readings determine safety. Safe and dangerous variants share the same material texture. The solid blue planned route, yellow travelled route, white selection and optional small AI badges remain separate from material art. The city atlas is unchanged.
+The route game uses six of these authored textures on the road ribbons: mud, water, gravel, sand and hill, plus the painted asphalt tile from `materials.webp`. Asphalt lane markings follow each road's curve. Legend swatches use the same patterns. Surface and wheel state together determine energy, wheel changes and possible stalling; neither the decoration nor a texture reveals the hidden effects. Forecast, return and travelled paths remain separate layers above the surfaces.
 
 Generation used the following prompt. Subsequent processing only resized the complete atlas and encoded WebP.
 

@@ -125,6 +125,7 @@
     $('tryCity').disabled=playing||(pending?false:lesson?!lesson.observed||lesson.tested:!started||campaign.completed);
     $('tryCity').textContent=pending&&!playing?'Продолжить '+(pending.kind==='trial'?'опыт':'прогон'):lesson?'Проверить своё решение':campaign.completed?'Партия завершена':'Зачёт · 4 дня';
     $('pauseCity').disabled=!playing;$('restartCity').hidden=!campaign.completed||!!lesson;
+    const tutorial=$('cityTutorial');if(tutorial){tutorial.disabled=!!pending;tutorial.title=pending?'Обучение недоступно во время прогона.':'Открыть бесплатное обучение';}
     if(renderNow)render(state());publish();
   }
   function dailyFeedback(before,after){const r=after.game.reports.at(-1);if(!r)return;$('cityComparison').hidden=false;const box=$('cityEffects');box.replaceChildren();const kind=C.rounds[Math.floor((r.day-1)/4)].focus,f=r.flows[kind],name={activity:'очные поездки на занятия и работу',food:'покупатели семей',care:'обращения за помощью'}[kind];element('span','День '+r.day+' · '+name,box);element('span',f.requested.length?'Добрались '+f.arrived.length+'/'+f.requested.length+' · обслужены '+f.served.length+'/'+f.requested.length:'Сейчас нет запросов на поездку',box);element('span','Еда '+r.food+'% · расход '+r.expenses+' монет',box);}
@@ -135,7 +136,7 @@
   }
   function finishDay(){
     const t=pending;pending=null;playing=false;
-    if(t.kind==='lesson'){lesson.c=t.after;if(!lesson.observed)lesson.observed=true;else lesson.tested=true;dailyFeedback(null,t.after);update();$('mayorStatus').textContent='Учебный прогон завершён. Проверь, кто добрался и что изменилось.';signal(lesson.tested?'city:tested':'city:observed');return;}
+    if(t.kind==='lesson'){lesson.c=t.after;if(!lesson.observed){lesson.observed=true;lesson.observation=t.after;}else lesson.tested=true;dailyFeedback(null,t.after);update();$('mayorStatus').textContent='Учебный прогон завершён. Проверь, кто добрался и что изменилось.';signal(lesson.tested?'city:tested':'city:observed');return;}
     if(t.kind==='trial'){trials[t.trialId].complete=true;preview={...t,id:t.trialId,index:trials[t.trialId].index};update();restoreFeedback();$('mayorStatus').textContent='Это копия города. Проверь причины, скорректируй план и запусти зачёт. Настоящий город не изменился.';persist();return;}
     for(let i=0;i<4;i++)actions.push({kind:'day',plan:t.plan});campaign=t.after;preview=null;recordProgress();if(campaign.completed)attempts.push(currentScore());update();restoreFeedback();
     $('mayorStatus').textContent=campaign.completed?'Партия завершена: ★ '+campaign.score+'/9. Лучший результат сохранён.':'Зачёт завершён. Следующий раунд начинается с этого города: запасы и состояние жителей сохранились.';signal('city:round',{index:campaign.game.day/4-1});
@@ -229,7 +230,21 @@
     }catch{}
   }
   recoverCity();restoring=false;
-  window.cityTourHooks={before(){if(pending)return false;preview=null;lesson={c:C.create(),plan:GameScore.cityDefaults(),observed:false,tested:false};update();return true;},after(){if(pending){clearTimeout(timer);window.pauseMayorMotion?.();pending=null;playing=false;}lesson=null;update();restoreFeedback();}};
+  window.cityTourHooks={
+    before(){if(pending)return false;preview=null;lesson={c:C.create(),plan:GameScore.cityDefaults(),observed:false,tested:false};update();return true;},
+    prepare(stage){
+      if(!lesson||pending)return;
+      // Returning to a tour action reopens only its free teaching checkpoint.
+      if(stage==='observe')lesson={c:C.create(),plan:GameScore.cityDefaults(),observed:false,tested:false};
+      else{
+        if(!lesson.observed)return;
+        lesson.c=lesson.observation;lesson.tested=false;
+        if(stage==='choose')lesson.plan=GameScore.cityDefaults();
+      }
+      update();
+    },
+    after(){if(pending){clearTimeout(timer);window.pauseMayorMotion?.();pending=null;playing=false;}lesson=null;update();restoreFeedback();}
+  };
   window.cityLesson={observed:()=>!!lesson?.observed,attempted:()=>!!lesson?.tested};
   window.cityCampaignGame={current:()=>campaign,isPlaying:()=>playing,isPending:()=>!!pending,trial:()=>preview?{index:preview.index,plan:preview.plan,result:preview.after.results[preview.index]}:null,trials:()=>structuredClone(trials)};
   update();restoreFeedback();if(pending)render(pending.after,pending.nextIndex-1,false);publish();$('mayorStatus').textContent=window.cityRestored?'Партия восстановлена. '+(pending?'Прогон на паузе.':'Можно продолжать.'):'Найди причину проблемы, проверь догадку на копии и запусти зачёт.';

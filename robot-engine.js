@@ -1,7 +1,7 @@
 /* Route experiments. Physics and the learned predictor have separate inputs. */
 (function (root) {
   'use strict';
-  const VERSION = 'cargo-school-2';
+  const VERSION = 'cargo-school-3';
   const terrains = {
     road: {name:'Дорога',base:2,color:'#667986'}, mud:{name:'Грязь',base:3,color:'#89613c'},
     water:{name:'Мелководье',base:4,color:'#288ca8'}, gravel:{name:'Камни',base:3,color:'#a2aaa1'},
@@ -16,7 +16,7 @@
   function create(stage=0) {
     const edges=edgeData.map(([a,b,type,length],i)=>({id:i,a,b,type,length}));
     if(stage===1){
-      for(const [i,type,length] of [[1,'road',10],[2,'road',7],[3,'sand',2],[4,'water',1],[5,'hill',2],[6,'gravel',3],[7,'hill',2],[9,'gravel',2],[10,'mud',2],[11,'road',3],[13,'water',1],[14,'sand',2],[15,'hill',2],[16,'road',5],[17,'road',4]]) Object.assign(edges[i],{type,length});
+      for(const [i,type,length] of [[0,'water',1],[1,'road',10],[2,'water',2],[3,'sand',2],[4,'water',1],[5,'hill',2],[6,'gravel',3],[7,'hill',2],[9,'gravel',2],[10,'mud',2],[11,'road',3],[12,'hill',1],[13,'water',1],[14,'sand',2],[15,'hill',2],[16,'road',5],[17,'road',4]]) Object.assign(edges[i],{type,length});
     }
     return {stage,nodes,edges,start:'S'};
   }
