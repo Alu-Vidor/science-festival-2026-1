@@ -33,7 +33,7 @@
 .campaign-city .city-start p{font-size:13px;line-height:1.3;min-width:0}
 .campaign-city .city-start button{font-size:14px;min-height:44px}
 .campaign-city #beginCity{width:100%}
-.monitor-layout.campaign-city #mayor{gap:6px}
+.monitor-layout.campaign-city #mayor{gap:5px}
 .monitor-layout.campaign-city .mayor-title{flex-wrap:wrap;gap:6px 10px}
 .monitor-layout.campaign-city .mayor-title>div{min-width:240px}
 .monitor-layout.campaign-city .mayor-title h1{font-size:23px}
@@ -165,7 +165,7 @@
  grid-column:1;grid-row:4/7;font-size:14px;line-height:1.3;margin:0;padding:8px 10px;align-self:stretch;
 }
 .monitor-layout.campaign-city #mayor #flowButtons{grid-column:2;grid-row:4;margin:0;gap:7px}
-.monitor-layout.campaign-city #mayor #flowButtons button{min-height:40px;font-size:14px;padding:7px!important}
+.monitor-layout.campaign-city #mayor #flowButtons button{min-height:44px;font-size:14px;padding:7px!important}
 .monitor-layout.campaign-city #mayor #cityComparison{grid-column:2;grid-row:5;margin:0;padding:5px 8px!important}
 .monitor-layout.campaign-city #mayor #mayorStatus{grid-column:2;grid-row:6;margin:0;font-size:14px;line-height:1.3;padding:6px 9px}
 .monitor-layout.campaign-city #mayor .city-decisions fieldset{margin:4px 0}
