@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
 const { chromium } = require('playwright');
 const Robot=require('./robot-browser-helpers.cjs');
-const City=require('./city-browser-helpers.cjs');
+const City=require('./traffic-browser-helpers.cjs');
 const root = path.resolve(__dirname, '..');
 const server = http.createServer((req, res) => {
   const file = path.resolve(root, '.' + (req.url.split('?')[0] === '/' ? '/index.html' : req.url.split('?')[0]));
@@ -28,7 +28,7 @@ const server = http.createServer((req, res) => {
             if(!r.width || !r.height || r.left<0 || r.top<0 || r.right>innerWidth+1 || r.bottom>innerHeight+1) issues.push(selector+': '+JSON.stringify({x:r.x,y:r.y,w:r.width,h:r.height}));
             for(let p=el.parentElement;p&&p!==document.body;p=p.parentElement) {
               const b=p.getBoundingClientRect(), css=getComputedStyle(p);
-              if((['hidden','auto','scroll','clip'].includes(css.overflowY)||p.matches('.training,.city-decisions,#robotControls')) && (r.top<b.top-1 || r.bottom>b.bottom+1)) issues.push(selector+' (#'+el.id+') clipped by '+p.className+' at '+Math.round(r.bottom)+' / '+Math.round(b.bottom)+'; expedition '+(window.robotExpedition?.current().stage??'city'));
+              if((['hidden','auto','scroll','clip'].includes(css.overflowY)||p.matches('.training,.city-decisions,.traffic-console,#robotControls')) && (r.top<b.top-1 || r.bottom>b.bottom+1)) issues.push(selector+' (#'+el.id+') clipped by '+p.className+' at '+Math.round(r.bottom)+' / '+Math.round(b.bottom)+'; expedition '+(window.robotExpedition?.current().stage??'city'));
               if(p.scrollTop || p.scrollLeft) issues.push(selector+' panel scroll');
             }
           }
@@ -38,20 +38,24 @@ const server = http.createServer((req, res) => {
       }
       async function readableCity(scope){
         const problems=await scope.evaluate(()=>{
-          const result=[],map=document.querySelector('#map').getBoundingClientRect(),groups=[...document.querySelectorAll('#cityBadges>g')],boxes=groups.map(g=>g.querySelector('rect').getBoundingClientRect());
-          const buildings=[...document.querySelectorAll('#map .building-sprite')].map(el=>el.getBoundingClientRect());
-          if(buildings.length!==15)result.push('The full city must contain all 15 buildings');
-          if(Math.min(...buildings.map(b=>b.width))<(innerWidth>=2200?110:75))result.push('City buildings are too small to explore');
-          const sceneWidth=Math.max(...buildings.map(b=>b.right))-Math.min(...buildings.map(b=>b.left)),sceneHeight=Math.max(...buildings.map(b=>b.bottom))-Math.min(...buildings.map(b=>b.top));
-          if(sceneWidth<map.width*.52||sceneHeight<map.height*.7)result.push('Painted city occupies too little of its map');
-          groups.forEach((g,i)=>{
-            const box=boxes[i];if(box.left<map.left||box.right>map.right||box.top<map.top||box.bottom>map.bottom)result.push('Label outside map: '+g.getAttribute('aria-label'));
-            const home=g.getAttribute('data-place').startsWith('h'),minimum=innerWidth>=2200?(home?16:18):(home?13:14);
-            if(g.querySelectorAll('text').length!==1||box.height>(innerWidth>=2200?28.1:23.1))result.push('Oversized city label: '+g.getAttribute('aria-label'));
-            [...g.querySelectorAll('text')].forEach(t=>{const font=parseFloat(getComputedStyle(t).fontSize)*Math.abs(t.getScreenCTM().a),r=t.getBoundingClientRect();if(font<minimum-.05)result.push('Unreadable label: '+t.textContent+' '+font);if(r.left<box.left||r.right>box.right||r.top<box.top||r.bottom>box.bottom)result.push('Clipped label: '+t.textContent);});
-            for(let j=i+1;j<boxes.length;j++){const b=boxes[j];if(Math.min(box.right,b.right)-Math.max(box.left,b.left)>1&&Math.min(box.bottom,b.bottom)-Math.max(box.top,b.top)>1)result.push('Labels overlap: '+g.getAttribute('aria-label')+' / '+groups[j].getAttribute('aria-label'));}
-          });return result;
-        });assert.deepEqual(problems,[],'City labels must be readable at their actual screen size');
+          const result=[],map=document.querySelector('#map').getBoundingClientRect();
+          const within=rect=>rect.left>=map.left-1&&rect.right<=map.right+1&&rect.top>=map.top-1&&rect.bottom<=map.bottom+1;
+          const junctions=[...document.querySelectorAll('#map .traffic-junction')];
+          const expected=trafficCityGame.current().view.junctionIds;
+          if(junctions.length!==expected.length||new Set(junctions.map(j=>j.dataset.junction)).size!==expected.length||junctions.some(j=>!expected.includes(j.dataset.junction)))result.push('Every intersection of the current map must be present');
+          for(const junction of junctions)if(!within(junction.getBoundingClientRect()))result.push('Intersection outside map: '+junction.dataset.junction);
+          const buildings=[...document.querySelectorAll('#map .traffic-building')].map(el=>el.getBoundingClientRect());
+          if(buildings.length<6||Math.min(...buildings.map(b=>b.width))<44)result.push('City buildings must be large enough to recognise');
+          const controls=[...document.querySelectorAll('#map .traffic-axis[role="button"]')];
+          if(controls.length!==expected.length*2)result.push('Each intersection needs two visible direction controls');
+          for(const control of controls){const box=control.getBoundingClientRect();if(box.width<43||box.height<43)result.push('Direction control is too small: '+control.dataset.junction+' '+control.dataset.axis);if(!within(box))result.push('Direction control outside map');}
+          const labels=[...document.querySelectorAll('#map .traffic-place-label')],boxes=labels.map(el=>el.getBoundingClientRect());
+          boxes.forEach((box,i)=>{
+            if(!within(box))result.push('Label outside map: '+labels[i].textContent);
+            for(let j=i+1;j<boxes.length;j++){const other=boxes[j];if(Math.min(box.right,other.right)-Math.max(box.left,other.left)>1&&Math.min(box.bottom,other.bottom)-Math.max(box.top,other.top)>1)result.push('Place labels overlap');}
+          });
+          return result;
+        });assert.deepEqual(problems,[],'A large traffic map must show readable intersections, buildings and direction controls');
       }
       await page.goto('http://127.0.0.1:'+server.address().port);
       if(await page.locator('.tour-card').count()) await page.locator('.tour-card').press('Escape');
@@ -73,43 +77,53 @@ const server = http.createServer((req, res) => {
       await page.locator('body').evaluate(el=>el.style.fontFamily='');
       await page.locator('#robotTutorial').click();await fits(page,['#robotDialog','#dialogBody']);await page.locator('#dialogClose').click();
       const tiny=await page.locator('.road-label text').evaluateAll(els=>els.filter(e=>parseFloat(getComputedStyle(e).fontSize)*e.getScreenCTM().a<14).map(e=>e.textContent));assert.deepEqual(tiny,[],'Road labels must be readable on the actual monitor');
-      async function lit(scope, selectors) {
-        const problems=await scope.evaluate(selectors=>{
-          const card=document.querySelector('.tour-card').getBoundingClientRect();
-          const dark=[...document.querySelectorAll('.tour-shade')].map(e=>e.getBoundingClientRect());
-          const overlaps=(a,b)=>Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1;
-          return selectors.filter(s=>{const r=document.querySelector(s).getBoundingClientRect();return overlaps(r,card)||dark.some(d=>overlaps(r,d));});
-        },selectors);
-        assert.deepEqual(problems,[],'Lesson must leave the described objects visible');
-      }
       await page.locator('#epiTab').click();
       const city = page.frameLocator('#epiView');
-      await city.locator('#mayor').waitFor();
-      const frame=page.frames().find(f=>f.url().includes('epidemic.html'));
-      if(await city.locator('.tour-card').count()) await city.locator('.tour-card').press('Escape');
-      await readableCity(frame);
-      await fits(frame,['#map','#map .building-sprite','#observeCity','#beginCity','#mayorStatus','#cityLocalScore','#cityRounds','#projectSummary']);
-      await city.locator('#cityTutorial').click(); await fits(frame,['.tour-card','#tourTitle','#tourText','#observeCity']);
-      await city.locator('#observeCity').click();
-      await city.locator('.tour-watching').waitFor(); await lit(frame,['#map','#citizenStory']);
-      await page.screenshot({path:path.join(root,'test-artifacts',`city-lesson-monitor-${width}x${height}.png`)});
-      await city.locator('#tryCity').waitFor({state:'visible'});
-      await city.locator('#tryCity').evaluate(el => new Promise(resolve => { const timer=setInterval(()=>{if(!el.disabled){clearInterval(timer);resolve();}},20); }));
-      await city.locator('#tourTitle').filter({hasText:'Помоги добраться'}).waitFor(); await fits(frame,['.tour-card','#tourText']);
-      await city.locator('#pick-bus-frequent').click(); await city.locator('#tourTitle').filter({hasText:'Проверь своё'}).waitFor();
-      await fits(frame,['.tour-card','#tourText']); await city.locator('#tryCity').click();
-      await City.finishLesson(city,async()=>fits(frame,['.tour-card','#tourTitle','#tourText']));
-      await City.maximum(city,async n=>{
+      await City.ready(city); await City.closeInfo(city);
+      const frame=page.frames().find(f=>f.url().includes('city.html'));
+      async function cityFits(){
         await readableCity(frame);
-        await fits(frame,['#map',...(n<12?['.city-choice']:[]),'#tryCity','#pauseCity','#cityGoalGrid','#cityNeeds','#mayorStatus','#roundOutcome','#planExpense','#flowButtons',...(n<12?['#trialCity','#trialSummary','#cityHypothesis','#allocationSummary']:[]),...(n>=4?['#cityExperiment']:[])]);
-        if(n%4===0)await page.screenshot({path:path.join(root,'test-artifacts',`city-round-${n/4}-${width}x${height}.png`)});
-      });
-      await fits(frame,['#map','#restartCity','#cityEffects','#cityNeeds','#mayorStatus']);
+        const visible=['#signalCity','#map','#map .traffic-building','#map .traffic-axis','#cityStatus','#cityBestScore','#exampleCount','#cityProgress'];
+        for(const id of ['cityLocalScore','teachMode','checkMode','cityTutorial','axisEW','axisNS','axisBOTH','duration4','duration8','duration12','demonstrate','saveExample','nextCase','testAI','startExam','pauseCity','resumeCity','restartCity','roundResult','examplesList'])if(await city.locator('#'+id).isVisible())visible.push('#'+id);
+        await fits(frame,visible);
+        const small=await frame.evaluate(()=>[...document.querySelectorAll('button')].filter(el=>{const r=el.getBoundingClientRect();return r.width&&r.height&&r.height<43;}).map(el=>el.id||el.textContent));
+        assert.deepEqual(small,[],'Every visible city button must remain easy to click on a monitor');
+        const cardClipping=await frame.evaluate(()=>{
+          const issues=[],consoleBox=document.querySelector('.traffic-console').getBoundingClientRect(),outside=(r,b)=>r.left<b.left-1||r.right>b.right+1||r.top<b.top-1||r.bottom>b.bottom+1;
+          for(const element of document.querySelectorAll('.traffic-console > *,.traffic-console p,.traffic-console h3,.traffic-console label,.traffic-console select,.traffic-console .queue-readout,.traffic-console .queue-row,.traffic-console .queue-row *,.traffic-console .axis-choices span')){
+            const rect=element.getBoundingClientRect();if(!rect.width||!rect.height)continue;
+            if(outside(rect,consoleBox))issues.push('Console content outside panel: '+(element.id||element.className));
+            const row=element.closest('.queue-row');if(row&&row!==element&&outside(rect,row.getBoundingClientRect()))issues.push('Queue item outside card: '+element.textContent);
+          }
+          for(const row of document.querySelectorAll('.traffic-console .queue-row')){
+            const box=row.getBoundingClientRect();if(!box.width||!box.height)continue;
+            const walker=document.createTreeWalker(row,NodeFilter.SHOW_TEXT);
+            for(let text=walker.nextNode();text;text=walker.nextNode())if(text.textContent.trim()){
+              const range=document.createRange();range.selectNodeContents(text);
+              for(const rect of range.getClientRects())if(outside(rect,box))issues.push('Queue text outside card: '+text.textContent);
+            }
+          }return issues;
+        });
+        assert.deepEqual(cardClipping,[],'Queue cards and every nested line fit inside their cards and the console');
+      }
+      for(const font of ['Arial, sans-serif','DejaVu Sans, sans-serif','Noto Sans, sans-serif']){await city.locator('body').evaluate((el,font)=>el.style.fontFamily=font,font);await cityFits();}
+      await city.locator('body').evaluate(el=>el.style.fontFamily='');
+      await city.locator('#cityTutorial').click(); await fits(frame,['#trafficInfo','#closeInfo']);
+      await page.screenshot({path:path.join(root,'test-artifacts',`city-lesson-monitor-${width}x${height}.png`)});
+      await City.closeInfo(city); await cityFits();
+      await City.teach(city);
+      await city.locator('#checkMode').click();
+      const mapSizes=[];
+      for(const scenarioId of await frame.evaluate(()=>TrafficEngine.scenarios.map(scenario=>scenario.id))){
+        await city.locator('#practiceScenario').selectOption(scenarioId); await cityFits();
+        mapSizes.push(await frame.evaluate(()=>trafficCityGame.current().view.junctionIds.length));
+      }
+      assert.deepEqual(mapSizes.sort((a,b)=>a-b),[2,3,4],'Each scored flow has its own complete map');
+      await City.practice(city); const completedCity=await City.exam(city); await cityFits();
+      assert.equal(completedCity.current.best,50,'A model learned from the bounded visible child demonstrations can reach full score');
       await page.screenshot({path:path.join(root,'test-artifacts',`city-monitor-${width}x${height}.png`)});
       await fits(page,['#epiView','#overallScore','#trainingMission','#deliveryMission','#cityMission','#missionProgress']);
-      await city.locator('.inhabitant[data-person="0"]').press('Enter'); await city.locator('.monitor-dialog[open]').waitFor();
-      await fits(frame,['.monitor-dialog','#citizenChoice','#citizenPanel']);
-      await city.locator('.monitor-dialog > button').click(); await fits(frame,['#map','#cityEffects']);
+      assert.equal(await page.locator('#overallScore').innerText(),'100','Both independent interactive missions can contribute their full score');
       await context.close(); console.log('Monitor fits:',width,height);
     }
     assert.deepEqual(failures,[]);

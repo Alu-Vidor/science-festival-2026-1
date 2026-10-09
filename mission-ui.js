@@ -3,13 +3,15 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const state = { robot: 0, city: 0, trainingDone: false, deliveryDone: false, cityDone: false };
+  const cityRules = 'traffic-school-3';
   let session = window.FestivalSession?.id || 'initial';
   const saved = window.FestivalSession?.read('score');
   if (saved?.rules===GameScore.VERSION && ['robot','city'].every(key=>Number.isInteger(saved[key])&&saved[key]>=0&&saved[key]<=50) && ['trainingDone','deliveryDone','cityDone'].every(key=>typeof saved[key]==='boolean')) for(const key of Object.keys(state))state[key]=saved[key];
   if (saved?.robotRules !== RobotEngine.VERSION) { state.robot = 0; state.trainingDone = false; state.deliveryDone = false; }
-  if (session !== 'initial') $('epiView').src = 'epidemic.html?v=review-20261009-city-labels-1&session=' + encodeURIComponent(session);
+  if (saved?.cityRules !== cityRules) { state.city = 0; state.cityDone = false; }
+  if (session !== 'initial') $('epiView').src = 'city.html?v=traffic-school-3&session=' + encodeURIComponent(session);
   function draw() {
-    window.FestivalSession?.save('score',{...state,rules:GameScore.VERSION,robotRules:RobotEngine.VERSION},session);
+    window.FestivalSession?.save('score',{...state,rules:GameScore.VERSION,robotRules:RobotEngine.VERSION,cityRules},session);
     $('overallScore').textContent = GameScore.total(state);
     const done = [state.trainingDone, state.deliveryDone, state.cityDone].filter(Boolean).length;
     $('missionProgress').textContent = `Задания: ${done} / 3`;
@@ -40,14 +42,14 @@
         window.FestivalSession?.save('city', e.data.value, session);
       return;
     }
-    if (e.data.kind !== 'city-score' || e.data.version !== GameScore.VERSION) return;
+    if (e.data.kind !== 'city-score' || e.data.version !== GameScore.VERSION || e.data.rules !== cityRules) return;
     if (!Number.isInteger(e.data.score) || e.data.score < 0 || e.data.score > 50 || typeof e.data.completed !== 'boolean') return;
     state.city = Math.max(state.city, e.data.score); state.cityDone ||= e.data.completed; draw();
   });
   $('newParticipant').onclick = () => {
     window.GameTour?.finish(false); session = window.FestivalSession?.reset() || String(Date.now()); window.resetRobotMission();
     for (const key of Object.keys(state)) state[key] = typeof state[key] === 'boolean' ? false : 0;
-    $('epiView').src = 'epidemic.html?v=review-20261009-city-labels-1&session=' + encodeURIComponent(session);
+    $('epiView').src = 'city.html?v=traffic-school-3&session=' + encodeURIComponent(session);
     $('robotTab').click(); draw();
   };
   window.robotExpedition?.publish(); draw();

@@ -5,6 +5,7 @@ const path = require('node:path');
 const http = require('node:http');
 const { pathToFileURL } = require('node:url');
 const { chromium } = require('playwright');
+const City = require('./traffic-browser-helpers.cjs');
 
 const root = path.resolve(__dirname, '..');
 const server = http.createServer((request, response) => {
@@ -21,45 +22,14 @@ const server = http.createServer((request, response) => {
   });
 });
 
-async function waitForCity(scope) {
-  await scope.locator('body').evaluate(() => new Promise((resolve, reject) => {
-    const deadline = performance.now() + 40000;
-    const timer = setInterval(() => {
-      if (!cityCampaignGame.isPending()) { clearInterval(timer); resolve(); }
-      else if (performance.now() > deadline) { clearInterval(timer); reject(Error('City run did not finish')); }
-    }, 20);
-  }));
-}
-
-async function cityGeometry(city, width) {
-  const metrics = await city.locator('#map').evaluate(map => {
-    const bounds = map.getBoundingClientRect(), buildings = [...map.querySelectorAll('.building-sprite')].map(sprite => sprite.getBoundingClientRect());
-    const union = { left: Math.min(...buildings.map(r => r.left)), right: Math.max(...buildings.map(r => r.right)),
-      top: Math.min(...buildings.map(r => r.top)), bottom: Math.max(...buildings.map(r => r.bottom)) };
-    const labelFailures = [];
-    for (const badge of map.querySelectorAll('#cityBadges > g')) {
-      const background = badge.querySelector('rect').getBoundingClientRect();
-      if (badge.querySelectorAll('text').length !== 1) labelFailures.push('City labels must be a single line');
-      if (!badge.querySelector('title').textContent.includes('Сейчас здесь') || !badge.getAttribute('aria-description'))
-        labelFailures.push('Occupancy details must remain available in tooltips and accessible descriptions');
-      for (const text of badge.querySelectorAll('text')) {
-        const rect = text.getBoundingClientRect();
-        if (rect.left < background.left - 1 || rect.right > background.right + 1 || rect.top < background.top - 1 || rect.bottom > background.bottom + 1)
-          labelFailures.push('Text outside its badge: ' + text.textContent);
-        if (rect.left < bounds.left - 1 || rect.right > bounds.right + 1 || rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1)
-          labelFailures.push('Text outside the map: ' + text.textContent);
-      }
-    }
-    return { count: buildings.length, smallest: Math.min(...buildings.map(r => r.width)),
-      widthRatio: (union.right - union.left) / bounds.width, heightRatio: (union.bottom - union.top) / bounds.height,
-      outside: buildings.some(r => r.left < bounds.left - 1 || r.right > bounds.right + 1 || r.top < bounds.top - 1 || r.bottom > bounds.bottom + 1), labelFailures };
+async function cityGeometry(city) {
+  const metrics=await city.locator('#map').evaluate(map=>{
+    const bounds=map.getBoundingClientRect(),junctions=[...map.querySelectorAll('.traffic-junction')];
+    return {junctions:junctions.length,expected:trafficCityGame.current().view.junctionIds.length,signals:map.querySelectorAll('.traffic-signal').length,
+      outside:junctions.some(e=>{const r=e.getBoundingClientRect();return r.left<bounds.left-1||r.right>bounds.right+1||r.top<bounds.top-1||r.bottom>bounds.bottom+1;}),
+      small:[...map.querySelectorAll('.traffic-axis')].some(e=>{const r=e.getBoundingClientRect();return r.width<43||r.height<43;})};
   });
-  assert.equal(metrics.count, 15);
-  assert.equal(metrics.outside, false, 'All fifteen city buildings remain visible in the larger map');
-  assert.deepEqual(metrics.labelFailures, [], 'Compact names fit their badges and keep full occupancy details available');
-  assert(metrics.smallest >= (width >= 2200 ? 110 : 75), 'Individual city buildings are large enough to inspect on the monitor: ' + JSON.stringify(metrics));
-  assert(metrics.widthRatio >= .52 && metrics.heightRatio >= .70,
-    'The painted city occupies the map area instead of leaving a small island: ' + JSON.stringify(metrics));
+  assert.equal(metrics.junctions,metrics.expected);assert(metrics.signals>=metrics.expected*2);assert.equal(metrics.outside,false);assert.equal(metrics.small,false,'Map directions are actual large keyboard accessible controls');
 }
 
 async function mapGeometry(page, stage, width) {
@@ -149,7 +119,7 @@ async function robotAudit(page, width) {
   assert.equal(current.trips[0].interrupted, true, 'An actual tab change consumes the interrupted experiment');
   assert(current.trips[0].steps >= 2);
   const city = page.frameLocator('#epiView');
-  await city.locator('#tourSkip').click();
+  await City.ready(city);await City.closeInfo(city);
   await page.locator('#robotTab').click();
   const interrupted = await page.evaluate(() => robotExpedition.current().trips[0]);
   await page.reload();
@@ -212,140 +182,131 @@ async function robotAudit(page, width) {
   console.log('Robot double-clicks, active tab, explicit learning and interruption limits:', width);
 }
 
-async function cityAudit(page, width) {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.locator('#epiTab').click();
-  const city = page.frameLocator('#epiView');
-  await city.locator('#tourTitle').filter({ hasText: 'Сначала наблюдай' }).waitFor();
-  await city.locator('#observeCity').click();
-  await city.locator('#tourTitle').filter({ hasText: 'Помоги добраться' }).waitFor();
-  await city.locator('#pick-bus-frequent').click();
-  await city.locator('#tourTitle').filter({ hasText: 'Проверь своё решение' }).waitFor();
-  await city.locator('#tryCity').click();
-  await city.locator('#tourTitle').filter({ hasText: 'Цели каждого раунда' }).waitFor();
-  await city.locator('#tourBack').click();
-  await city.locator('#tourTitle').filter({ hasText: 'Проверь своё решение' }).waitFor();
-  assert(await city.locator('#tryCity').isVisible());
-  assert(await city.locator('#tryCity').isEnabled(), 'Returning to a tutorial step must restore its required action');
-  await city.locator('#tryCity').click();
-  await city.locator('#tourTitle').filter({ hasText: 'Цели каждого раунда' }).waitFor();
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 0);
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().score), 0);
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.trials().length), 0);
-  await city.locator('#gameTour').press('Escape');
-  await city.locator('#beginCity').click();
-  await cityGeometry(city, width);
-  await page.screenshot({ path: path.join(root, 'test-artifacts', `audit-city-native-${width}.png`) });
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  const initial = await city.locator('body').evaluate(() => JSON.stringify(cityCampaignGame.current()));
-  await city.locator('#trialCity').dblclick();
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.trials().length), 1);
-  await city.locator('#pauseCity').dblclick();
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.isPlaying()), false);
-  assert(await city.locator('#cityTutorial').isDisabled(), 'An unavailable tutorial must not look actionable during a pending run');
-  await city.locator('#inspect-care').press('Enter');
-  assert((await city.locator('#flowPanel').innerText()).includes('ещё не показан'));
-  assert.equal(await city.locator('.flow-chain').count(), 0, 'An unshown phase must not reveal computed future results');
-  await city.locator('.monitor-dialog').press('Escape');
-  await page.locator('#epiTab').click();
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.isPlaying()), false);
-  await page.locator('#robotTab').click();
-  await page.locator('#epiTab').click();
-  await page.reload();
-  await city.locator('#mayor').waitFor();
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.trials().length), 1);
-  assert(await city.locator('#trialCity').isDisabled());
-  assert(await city.locator('#tryCity').isEnabled());
-  assert.equal(await city.locator('body').evaluate(() => JSON.stringify(cityCampaignGame.current())), initial);
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await city.locator('#tryCity').dblclick();
-  await waitForCity(city);
-  assert(await city.locator('#cityTutorial').isEnabled());
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.trials().length), 1);
-  assert.equal(await city.locator('body').evaluate(() => JSON.stringify(cityCampaignGame.current())), initial);
-  await city.locator('#trialCity').dblclick();
-  await waitForCity(city);
-  const expected = await city.locator('body').evaluate(() => cityCampaignGame.trial().result);
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.trials().length), 2);
-  assert(await city.locator('#trialCity').isDisabled());
-  await page.reload();
-  await city.locator('#mayor').waitFor();
-  assert(await city.locator('#trialCity').isDisabled(), 'Reload does not refund trial slots');
-  await city.locator('#tryCity').dblclick();
-  await waitForCity(city);
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 4);
-  assert.deepEqual(await city.locator('body').evaluate(() => cityCampaignGame.current().results[0]), expected,
-    'A scored run repeats the tested plan and commits exactly one round');
-
-  const calendar = await city.locator('#cityCalendar').innerText();
-  await city.locator('#inspect-activity').press('Enter');
-  await city.locator('#flowDay').selectOption('1');
-  await city.locator('.flow-people button').first().click();
-  await city.locator('#cityPeople[open]').waitFor();
-  assert(await city.locator('#returnToShown').isVisible());
-  await city.locator('#returnToShown').click();
-  await city.locator('.monitor-dialog[open]').waitFor({ state: 'hidden' });
-  assert.equal(await city.locator('#cityCalendar').innerText(), calendar);
-  await city.locator('#inspect-activity').click();
-  assert.deepEqual(await city.locator('#flowDay option').evaluateAll(options => options.map(option => option.value)),
-    ['1', '2', '3', '4']);
-  await city.locator('.monitor-dialog').press('Escape');
-
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await city.locator('#tryCity').dblclick();
-  await city.locator('#pauseCity').press('Space');
-  const pausedCalendar = await city.locator('#cityCalendar').innerText();
-  assert(await city.locator('#pick-bus-normal').isDisabled());
-  await page.locator('#robotTab').click();
-  await page.reload();
-  await page.locator('#epiTab').click();
-  await city.locator('#mayor').waitFor();
-  assert.equal(await city.locator('#cityCalendar').innerText(), pausedCalendar);
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 4);
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.isPending()), true);
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.isPlaying()), false);
-  await city.locator('#cityPeople>summary').press('Enter');
-  await city.locator('#citizenChoice').selectOption('89');
-  await page.locator('#newParticipant').click();
-  await page.waitForFunction(() => {
-    try {
-      const game = document.querySelector('#epiView').contentWindow.cityCampaignGame;
-      return game?.current().game.day === 0 && !game.isPending() && game.trials().length === 0;
-    } catch { return false; }
+async function cityAudit(page,width) {
+  await page.emulateMedia({reducedMotion:'reduce'});await page.locator('#epiTab').click();
+  const city=page.frameLocator('#epiView');await City.ready(city);await City.closeInfo(city);await cityGeometry(city);
+  await city.locator('.traffic-axis[data-junction="A"][data-axis="NS"]').press('Enter');assert.equal((await City.snapshot(city)).current.selectedAxis,'NS');
+  await city.locator('.traffic-axis[data-junction="A"][data-axis="EW"]').press('Space');assert.equal((await City.snapshot(city)).current.selectedAxis,'EW');
+  await city.locator('.traffic-axis[data-junction="B"][data-axis="NS"]').press('Enter');assert.equal((await City.snapshot(city)).current.selectedJunction,'A','Teaching a snapshot cannot silently switch to an empty, unrelated intersection');
+  await city.locator('#cityTutorial').click();assert(await city.locator('#trafficInfo').isVisible());await city.locator('#trafficInfo').press('Escape');
+  const wrong={axis:City.referenceActions()[0].axis==='EW'?'NS':'EW',duration:12};
+  await City.select(city,wrong);await page.emulateMedia({reducedMotion:'no-preference'});
+  await city.locator('#demonstrate').dblclick();
+  assert.equal((await City.snapshot(city)).pending.kind,'demo');assert.equal((await City.snapshot(city)).examples.length,0);
+  await city.locator('#pauseCity').dblclick();assert.equal((await City.snapshot(city)).playing,false);
+  const paused=await City.snapshot(city);await page.locator('#epiTab').click();assert.equal((await City.snapshot(city)).playing,false,'Repeated active-tab click must not resume a paused phase');
+  await page.reload();await City.ready(city);await City.closeInfo(city);assert.deepEqual((await City.snapshot(city)).pending,paused.pending);
+  await page.emulateMedia({reducedMotion:'reduce'});await city.locator('#resumeCity').dblclick();await City.waitIdle(city);
+  await city.locator('#saveExample').dblclick();
+  const taught=await City.snapshot(city);assert.equal(taught.examples.length,1,'Double click teaches one demonstrated example');assert.deepEqual(taught.examples[0].action,wrong,'A bad decision is never replaced by the right label');
+  assert.deepEqual(await city.locator('body').evaluate(()=>TrafficLearning.predict(trafficCityGame.model(),trafficCityGame.examples()[0].observation).axis),wrong.axis,'The learned decision actually follows the child label');
+  await page.reload();await City.ready(city);await City.closeInfo(city);assert.deepEqual((await City.snapshot(city)).model,taught.model);
+  await city.locator('#openExamples').click();
+  const corrected=City.referenceActions()[0];await city.locator('#editExample-'+taught.examples[0].id).click();
+  await city.locator('#editAxis'+corrected.axis).click();await city.locator('#editDuration'+corrected.duration).click();await city.locator('#exampleEditSave').click();
+  const edited=await City.snapshot(city);assert.equal(edited.examples.length,1);assert.deepEqual(edited.examples[0].action,corrected);
+  assert.notDeepEqual(edited.model,taught.model,'Explicitly editing a label updates the real trained model');
+  assert.equal(await city.locator('body').evaluate(()=>TrafficLearning.predict(trafficCityGame.model(),trafficCityGame.examples()[0].observation).axis),corrected.axis);
+  // Examples remain inspectable in a notebook dialog after editing.
+  if(await city.locator('#trafficInfo[open]').count()===0)await city.locator('#openExamples').click();
+  await city.locator('#removeExample-'+taught.examples[0].id).click();assert.equal((await City.snapshot(city)).examples.length,0);assert.notDeepEqual((await City.snapshot(city)).model,taught.model,'Deleting a training example updates the real policy');
+  await City.closeInfo(city);
+  // An EW phase opens both real opposing lanes, while the perpendicular stream stays red.
+  await City.goToCase(city,'urgent-west');
+  const opposingBefore=(await City.snapshot(city)).current.view;
+  const opposingIds=opposingBefore.agents.filter(a=>a.route[0].junction==='A'&&a.route[0].axis==='EW').map(a=>a.id);
+  assert.deepEqual([...new Set(opposingBefore.agents.filter(a=>opposingIds.includes(a.id)).map(a=>a.route[0].dir))].sort(),[-1,1],'The teaching scene contains actual agents arriving from opposite sides');
+  const westbound=opposingBefore.agents.find(a=>opposingIds.includes(a.id)&&a.route[0].dir===-1);
+  await city.locator('.traffic-agent[data-agent-id="'+westbound.id+'"]').press('Enter');
+  assert((await city.locator('#trafficInfo').innerText()).includes('A ←'),'Inspection describes the actual westbound route, not a cosmetic reversed car');
+  await City.closeInfo(city);
+  await City.demonstrate(city,{axis:'EW',duration:4});
+  const opposingAfter=(await City.snapshot(city)).current.view,passed=opposingAfter.agents.filter(a=>opposingIds.includes(a.id));
+  assert(passed.every(a=>a.departedAt!==null&&a.arrivedAt!==null),'Both directions physically pass the intersection on the same axis green');
+  assert.equal(new Set(passed.map(a=>a.departedAt)).size,1,'Opposing lanes can move in the same simulation second');
+  assert(opposingAfter.agents.filter(a=>a.route[0].axis==='NS').every(a=>a.departedAt===null),'Perpendicular traffic remains stopped');
+  // Green cannot push cars into a full next block: the visible jam follows the physical storage limit.
+  await City.goToCase(city,'blocked-west');
+  await City.demonstrate(city,{axis:'EW',duration:8});
+  const jam=await City.snapshot(city);assert.equal(jam.current.draft.crossed,0,'A full downstream block prevents passage even on green');
+  assert.equal(await city.locator('.traffic-junction[data-junction="A"] .traffic-storage-blocked').getAttribute('opacity'),'1','The physical bottleneck is visible on the map');
+  assert(jam.current.view.agents.some(a=>a.status==='queued'&&a.waited>=8),'Following traffic really waits in the queue');
+  await City.goToCase(city,'bus-north');
+  await City.select(city,{axis:'BOTH',duration:4});await page.emulateMedia({reducedMotion:'no-preference'});await city.locator('#demonstrate').click();
+  await city.locator('body').evaluate(()=>new Promise((resolve,reject)=>{const deadline=performance.now()+8000;function check(){if(trafficCityGame.current().view.crashCount>0)return resolve();if(performance.now()>deadline)return reject(Error('Unsafe simultaneous green did not create an accident'));setTimeout(check,20);}check();}));
+  assert.equal(await city.locator('.traffic-crash[data-junction="A"]').getAttribute('opacity'),'1','An actual collision is shown directly at the intersection');
+  await city.locator('#pauseCity').click();
+  const accidentFrames=await city.locator('.traffic-agent,.traffic-crash-smoke').evaluateAll(els=>els.map(el=>el.getAttribute('transform')));
+  await page.waitForTimeout(220);
+  assert.deepEqual(await city.locator('.traffic-agent,.traffic-crash-smoke').evaluateAll(els=>els.map(el=>el.getAttribute('transform'))),accidentFrames,'Pause freezes both traffic interpolation and collision effects');
+  await page.emulateMedia({reducedMotion:'reduce'});await city.locator('#resumeCity').click();await City.waitIdle(city);
+  await city.locator('#restartCity').click();await City.teach(city);
+  await city.locator('#checkMode').click();await page.emulateMedia({reducedMotion:'no-preference'});await city.locator('#startExam').dblclick();
+  const started=await City.snapshot(city);assert.equal(started.current.attempts.length,1);assert.deepEqual(started.pending.frozenModel,started.model);
+  assert(await city.locator('#saveExample').isDisabled());assert(await city.locator('#restartCity').isDisabled());
+  await city.locator('#pauseCity').press('Space');const frozen=await City.snapshot(city);
+  await city.locator('.traffic-axis[data-junction="B"][data-axis="EW"]').press('Enter');
+  const inspected=await City.snapshot(city);assert.equal(inspected.current.selectedJunction,'B');assert.deepEqual(inspected.pending,frozen.pending,'Inspecting another junction cannot alter the frozen simulation or learned policy');
+  const queueCounts=await city.locator('body').evaluate(()=>{
+    const expected=TrafficEngine.observe(trafficCityGame.current().view,'B');
+    return ['EW','NS'].map(axis=>{
+      const row=document.querySelector('#aiQueueReadout .queue-'+(axis==='EW'?'horizontal':'vertical')),text=row.querySelector('strong').textContent;
+      const directions=row.querySelector('.queue-directions')?.textContent.match(/\d+/g)?.map(Number)||[];
+      return {actual:Number(text.match(/\d+/)?.[0]||0),expected:expected[axis].people,directions,expectedDirections:expected[axis].vehicles?[-1,1].map(dir=>expected.byDirection[axis][dir].vehicles):[]};
+    });
   });
-  assert.equal(await page.locator('#overallScore').innerText(), '0');
-  assert.equal(await page.evaluate(() => robotExpedition.current().trips.length), 0);
-  await page.locator('#epiTab').click();
-  await city.locator('#mayor').waitFor();
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().funds), 200);
-  await page.reload();
-  await city.locator('#mayor').waitFor();
-  assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 0);
-  assert.equal(await page.locator('#overallScore').innerText(), '0');
-  console.log('City double-clicks, copy fairness, shown history, frozen reload and reset:', width);
+  assert(queueCounts.every(count=>count.actual===count.expected),'The live AI queue cards show the actual selected junction, including opposing traffic');
+  for(const count of queueCounts)assert.deepEqual(count.directions,count.expectedDirections,'Both direction counters come from the physical agents');
+  await city.locator('#openExamples').click();
+  assert.equal(await city.locator('#examplesList .example-card button:enabled').count(),0,'Pending scored runs cannot change their training labels through the notebook');
+  assert.deepEqual((await City.snapshot(city)).pending.frozenModel,frozen.pending.frozenModel);await City.closeInfo(city);
+  await page.locator('#robotTab').click();await page.reload();await page.locator('#epiTab').click();await City.ready(city);await City.closeInfo(city);
+  assert.deepEqual((await City.snapshot(city)).pending,frozen.pending);assert.equal((await City.snapshot(city)).current.attempts.length,1);
+  await page.emulateMedia({reducedMotion:'reduce'});await city.locator('#resumeCity').dblclick();await City.waitIdle(city);
+  const complete=await City.snapshot(city);assert.equal(complete.current.attempts.length,1);assert.equal(complete.current.attempts[0].results.length,3);assert.equal(complete.current.best,50);
+  await City.exam(city);assert.equal((await City.snapshot(city)).current.attempts.length,2);assert(await city.locator('#startExam').isDisabled());
+  await page.reload();await City.ready(city);await City.closeInfo(city);assert(await city.locator('#startExam').isDisabled(),'Reload does not refund consumed exams');
+  await page.screenshot({path:path.join(root,'test-artifacts',`audit-traffic-${width}.png`)});
+  await page.locator('#newParticipant').click();await page.locator('#epiTab').click();await City.ready(city);await City.closeInfo(city);
+  const reset=await City.snapshot(city);assert.equal(reset.examples.length,0);assert.equal(reset.current.best,0);assert.equal(reset.current.attempts.length,0);
+  assert.equal(await page.locator('#overallScore').innerText(),'0');assert.equal(await page.evaluate(()=>robotExpedition.current().trips.length),0);
+  const checkpoint=await page.evaluate(()=>JSON.stringify(FestivalSession.read('city')));
+  const payload=await page.evaluate(()=>({kind:'city-score',version:GameScore.VERSION,rules:FestivalSession.read('city').rules,session:FestivalSession.id,score:50,completed:true,auditToken:'http-unrelated-frame'}));
+  await page.evaluate(payload=>new Promise((resolve,reject)=>{
+    const frame=document.createElement('iframe');frame.hidden=true;
+    const timeout=setTimeout(()=>{cleanup();reject(Error('Forged same-origin message never arrived'));},5000);
+    const listener=event=>{if(event.data?.auditToken===payload.auditToken){cleanup();resolve();}};
+    function cleanup(){clearTimeout(timeout);removeEventListener('message',listener);frame.remove();}
+    addEventListener('message',listener);frame.srcdoc='<script>parent.postMessage('+JSON.stringify(payload)+',"*")<\/script>';document.body.appendChild(frame);
+  }),payload);
+  assert.equal(await page.locator('#overallScore').innerText(),'0','Even a same-origin frame cannot impersonate the current game frame');
+  await page.evaluate(()=>{window.auditStaleHTTP=new Promise(resolve=>{const listener=event=>{if(event.data?.auditToken==='http-stale-session'){removeEventListener('message',listener);resolve();}};addEventListener('message',listener);});});
+  await city.locator('body').evaluate((_,payload)=>parent.postMessage({...payload,session:'initial',auditToken:'http-stale-session'},'*'),payload);
+  await page.evaluate(()=>window.auditStaleHTTP);
+  assert.equal(await page.locator('#overallScore').innerText(),'0','A genuine iframe cannot award points to the next participant using an old session');
+  assert.equal(await page.evaluate(()=>JSON.stringify(FestivalSession.read('city'))),checkpoint);
+  await City.demonstrate(city,{axis:'EW',duration:4});await City.train(city,{axis:'EW',duration:4});await city.locator('#checkMode').click();
+  await page.emulateMedia({reducedMotion:'no-preference'});await city.locator('#startExam').click();await city.locator('#pauseCity').click();await city.locator('#stopCity').click();
+  assert.equal((await City.snapshot(city)).current.attempts[0].status,'interrupted');assert.equal((await City.snapshot(city)).current.currentScore,0);
+  await page.reload();await City.ready(city);await City.closeInfo(city);assert.equal((await City.snapshot(city)).current.best,0);
+  assert.equal((await City.snapshot(city)).current.attempts.length,1,'Explicitly aborting an exam consumes its slot across reload');
+  assert.equal((await City.snapshot(city)).current.attempts[0].status,'interrupted');
+  await page.emulateMedia({reducedMotion:'reduce'});await City.exam(city);assert(await city.locator('#startExam').isDisabled(),'An aborted attempt and a completed one exhaust the same two-slot budget');
+  console.log('Traffic wrong own labels, double clicks, frozen model, two whole-suite attempts and reset:',width);
 }
 
 async function fileLoadingAudit(browser) {
-  const context = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: 'reduce' });
-  const page = await context.newPage(), errors = [];
-  page.on('pageerror', error => errors.push(error.message));
+  const context=await browser.newContext({viewport:{width:1920,height:1080},reducedMotion:'reduce'}),page=await context.newPage(),errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
   try {
-    // The controller may finish before the tutorial's script on a first local-file load.
-    await page.route('**/learning-ui.js*', async route => {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await route.continue();
-    });
-    await page.goto(pathToFileURL(path.join(root, 'index.html')).href + '#epidemic');
-    const city = page.frameLocator('#epiView');
-    await city.locator('#tourSkip').waitFor({ state: 'visible' });
-    assert.equal(await city.locator('#tourTitle').innerText(), 'Сначала наблюдай');
-    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 0);
-    await city.locator('#tourSkip').click();
-    await city.locator('#beginCity').click();
-    assert.equal(await city.locator('#trialCity').isEnabled(), true);
-    assert.deepEqual(errors, []);
-    console.log('Local-file tutorial opens after a delayed script on a direct city link');
-  } finally { await context.close(); }
+    // Parent may send active-tab state before the city's late controller is ready.
+    await page.route('**/traffic-ui.js*',async route=>{await new Promise(resolve=>setTimeout(resolve,500));await route.continue();});
+    await page.goto(pathToFileURL(path.join(root,'index.html')).href+'#epidemic');
+    const city=page.frameLocator('#epiView');await City.ready(city);await City.closeInfo(city);
+    assert.equal((await City.snapshot(city)).examples.length,0);assert(await city.locator('#axisEW').isEnabled());
+    await City.demonstrate(city,{axis:'EW',duration:4});assert.equal((await City.snapshot(city)).examples.length,0);assert.deepEqual(errors,[]);
+    console.log('Local-file direct city link becomes active after a delayed controller');
+  }finally{await context.close();}
 }
 
 async function fileAudit(browser, width, height) {
@@ -373,139 +334,62 @@ async function fileAudit(browser, width, height) {
     assert.deepEqual(await page.evaluate(() => robotExpedition.current().model), learned);
     assert.equal(Number(await page.locator('#overallScore').innerText()), robotPoints);
 
-    await page.locator('#epiTab').click();
-    const city = page.frameLocator('#epiView');
-    await city.locator('#mayor').waitFor();
-    await city.locator('#tourSkip').click();
-    await city.locator('#beginCity').click();
-    assert.equal(await city.locator('body').evaluate(body => body.classList.contains('monitor-layout')), true,
-      'The file iframe uses desktop layout even when its parent window has an opaque origin');
-    await cityGeometry(city, width);
-    const layoutFailures = await city.locator('body').evaluate(body => {
-      const failures = [];
-      if (document.documentElement.scrollWidth > innerWidth + 1 || document.documentElement.scrollHeight > innerHeight + 1)
-        failures.push('The city requires viewport scrolling');
-      for (const id of ['map', 'cityGoalGrid', 'mayorPolicies', 'trialCity', 'tryCity', 'flowButtons']) {
-        const element = document.getElementById(id), rect = element.getBoundingClientRect();
-        if (!rect.width || !rect.height || rect.left < -1 || rect.top < -1 || rect.right > innerWidth + 1 || rect.bottom > innerHeight + 1)
-          failures.push(id + ' is hidden or outside the iframe viewport');
-      }
-      if (!body.classList.contains('monitor-embedded')) failures.push('Missing embedded monitor layout');
+    await page.locator('#epiTab').click();const city=page.frameLocator('#epiView');await City.ready(city);await City.closeInfo(city);await cityGeometry(city);
+    const layoutFailures=await city.locator('body').evaluate(()=>{
+      const failures=[];if(document.documentElement.scrollWidth>innerWidth+1||document.documentElement.scrollHeight>innerHeight+1)failures.push('Traffic city requires viewport scrolling');
+      for(const id of ['map','teachMode','checkMode','demonstrate','saveExample','cityBestScore']){const element=document.getElementById(id);if(element.closest('[hidden]'))continue;const r=element.getBoundingClientRect();if(!r.width||!r.height||r.left<-1||r.top<-1||r.right>innerWidth+1||r.bottom>innerHeight+1)failures.push(id+' outside iframe');}
       return failures;
-    });
-    assert.deepEqual(layoutFailures, [], 'The local-file city and its controls fit the festival monitor');
-    await page.screenshot({ path: path.join(root, 'test-artifacts', `audit-file-city-${width}.png`) });
-    await city.locator('#pick-bus-frequent').click();
-    const initial = await city.locator('body').evaluate(() => JSON.stringify(cityCampaignGame.current()));
-    await city.locator('#trialCity').click();
-    await waitForCity(city);
-    assert.equal(await city.locator('body').evaluate(() => JSON.stringify(cityCampaignGame.current())), initial);
-    const expected = await city.locator('body').evaluate(() => cityCampaignGame.trial().result);
-    await city.locator('#tryCity').click();
-    await waitForCity(city);
-    assert.deepEqual(await city.locator('body').evaluate(() => cityCampaignGame.current().results[0]), expected);
-    const cityPoints = parseInt(await city.locator('#cityLocalScore').innerText(), 10);
-    assert(cityPoints > 0);
-    await page.waitForFunction(total => Number(document.querySelector('#overallScore').textContent) === total,
-      robotPoints + cityPoints);
-    await page.reload();
-    await city.locator('#mayor').waitFor();
-    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 4);
-    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.trials().length), 1);
-    assert.equal(Number(await page.locator('#overallScore').innerText()), robotPoints + cityPoints);
-    assert.deepEqual(await page.evaluate(() => robotExpedition.current().trips), robot.trips);
+    });assert.deepEqual(layoutFailures,[],'The local-file city and its controls fit the festival monitor');
+    await City.maximum(city);const cityPoints=50;
+    await page.waitForFunction(total=>Number(document.getElementById('overallScore').textContent)===total,robotPoints+cityPoints);
+    await page.reload();await City.ready(city);await City.closeInfo(city);
+    assert.equal((await City.snapshot(city)).current.best,50);assert.equal((await City.snapshot(city)).examples.length,8);assert.equal((await City.snapshot(city)).current.attempts.length,1);
+    assert.equal(Number(await page.locator('#overallScore').innerText()),robotPoints+cityPoints);assert.deepEqual(await page.evaluate(()=>robotExpedition.current().trips),robot.trips);
+    await page.emulateMedia({reducedMotion:'no-preference'});await city.locator('#testAI').click();await city.locator('#pauseCity').click();
+    const filePaused=await City.snapshot(city);assert.equal(filePaused.pending.kind,'practice');
+    await page.waitForFunction(()=>FestivalSession.read('city')?.pending?.kind==='practice');
+    const persisted=await page.evaluate(()=>FestivalSession.read('city'));await page.reload();await City.ready(city);await City.closeInfo(city);
+    const afterReload=await page.evaluate(()=>FestivalSession.read('city'));
+    const checkpointState=({feedback,statusText,...state})=>state;
+    assert.deepEqual(checkpointState(afterReload),checkpointState(persisted),'The parent preserves all opaque-iframe simulation, model and attempt data; the reload notice may change');
+    assert.deepEqual((await City.snapshot(city)).pending,filePaused.pending);assert.equal((await City.snapshot(city)).playing,false);
+    await page.screenshot({path:path.join(root,'test-artifacts',`audit-file-traffic-${width}.png`)});
 
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await city.locator('#trialCity').click();
-    await city.locator('#pauseCity').click();
-    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.isPending()), true);
-    await page.waitForFunction(() => FestivalSession.read('city')?.pending?.kind === 'trial');
-    const frozen = await page.evaluate(() => FestivalSession.read('city').pending);
-    const pausedCalendar = await city.locator('#cityCalendar').innerText();
-    await page.reload();
-    await city.locator('#mayor').waitFor();
-    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.isPending()), true);
-    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.isPlaying()), false);
-    assert.deepEqual(await page.evaluate(() => FestivalSession.read('city').pending), frozen);
-    assert.equal(await city.locator('#cityCalendar').innerText(), pausedCalendar);
-    assert.equal(await city.locator('#cityTutorial').isDisabled(), true);
-    await page.locator('#newParticipant').click();
-    await page.locator('#epiTab').click();
-    await city.locator('#mayor').waitFor();
-    await city.locator('body').evaluate(() => new Promise((resolve, reject) => {
-      const deadline = performance.now() + 5000;
-      const timer = setInterval(() => {
-        if (cityCampaignGame.current().game.day === 0 && !cityCampaignGame.isPending()) { clearInterval(timer); resolve(); }
-        else if (performance.now() > deadline) { clearInterval(timer); reject(Error('File city did not reset')); }
-      }, 20);
-    }));
-    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.trials().length), 0);
-    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().funds), 200);
-    assert.equal(await page.locator('#overallScore').innerText(), '0');
-    assert.equal(await page.evaluate(() => robotExpedition.current().trips.length), 0);
-    await page.reload();
-    await city.locator('#mayor').waitFor();
-    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 0);
-    assert.equal(await page.locator('#overallScore').innerText(), '0');
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await city.locator('#tourSkip').click();
-    await city.locator('#beginCity').click();
-    await city.locator('#pick-bus-frequent').click();
-    await city.locator('#tryCity').click();
-    await waitForCity(city);
-    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 4);
-    assert.equal(await city.locator('#cityLocalScore').innerText(), '16 / 50');
-    await page.waitForFunction(() => document.querySelector('#overallScore').textContent === '16');
-    const session = await page.evaluate(() => FestivalSession.id);
-    assert.notEqual(session, 'initial');
-    assert.equal(await city.locator('body').evaluate(() => new URLSearchParams(location.search).get('session')), session);
-
-    const forged = await page.evaluate(() => ({ kind: 'city-score', version: GameScore.VERSION,
-      session: FestivalSession.id, score: 50, completed: true, auditToken: 'unrelated-frame' }));
-    const checkpoint = await page.evaluate(() => JSON.stringify(FestivalSession.read('city')));
-    await page.evaluate(payload => new Promise((resolve, reject) => {
-      const frame = document.createElement('iframe');
-      frame.hidden = true; frame.sandbox = 'allow-scripts';
-      const timer = setTimeout(() => { cleanup(); reject(Error('Forged iframe message did not arrive')); }, 5000);
-      const listener = event => { if (event.data?.auditToken === payload.auditToken) { cleanup(); resolve(); } };
-      function cleanup() { clearTimeout(timer); removeEventListener('message', listener); frame.remove(); }
-      addEventListener('message', listener);
-      frame.srcdoc = '<script>const payload=' + JSON.stringify(payload) + ';' +
-        'parent.postMessage({...payload,kind:"festival-session-save",version:1,name:"city",value:{rules:"forged"},auditToken:"forged-checkpoint"},"*");' +
-        'parent.postMessage(payload,"*")<\/script>';
-      document.body.appendChild(frame);
-    }), forged);
-    assert.equal(await page.locator('#overallScore').innerText(), '16', 'An unrelated opaque iframe cannot forge city points');
-    assert.equal(await page.evaluate(() => JSON.stringify(FestivalSession.read('city'))), checkpoint,
-      'An unrelated opaque iframe cannot overwrite the current city checkpoint');
-    await page.evaluate(() => {
-      window.auditStaleMessage = new Promise(resolve => {
-        const listener = event => { if (event.data?.auditToken === 'stale-session') { removeEventListener('message', listener); resolve(); } };
-        addEventListener('message', listener);
-      });
-    });
-    await city.locator('body').evaluate((body, payload) => {
-      parent.postMessage({ ...payload, kind: 'festival-session-save', version: 1, name: 'city',
-        value: { rules: 'forged' }, session: 'initial', auditToken: 'stale-checkpoint' }, '*');
-      parent.postMessage({ ...payload, session: 'initial', auditToken: 'stale-session' }, '*');
-    }, forged);
-    await page.evaluate(() => window.auditStaleMessage);
-    assert.equal(await page.locator('#overallScore').innerText(), '16', 'The real city frame cannot publish an old participant score');
-    assert.equal(await page.evaluate(() => JSON.stringify(FestivalSession.read('city'))), checkpoint,
-      'A stale participant cannot overwrite the current city checkpoint');
-
-    await page.reload();
-    await city.locator('#mayor').waitFor();
-    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.current().game.day), 4);
-    assert.equal(await city.locator('body').evaluate(() => cityCampaignGame.trials().length), 0);
-    assert.equal(await city.locator('#cityLocalScore').innerText(), '16 / 50');
-    assert.equal(await page.locator('#overallScore').innerText(), '16');
-    assert.equal(await page.evaluate(() => FestivalSession.id), session);
-    assert.deepEqual(errors, [], 'Opening local files, switching games and resetting must not raise cross-origin errors');
-    console.log('Local-file desktop layout, both saves, guarded score bridge and a new saved participant:', width, height);
-  } finally {
-    await context.close();
-  }
+    // Reset a paused file iframe, then verify guarded bridge messages against a nonwinning score.
+    await page.locator('#newParticipant').click();await page.locator('#epiTab').click();await City.ready(city);await City.closeInfo(city);
+    await city.locator('body').evaluate(()=>new Promise((resolve,reject)=>{const deadline=performance.now()+5000;function check(){if(!trafficCityGame.pending()&&trafficCityGame.examples().length===0&&trafficCityGame.current().best===0)return resolve();if(performance.now()>deadline)return reject(Error('File traffic city did not reset'));setTimeout(check,20);}check();}));
+    assert.equal(await page.locator('#overallScore').innerText(),'0');assert.equal(await page.evaluate(()=>robotExpedition.current().trips.length),0);
+    await page.emulateMedia({reducedMotion:'reduce'});await City.demonstrate(city,{axis:'EW',duration:4});await City.train(city,{axis:'EW',duration:4});
+    await page.waitForFunction(()=>FestivalSession.read('city')?.examples?.length===1);
+    const session=await page.evaluate(()=>FestivalSession.id);assert.notEqual(session,'initial');
+    assert.equal(await city.locator('body').evaluate(()=>new URLSearchParams(location.search).get('session')),session);
+    const forged=await page.evaluate(()=>({kind:'city-score',version:GameScore.VERSION,rules:FestivalSession.read('city').rules,session:FestivalSession.id,score:50,completed:true,auditToken:'unrelated-frame'}));
+    const checkpoint=await page.evaluate(()=>JSON.stringify(FestivalSession.read('city')));
+    await page.evaluate(payload=>new Promise((resolve,reject)=>{
+      const frame=document.createElement('iframe');frame.hidden=true;frame.sandbox='allow-scripts';
+      const timer=setTimeout(()=>{cleanup();reject(Error('Forged iframe message did not arrive'));},5000);
+      const listener=event=>{if(event.data?.auditToken===payload.auditToken){cleanup();resolve();}};
+      function cleanup(){clearTimeout(timer);removeEventListener('message',listener);frame.remove();}
+      addEventListener('message',listener);
+      frame.srcdoc='<script>const payload='+JSON.stringify(payload)+';'+
+        'parent.postMessage({...payload,kind:"festival-session-save",version:1,name:"city",value:{rules:"forged"},auditToken:"forged-checkpoint"},"*");'+
+        'parent.postMessage(payload,"*")<\/script>';document.body.appendChild(frame);
+    }),forged);
+    assert.equal(await page.locator('#overallScore').innerText(),'0','An unrelated opaque iframe cannot forge city points');
+    assert.equal(await page.evaluate(()=>JSON.stringify(FestivalSession.read('city'))),checkpoint,'An unrelated opaque iframe cannot overwrite city checkpoint');
+    await page.evaluate(()=>{window.auditStaleMessage=new Promise(resolve=>{const listener=event=>{if(event.data?.auditToken==='stale-session'){removeEventListener('message',listener);resolve();}};addEventListener('message',listener);});});
+    await city.locator('body').evaluate((_,payload)=>{
+      parent.postMessage({...payload,kind:'festival-session-save',version:1,name:'city',value:{rules:'forged'},session:'initial',auditToken:'stale-checkpoint'},'*');
+      parent.postMessage({...payload,session:'initial',auditToken:'stale-session'},'*');
+    },forged);await page.evaluate(()=>window.auditStaleMessage);
+    assert.equal(await page.locator('#overallScore').innerText(),'0','The genuine city cannot publish a stale participant score');
+    assert.equal(await page.evaluate(()=>JSON.stringify(FestivalSession.read('city'))),checkpoint,'Stale participants cannot overwrite the active checkpoint');
+    await page.reload();await City.ready(city);await City.closeInfo(city);
+    assert.equal((await City.snapshot(city)).examples.length,1);assert.equal((await City.snapshot(city)).current.attempts.length,0);assert.equal((await City.snapshot(city)).current.best,0);
+    assert.equal(await page.locator('#overallScore').innerText(),'0');assert.equal(await page.evaluate(()=>FestivalSession.id),session);
+    assert.deepEqual(errors,[],'Local files, switching games and resetting raise no cross-origin errors');
+    console.log('Local-file desktop layout, saved own labels, whole-suite score and guarded opaque bridge:',width,height);
+  }finally{await context.close();}
 }
 
 (async () => {

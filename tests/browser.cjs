@@ -5,7 +5,7 @@ const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('playwright');
 const Robot=require('./robot-browser-helpers.cjs');
-const City=require('./city-browser-helpers.cjs');
+const City=require('./traffic-browser-helpers.cjs');
 const base = path.resolve(__dirname, '..'), shots = path.join(base, 'test-artifacts');
 const server = http.createServer((req, res) => {
   const file = path.resolve(base, '.' + decodeURIComponent(req.url.split('?')[0] === '/' ? '/index.html' : req.url.split('?')[0]));
@@ -31,173 +31,87 @@ const server = http.createServer((req, res) => {
       if(sizes[0]>sizes[1]+1)console.log('Overflow:',page.url(),await page.locator('body *').evaluateAll(els=>els.filter(el=>{const r=el.getBoundingClientRect();return r.width&&r.right>innerWidth+1;}).slice(0,12).map(el=>({tag:el.tagName,id:el.id,classes:el.className,right:el.getBoundingClientRect().right}))));
       assert(sizes[0] <= sizes[1] + 1, 'Page must not scroll sideways: ' + sizes);
     }
-    async function tourFits(scope=page) {
-      const rect = await scope.locator('.tour-card').boundingBox();
-      const size = page.viewportSize();
-      assert(rect && rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= size.width + 1 && rect.y + rect.height <= size.height + 1, 'Tour card must fit the visible screen, including inside an iframe: '+JSON.stringify(rect));
-      // Read card and child geometry atomically: the lesson can change phase
-      // between separate protocol calls while the city is animating.
-      const clipped=await scope.locator('.tour-card').evaluate(card=>{
-        const r=card.getBoundingClientRect();
-        return ['#tourTitle','#tourText'].flatMap(selector=>{
-          const t=card.querySelector(selector).getBoundingClientRect();
-          return t.top<r.top||t.bottom>r.bottom-4?[{selector,card:r.toJSON(),text:t.toJSON()}]:[];
-        });
-      });
-      if(clipped.length)await page.screenshot({path:path.join(shots,'lesson-text-failure.png')});
-      assert.deepEqual(clipped,[],'The short lesson text must be readable without scrolling');
+    async function visibleControls(scope = page) {
+      const short = await scope.locator('button:visible').evaluateAll(buttons => buttons.filter(b => b.id !== 'newParticipant' && !b.classList.contains('cell') && b.getBoundingClientRect().height < 43).map(b => b.id));
+      assert.deepEqual(short, [], 'Visible action buttons must have sufficiently large targets');
     }
-    async function lit(selectors, scope=page) {
-      const problems=await scope.locator('body').evaluate((_, selectors)=>{
-        const card=document.querySelector('.tour-card').getBoundingClientRect(), dark=[...document.querySelectorAll('.tour-shade')].map(el=>el.getBoundingClientRect());
-        const overlap=(a,b)=>Math.min(a.right,b.right)-Math.max(a.left,b.left)>1 && Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1;
-        return selectors.flatMap(selector=>{
-          const r=document.querySelector(selector).getBoundingClientRect();
-          const visible=r.width&&r.height&&r.bottom>0&&r.top<innerHeight;
-          return !visible?[selector+' is not visible']:dark.some(s=>overlap(r,s))?[selector+' is shaded']:overlap(r,card)?[selector+' is covered by the lesson card']:[];
-        });
-      },selectors);
-      if(problems.length) await page.screenshot({path:path.join(shots,'spotlight-failure.png')});
-      assert.deepEqual(problems,[],'Explained objects must stay lit and uncovered');
-    }
-    async function startWatching(scene, actors, scope=page) {
-      await scope.locator('body').evaluate((_, {scene,actors})=>{
-        const report=window.lessonWatch={frames:0,positions:new Set(),problems:[],seen:false};
-        const overlap=(a,b)=>Math.min(a.right,b.right)-Math.max(a.left,b.left)>1 && Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1;
-        function check() {
-          const tour=document.getElementById('gameTour');
-          if(tour?.classList.contains('tour-watching')) {
-            report.seen=true; report.frames++;
-            const r=document.querySelector(scene).getBoundingClientRect(), card=tour.querySelector('.tour-card').getBoundingClientRect();
-            let top=0,bottom=innerHeight;
-            if(window.frameElement) { const host=window.frameElement.getBoundingClientRect();top=-host.top;bottom=parent.innerHeight-host.top;
-              const bar=parent.document.getElementById('missionBar')?.getBoundingClientRect();if(bar&&bar.top<=1)top=Math.max(top,bar.bottom-host.top);
-            } else { const bar=document.getElementById('missionBar')?.getBoundingClientRect();if(bar&&bar.top<=1)top=bar.bottom; }
-            if(r.top<top-1||r.bottom>bottom+1)report.problems.push('Animation scene leaves the visible screen');
-            if([...tour.querySelectorAll('.tour-shade')].some(s=>overlap(r,s.getBoundingClientRect())))report.problems.push('Animation scene is shaded');
-            if(overlap(r,card))report.problems.push('Animation scene is covered by the card');
-            report.positions.add([...document.querySelectorAll(actors)].map(el=>getComputedStyle(el).transform).join('|'));
-            report.problems=report.problems.slice(0,5);
-          } else if(report.seen) return;
-          requestAnimationFrame(check);
-        }
-        requestAnimationFrame(check);
-      },{scene,actors});
-    }
-    async function watched(scope=page) {
-      const result=await scope.locator('body').evaluate(()=>({frames:window.lessonWatch.frames,moved:window.lessonWatch.positions.size,problems:window.lessonWatch.problems}));
-      if(result.problems.length)await page.screenshot({path:path.join(shots,'animation-failure.png')});
-      assert(result.frames>2&&result.moved>1,'The lesson must show actual movement over multiple rendered frames: '+JSON.stringify(result));
-      assert.deepEqual(result.problems,[],'The entire animated scene must stay lit, on screen and clear of the tooltip');
-    }
-    async function step(title, scope=page) { await scope.locator('#tourTitle').filter({hasText:title}).waitFor(); }
     await page.goto(url);
     assert.equal(await page.locator('#suggestSample,#safe,#unsafe,#probe').count(),0,'No cell labels or next-cell suggestions');
     await page.locator('#robotTutorial').click();assert(await page.locator('#robotDialog').isVisible());await page.locator('#dialogClose').click();
     await page.locator('[data-node="G"]').press('Enter');assert.deepEqual(await page.evaluate(()=>robotExpedition.current().route),['S'],'Unconnected junctions cannot teleport the robot');
     await Robot.complete(page);
     await page.screenshot({path:path.join(shots,'robot-route-learning.png')});
-    const robotScore=50;
     await noOverflow();
     await page.locator('#epiTab').click();
-    const cityFrame=page.frameLocator('#epiView');
-    await cityFrame.locator('#mayor').waitFor(); await cityFrame.locator('#gameTour').waitFor();
-    await tourFits(cityFrame); await startWatching('#map','.inhabitant',cityFrame);
-    await cityFrame.locator('#observeCity').click();
-    await cityFrame.locator('.tour-watching').waitFor(); await tourFits(cityFrame); await lit(['#map','#citizenStory'],cityFrame);
-    await page.screenshot({path:path.join(shots,'city-moving-iframe-tutorial.png')});
-    await step('Помоги добраться',cityFrame);
-    await watched(cityFrame);
-    await cityFrame.locator('#pick-bus-frequent').click();
-    await step('Проверь своё',cityFrame); await startWatching('#map','.inhabitant',cityFrame); await cityFrame.locator('#tryCity').click();
-    await step('Цели каждого',cityFrame); await watched(cityFrame); await City.finishLesson(cityFrame,tourFits);
-    assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().game.day),0);
-    await cityFrame.locator('#cityPeople > summary').click();
-    await cityFrame.locator('.monitor-dialog[open]').waitFor();
-    assert.equal(await cityFrame.locator('#citizenChoice option').count(),90,'Menu works without selecting an avatar');
-    await cityFrame.locator('.monitor-dialog > button').click();
-    for(const [place,title]of [['park','Парк'],['gym','Спортцентр']]){
-      await cityFrame.locator('#cityBadges [data-place="'+place+'"]').press('Enter');
-      await cityFrame.locator('.monitor-dialog[open]').waitFor();
-      assert((await cityFrame.locator('#cityPlacePanel').innerText()).includes(title));
-      await cityFrame.locator('.monitor-dialog > button').click();
-      assert.equal(await cityFrame.locator('#cityPlaceInfo').isVisible(),false);
-    }
-    assert.equal(await cityFrame.locator('#cityGoalGrid .city-goal').count(),3);
-    await cityFrame.locator('#cityConditions > summary').click();await cityFrame.locator('.monitor-dialog[open]').waitFor();
-    assert.equal(await cityFrame.locator('#cityConditionGrid .city-goal').count(),3);
-    await cityFrame.locator('.monitor-dialog > button').click();
-    await City.maximum(cityFrame,async n=>{if(n===4||n===8)assert((await page.locator('#missionProgress').innerText()).includes('2 / 3'),'City completes only after all three rounds');});
+    const city = page.frameLocator('#epiView');
+    await City.ready(city); await City.closeInfo(city);
+    assert.equal(await city.locator('body').evaluate(()=>Object.hasOwn(TrafficEngine,'referenceActions')||Object.hasOwn(TrafficEngine,'testReference')),false,'The product exposes no reference-label oracle for silently correcting the child');
+    assert.equal(await city.locator('#mayor,#cityHypothesis,#cityGoalGrid').count(),0,'The replacement presents traffic decisions directly rather than old abstract city settings');
+    assert.equal(await city.locator('.traffic-junction').count(),(await City.snapshot(city)).current.view.junctionIds.length,'The map shows the actual connected intersections of this situation');
+    await city.locator('#cityTutorial').click();
+    assert(await city.locator('#trafficInfo').isVisible());
+    assert((await city.locator('#trafficInfo').innerText()).includes('ИИ'),'Rules explain the AI role');
+    await city.locator('#trafficInfo').press('Escape');
+    assert.equal(await city.locator('#trafficInfo').evaluate(el=>el.open),false,'Native dialog closes by keyboard');
+    const firstMaximum=await City.maximum(city);
     await page.waitForFunction(()=>+document.getElementById('overallScore').textContent===100);
     assert((await page.locator('#missionProgress').innerText()).includes('3 / 3'));
-    assert.equal(await cityFrame.locator('#cityAttempts span').count(),1);assert.equal(await cityFrame.locator('#cityAttempts span').textContent(),'Партия 1: 50/50');
-    assert.equal(await cityFrame.locator('.citizen-emotion').count(),4,'A few representative reactions keep the map readable');
-    await page.screenshot({path:path.join(shots,'city-three-rounds.png')});
-    await cityFrame.locator('#restartCity').click();
-    await City.build(cityFrame,'bus');await City.build(cityFrame,'market');
-    assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().funds),30);
-    await City.refund(cityFrame,'bus');await City.build(cityFrame,'clinic');
-    assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().funds),10);
-    await City.refund(cityFrame,'market');await City.refund(cityFrame,'clinic');
-    assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().funds),200);
-    await page.emulateMedia({reducedMotion:'no-preference'});
-    await cityFrame.locator('#tryCity').click();
-    await cityFrame.locator('.inhabitant[data-person="0"]').press('Enter');
-    await cityFrame.locator('.monitor-dialog[open]').waitFor();
-    assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.isPlaying()),false,'Clicking a moving inhabitant pauses the day');
-    await cityFrame.locator('.monitor-dialog > button').click();
-    assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().game.day),0);
-    assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.isPlaying()),false);
-    const frozen=await cityFrame.locator('.inhabitant').evaluateAll(els=>els.map(e=>e.getAttribute('transform')));
-    await page.waitForTimeout(250);
-    assert.deepEqual(await cityFrame.locator('.inhabitant').evaluateAll(els=>els.map(e=>e.getAttribute('transform'))),frozen,'Pause freezes the visible movement');
-    await cityFrame.locator('.inhabitant[data-person="0"]').press('Enter');
-    assert.equal(await cityFrame.locator('#citizenPanel .citizen-route li').count(),1,'A paused morning does not reveal future trips');
-    if(await cityFrame.locator('.monitor-dialog[open]').count())await cityFrame.locator('.monitor-dialog > button').click();
-    await page.emulateMedia({reducedMotion:'reduce'});
-    assert.equal(await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().game.day),0,'A paused day cannot finish in the background');
-    await City.round(cityFrame);
-    for(let n=1;n<3;n++)await City.round(cityFrame);
-    assert.equal(await cityFrame.locator('#cityBestScore').innerText(),'50 / 50','A weaker replay preserves the best');
-    assert.notEqual(await cityFrame.locator('#cityLocalScore').innerText(),'50 / 50','The current replay shows its own score');
-    assert((await cityFrame.locator('#roundOutcome').innerText()).includes('Главная задача не решена'));
-    assert.equal(await page.locator('#overallScore').innerText(),'100','Overall score keeps the best result');
-    assert.equal(await cityFrame.locator('#cityAttempts span').count(),2);
-    assert.equal(await cityFrame.locator('#tryCity').isEnabled(),false);
-    assert((await cityFrame.locator('body').evaluate(()=>cityCampaignGame.current().score))<50);
-    await cityFrame.locator('.inhabitant[data-person="0"]').press('Enter');
-    assert.equal(await cityFrame.locator('#citizenPanel .citizen-route li').count(),5);
-    if(await cityFrame.locator('.monitor-dialog[open]').count())await cityFrame.locator('.monitor-dialog > button').click();
+    assert.equal((await City.snapshot(city)).current.attempts.length,1);
+    await page.screenshot({path:path.join(shots,'traffic-city-complete.png')});
+
+    // Several informative demonstrations can win: teaching all eight cases is not a mandatory click-through.
+    await city.locator('#restartCity').click();
+    const caseDefinitions=require('../traffic-engine.js').trainingCases;
+    const alternativeCases=['bus-north','long-west','urgent-west','blocked-west'].map(id=>{const index=caseDefinitions.findIndex(c=>c.id===id);assert(index>=0,'A complementary teaching scene remains available: '+id);return index;}),reference=City.referenceActions();
+    await City.teach(city,alternativeCases.map(i=>reference[i]),alternativeCases);
+    const alternative=await City.exam(city);
+    assert.equal(alternative.examples.length,4);assert.equal(alternative.current.currentScore,50,'Four complementary examples generalise successfully to all new flows');
+    assert.equal(alternative.current.attempts.at(-1).results.length,3);
+    assert(alternative.current.bestResult.delay<firstMaximum.current.bestResult.delay,'Equal on-time scores still reward the policy that makes people wait less');
+
+    // A weaker replay keeps its own whole-suite score, rather than accumulating winners from separate flows.
+    await city.locator('#restartCity').click();
+    assert.equal((await City.snapshot(city)).examples.length,0);
+    assert.equal((await City.snapshot(city)).current.best,50);
+    await City.teach(city,City.referenceActions().map(()=>({axis:'EW',duration:12})));
+    const weak=await City.exam(city);
+    assert(weak.current.currentScore<50,'Repeating one direction does not solve all three flows');
+    assert.equal(weak.current.best,50,'A weaker complete replay preserves the best whole-suite result');
+    assert.equal(await page.locator('#overallScore').innerText(),'100');
+    assert.notEqual(parseInt(await city.locator('#cityLocalScore').innerText(),10),50);
+    await City.exam(city);
+    assert.equal((await City.snapshot(city)).current.attempts.length,2);
+    assert(await city.locator('#startExam').isDisabled(),'Only two scored attempts are available per party');
+    // Unsafe demonstrations remain unsafe labels. The learned controller can actually collide agents.
+    await city.locator('#restartCity').click();
+    const unsafe={axis:'BOTH',duration:4};await City.demonstrate(city,unsafe);
+    const accident=(await City.snapshot(city)).current.view;
+    assert(accident.crashCount>0&&accident.accidents.length>0,'Giving conflicting streams green creates a physical collision');
+    assert(accident.agents.filter(a=>a.status==='crashed').length>=2,'The involved agents do not silently resume their trips');
+    assert(accident.accidents[0].blockedUntil>accident.accidents[0].tick,'A collision blocks the intersection and delays following traffic');
+    await City.train(city,unsafe);
+    assert.equal(await city.locator('body').evaluate(()=>TrafficLearning.predict(trafficCityGame.model(),trafficCityGame.examples()[0].observation).axis),'BOTH','The model preserves even the unsafe child decision');
+    const badPractice=await City.practice(city);
+    assert(badPractice.current.view.crashCount>0,'The autonomous AI repeats an unsafe learned decision and causes actual collisions');
+    assert.equal(badPractice.current.best,50,'An unscored unsafe practice cannot rewrite the existing whole-suite result');
     await page.locator('#newParticipant').click();
     assert.equal(await page.locator('#overallScore').innerText(),'0');
     assert((await page.locator('#missionProgress').innerText()).includes('0 / 3'));
     assert.equal(await page.evaluate(()=>robotExpedition.current().trips.length),0);
     assert.equal(await page.evaluate(()=>robotExpedition.current().stage),0);
-    await page.locator('#epiTab').click();
-    await cityFrame.locator('#observeCity').waitFor();
-    assert.equal(await cityFrame.locator('#cityLocalScore').innerText(),'0 / 50');
-    assert.equal(await cityFrame.locator('#cityAttempts span').count(),0);
-    if(await cityFrame.locator('#gameTour').count()) await cityFrame.locator('#tourSkip').click();
+    await page.locator('#epiTab').click(); await City.ready(city); await City.closeInfo(city);
+    const reset=await City.snapshot(city);
+    assert.equal(reset.current.best,0);assert.equal(reset.examples.length,0);assert.equal(reset.current.attempts.length,0);
     await page.locator('#robotTab').click();
 
-    await page.goto(url+'/epidemic.html');
-    await page.locator('#mayor').waitFor();
-    if(await page.locator('#gameTour').count()) await page.locator('#tourSkip').click();
-    assert.equal(await page.locator('.city-mode-nav a').count(),1,'The short city is the normal game');
-    await page.locator('#cityTutorial').click(); await tourFits(); await page.screenshot({path:path.join(shots,'city-tutorial.png')}); await page.locator('#tourSkip').click();
+    // Standalone city uses the same visible learning and autonomous test controls.
+    await page.goto(url+'/city.html'); await City.ready(page); await City.closeInfo(page);
     await City.maximum(page);
-    await page.screenshot({path:path.join(shots,'city-comparison.png')});
-    await page.locator('.inhabitant[data-person="0"]').press('Enter');
-    await page.locator('#citizenPanel').scrollIntoViewIfNeeded(); await page.screenshot({path:path.join(shots,'citizen-desktop.png')});
-    if(await page.locator('.monitor-dialog[open]').count())await page.locator('.monitor-dialog > button').click();
-    await page.locator('#cityTutorial').click(); await page.locator('#observeCity').click();
-    await step('Помоги добраться'); await page.locator('#pick-bus-frequent').click();
-    await step('Проверь своё'); await page.locator('#tryCity').click();
-    await step('Цели каждого');await tourFits();await page.locator('#tourNext').click();
-    await step('Планируй улучшения');await tourFits();await page.locator('#tourNext').click();
-    assert.equal(await page.locator('body').evaluate(()=>cityCampaignGame.current().game.day),12,'Tutorial replay preserves a completed city');
-    assert.equal(await page.locator('#cityLocalScore').innerText(),'50 / 50');
-    await page.locator('#mayorMapSlot').scrollIntoViewIfNeeded(); await page.screenshot({path:path.join(shots,'city-desktop.png')}); await noOverflow();
+    await page.locator('#cityTutorial').click();
+    assert.equal((await City.snapshot(page)).current.best,50,'Reviewing the rules preserves a completed game');
+    await City.closeInfo(page);
+    await page.screenshot({path:path.join(shots,'traffic-city-standalone.png')});
+    await noOverflow();
 
     await page.goto(url + '/epidemic.html?mode=contest');
     await page.locator('#contest').waitFor();
@@ -228,41 +142,37 @@ const server = http.createServer((req, res) => {
 
     for (const width of [1920, 2560]) {
       await page.setViewportSize({ width, height: width === 2560 ? 1440 : 1080 });
-      for (const route of ['/', '/epidemic.html', '/epidemic.html?mode=contest', '/epidemic.html?mode=lab']) {
+      for (const route of ['/', '/city.html', '/epidemic.html?mode=contest', '/epidemic.html?mode=lab']) {
         await page.evaluate(()=>sessionStorage.clear());
         await page.goto(url + route);
-        await page.locator(route === '/' ? '#robotView' : route.includes('contest') ? '#contest' : route.includes('lab') ? '.lab-mode' : '#mayor').waitFor();
-        if (await page.locator('#gameTour').count()) await page.locator('#tourSkip').click();
-        if (route === '/') {
-          await page.locator('#robotTutorial').click(); assert(await page.locator('#robotDialog').isVisible()); await page.locator('#dialogClose').click();
+        await page.locator(route === '/' ? '#robotView' : route === '/city.html' ? '#signalCity' : route.includes('contest') ? '#contest' : '.lab-mode').waitFor();
+        if(await page.locator('#gameTour').count())await page.locator('#tourSkip').click();
+        if(route === '/') {
+          await page.locator('#robotTutorial').click();assert(await page.locator('#robotDialog').isVisible());await page.locator('#dialogClose').click();
           await page.evaluate(()=>window.scrollTo(0,0));
-        } else if (route === '/epidemic.html') {
-          await page.locator('#cityTutorial').click(); await tourFits(); await startWatching('#map','.inhabitant'); await page.locator('#observeCity').click();
-          await page.locator('.tour-watching').waitFor(); await tourFits(); await page.screenshot({path:path.join(shots,`city-moving-${width}.png`)});
-          await step('Помоги добраться'); await watched(); await tourFits(); await page.locator('#pick-bus-frequent').click();
-          await step('Проверь своё'); await tourFits(); await startWatching('#map','.inhabitant'); await page.locator('#tryCity').click(); await step('Цели каждого'); await watched(); await City.finishLesson(page,tourFits);
-          await page.evaluate(()=>window.scrollTo(0,0));
-        }
-        await noOverflow();
-        const short = await page.locator('button:visible').evaluateAll(buttons => buttons.filter(b => b.id !== 'newParticipant' && !b.classList.contains('cell') && b.getBoundingClientRect().height < 43).map(b => b.id));
-        assert.deepEqual(short, [], 'Visible action buttons must have sufficiently large targets');
+        } else if(route === '/city.html') { await City.ready(page); await City.closeInfo(page); }
+        await noOverflow();await visibleControls();
       }
     }
-    // Also check ordinary animation speed and the city embedded on a Full HD monitor.
-    await page.setViewportSize({width:1920,height:1080}); await page.emulateMedia({reducedMotion:'no-preference'});
-    await page.goto(url); await Robot.run(page,Robot.routes.wash);
-    await page.locator('#epiTab').click();
-    if(!await cityFrame.locator('#gameTour').count())await cityFrame.locator('#cityTutorial').click();
-    await tourFits(cityFrame); await startWatching('#map','.inhabitant',cityFrame); await cityFrame.locator('#observeCity').click();
-    await cityFrame.locator('.tour-watching').waitFor(); await tourFits(cityFrame); await lit(['#map','#citizenStory'],cityFrame);
-    await page.screenshot({path:path.join(shots,'city-moving-iframe-1920.png')});
-    await step('Помоги добраться',cityFrame); await watched(cityFrame); await cityFrame.locator('#tourSkip').click();
-    await page.goto(url);
-    await page.locator('#epiTab').click();
-    await page.frameLocator('#epiView').locator('#mayor').waitFor();
-    await page.locator('#robotTab').click();
-    assert.equal(await page.locator('#robotView').isVisible(), true);
-    assert.deepEqual(errors, [], 'No JS errors or missing game assets');
-    console.log('Browser: autonomous deliveries, measured learning, full 100/100, city tutorials, campaigns, reset and Full HD/QHD passed');
-  } finally { await browser.close(); server.close(); }
-})().catch(error => { console.error(error); server.close(); process.exitCode = 1; });
+    // Ordinary animation really moves the simulated actors, and opening an actor's card pauses it.
+    await page.setViewportSize({width:1920,height:1080});await page.emulateMedia({reducedMotion:'no-preference'});
+    await page.goto(url);await Robot.run(page,Robot.routes.wash);
+    await page.locator('#epiTab').click();await City.ready(city);await City.closeInfo(city);
+    await City.select(city,{axis:'EW',duration:12});
+    await city.locator('#demonstrate').click();
+    await city.locator('body').evaluate(()=>new Promise(resolve=>{
+      const positions=new Set();const started=performance.now();
+      function frame(){positions.add([...document.querySelectorAll('.traffic-agent')].map(e=>e.getAttribute('transform')).join('|'));
+        if(positions.size>2 || performance.now()-started>3000){window.browserTrafficPositions=positions.size;resolve();}else requestAnimationFrame(frame);}
+      frame();
+    }));
+    assert((await city.locator('body').evaluate(()=>window.browserTrafficPositions))>2,'Traffic animation uses multiple actual engine positions');
+    if((await City.snapshot(city)).playing){await city.locator('.traffic-agent').first().press('Enter');assert(await city.locator('#trafficInfo').isVisible());assert.equal((await City.snapshot(city)).playing,false);await City.closeInfo(city);}
+    const frozen=await city.locator('.traffic-agent').evaluateAll(els=>els.map(e=>e.getAttribute('transform')));
+    await page.waitForTimeout(250);
+    assert.deepEqual(await city.locator('.traffic-agent').evaluateAll(els=>els.map(e=>e.getAttribute('transform'))),frozen,'Inspecting an actor pauses all physical movement');
+    await page.locator('#robotTab').click();assert.equal(await page.locator('#robotView').isVisible(),true);
+    assert.deepEqual(errors,[],'No JS errors or missing game assets');
+    console.log('Browser: robot deliveries, full100/100, explicit own-label traffic learning, autonomous suite, weaker replay and FullHD/QHD passed');
+  }finally{await browser.close();server.close();}
+})().catch(error=>{console.error(error);server.close();process.exitCode=1;});
