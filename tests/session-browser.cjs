@@ -44,6 +44,15 @@ const server=http.createServer((req,res)=>{const file=path.resolve(root,'.'+(req
   assert.equal(await city.locator('#cityLocalScore').innerText(),'0 / 50');const trial=await city.locator('body').evaluate(()=>cityCampaignGame.trial());assert.equal(trial.result.score,3);
   await city.locator('#pick-bus-normal').click();assert((await city.locator('#trialSummary').innerText()).includes('План изменён'));await page.reload();await city.locator('#mayor').waitFor();assert.deepEqual(await city.locator('body').evaluate(()=>cityCampaignGame.trial()),trial,'Reload cannot silently relabel an old trial with a new plan');
   const second=await City.trial(city);assert.equal(second.score,0);assert(await city.locator('#trialCity').isDisabled());await page.reload();await city.locator('#mayor').waitFor();assert(await city.locator('#trialCity').isDisabled(),'Reload cannot refund trial slots');
+  // Inspecting a historical citizen must preserve every already shown day and offer a return to the latest frame.
+  const latestShown=await city.locator('#cityCalendar').innerText();
+  await city.locator('#inspect-activity').click();await city.locator('#flowDay').selectOption('1');await city.locator('.flow-people button').first().click();await city.locator('#returnToShown').waitFor();
+  assert((await city.locator('#citizenPanel').innerText()).includes('День 1'));await city.locator('.monitor-dialog').press('Escape');
+  await city.locator('#inspect-activity').click();assert.deepEqual(await city.locator('#flowDay option').evaluateAll(es=>es.map(e=>e.value)),['1','2','3','4'],'Historical inspection cannot hide later observed days');
+  await city.locator('#flowDay').selectOption('4');assert((await city.locator('#flowPanel').innerText()).includes('День 4'));
+  await city.locator('#flowDay').selectOption('1');await city.locator('.flow-people button').first().click();await city.locator('#returnToShown').click();await city.locator('.monitor-dialog[open]').waitFor({state:'hidden'});
+  assert.equal(await city.locator('#cityCalendar').innerText(),latestShown,'Return restores the latest actual frame without starting another trial');
+  assert.equal(await city.locator('body').evaluate(()=>cityCampaignGame.trials().length),2);assert.equal(await city.locator('body').evaluate(()=>cityCampaignGame.current().game.day),0);
   await city.locator('#pick-bus-frequent').click();
   // Score is committed only after the four-day animation, with a frozen plan across reload.
   await page.emulateMedia({reducedMotion:'no-preference'});await city.locator('#tryCity').click();await city.locator('#pauseCity').click();await page.reload();await city.locator('#mayor').waitFor();assert.equal(await city.locator('body').evaluate(()=>cityCampaignGame.isPending()),true);assert(await city.locator('#pick-bus-normal').isDisabled());

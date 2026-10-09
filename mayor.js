@@ -9,8 +9,8 @@
     park: ['normal', 'closed'], gym: ['normal', 'limited', 'closed'], clinic: ['normal', 'appointments', 'closed']
   };
   const upgrades = {
-    bus: { title: 'Новые автобусы', cost: 90, upkeep: 5, effect: '+20 мест на каждом этапе поездок' },
-    market: { title: 'Расширить магазин', cost: 80, upkeep: 4, effect: '+12 покупателей за день' },
+    bus: { title: 'Новые автобусы', cost: 90, upkeep: 5, effect: '+20 базовых мест на каждом этапе; смены и события меняют итоговую вместимость' },
+    market: { title: 'Расширить магазин', cost: 80, upkeep: 4, effect: '+12 базовых мест в магазине; режим работы и перебои поставок меняют итоговую вместимость' },
     clinic: { title: 'Новый кабинет помощи', cost: 110, upkeep: 6, effect: '+4 места для помощи в день' },
     park: { title: 'Обустроить парк', cost: 70, upkeep: 3, effect: '+20 мест для отдыха и больше восстановления' },
     water: { title: 'Водоснабжение', cost: 100, upkeep: 4, effect: '+80 жителей с надёжным водоснабжением' },

@@ -156,19 +156,20 @@
   $('pauseCity').onclick=pauseDay;window.addEventListener?.('message',e=>{if(e.source===parent&&e.data==='pause')pauseDay();});
   function restart(){if(pending||lesson)return;campaign=C.create();actions=[];trials=[];preview=null;plan=GameScore.cityDefaults();started=true;selectedCitizen=0;update();restoreFeedback();$('mayorStatus').textContent='Новая партия. Лучший счёт сохранён.';}
   $('restartCity').onclick=$('restartEarly').onclick=restart;
+  const latestShownIndex=()=>pending?pending.nextIndex-1:viewedHistory.length-1;
   function inspectFlow(kind,day=viewedFrame.day){
-    pauseDay();inspected=kind;const box=$('flowPanel');box.replaceChildren();const phase=kind==='activity'?1:2,r=viewedGame.reports.find(r=>r.day===day),flow=r?.flows?.[kind];
+    pauseDay();inspected=kind;const shown=viewedHistory[latestShownIndex()],box=$('flowPanel');box.replaceChildren();const phase=kind==='activity'?1:2,r=viewedGame.reports.find(r=>r.day===day),flow=r?.flows?.[kind];
     element('h3',({activity:'Дом → поездка → занятия и работа',food:'Дом → поездка → магазин → покупка',care:'Дом → поездка → больница → помощь'})[kind],box);
     element('p','День '+day+' · '+(preview||pending?.kind==='trial'?'опыт на копии':'показанный город'),box);
     const label=element('label','Показанный день ',box),select=element('select','',label);select.id='flowDay';
-    for(const report of viewedGame.reports.filter(r=>r.day<=viewedFrame.day&&r.day>Math.floor(Math.max(0,viewedFrame.day-1)/4)*4)){const option=element('option','День '+report.day,select);option.value=report.day;}select.value=day;select.onchange=()=>inspectFlow(kind,+select.value);
-    if(!flow||day===viewedFrame.day&&viewedFrame.phase<phase){element('p','Этот этап ещё не показан. Продолжи прогон, чтобы увидеть фактический результат.',box);$('cityFlow').open=true;return;}
+    for(const report of viewedGame.reports.filter(r=>r.day<=shown.day&&r.day>Math.floor(Math.max(0,shown.day-1)/4)*4)){const option=element('option','День '+report.day,select);option.value=report.day;}select.value=day;select.onchange=()=>inspectFlow(kind,+select.value);
+    if(!flow||day===shown.day&&shown.phase<phase){element('p','Этот этап ещё не показан. Продолжи прогон, чтобы увидеть фактический результат.',box);$('cityFlow').open=true;return;}
     const arrived=new Set(flow.arrived),served=new Set(flow.served),missed=flow.requested.filter(id=>!arrived.has(id)),waiting=flow.arrived.filter(id=>!served.has(id));
     const chain=element('div','',box);chain.className='flow-chain';for(const [label,n]of [['Нужна поездка',flow.requested.length],['Добрались',flow.arrived.length],['Получили услугу',flow.served.length]]){const step=element('div','',chain);element('strong',String(n),step);element('span',label,step);}
     element('p',kind==='activity'?'Показаны очные поездки. При варианте «Дома» часть жителей учится или работает удалённо; это учитывается в итоговой доступности.':kind==='food'?'Покупатель представляет семью. Семьи с запасом на два дня не отправляют покупателя; они не считаются пропустившими поездку.':'Показаны обращения этого дня, а не все заболевшие.',box);
     const allLost=new Set([...missed,...waiting]);for(const e of $('map').querySelectorAll('[data-person]'))e.classList.toggle('flow-affected',allLost.has(+e.getAttribute('data-person')));
     const reasons=[['Не добрались: не хватило мест в автобусе',missed],...(kind==='food'?[['Добрались, но не хватило мест в магазине',flow.capacityDenied],['Не хватило денег на покупку',flow.moneyDenied]]:[[kind==='care'?'Добрались, но не хватило мест на приёме':'Добрались, но не хватило мест на занятиях или работе',waiting]])];
-    for(const [label,ids]of reasons){element('h4',label+' · '+ids.length,box);const list=element('div','',box);list.className='flow-people';for(const id of ids){const person=viewedGame.people[id],b=element('button',person.name+' · квартал '+(person.district+1),list);b.onclick=()=>{$('cityFlow').open=false;setTimeout(()=>{const index=viewedHistory.findIndex(h=>h.day===day&&h.phase===(day<viewedFrame.day?4:viewedFrame.phase));if(index>=0)render({game:viewedGame},index,false);window.mayorCitizenSelect(id);},0);};}if(!ids.length)element('p','На этом участке потерь нет.',box);}
+    for(const [label,ids]of reasons){element('h4',label+' · '+ids.length,box);const list=element('div','',box);list.className='flow-people';for(const id of ids){const person=viewedGame.people[id],b=element('button',person.name+' · квартал '+(person.district+1),list);b.onclick=()=>{$('cityFlow').open=false;setTimeout(()=>{const index=viewedHistory.findIndex(h=>h.day===day&&h.phase===(day<shown.day?4:shown.phase));if(index>=0)render({game:viewedGame},index,false);window.mayorCitizenSelect(id);},0);};}if(!ids.length)element('p','На этом участке потерь нет.',box);}
     $('cityFlow').open=true;
   }
   for(const kind of ['activity','food','care'])$('inspect-'+kind).onclick=()=>inspectFlow(kind);
@@ -181,6 +182,7 @@
     const stocks = h.householdFood?.[p.household];
     if (stocks !== undefined) element('p', (h.phase === 4 ? 'Продуктов на ' : 'Запас утром: ') + stocks.toFixed(1) + ' дня', card);
     if (snapshot?.reaction) element('p', snapshot.reaction.emoji + ' «' + snapshot.reaction.text + '»', card);
+    if(viewedIndex<latestShownIndex()){const back=element('button','К последнему показанному этапу',card);back.id='returnToShown';back.onclick=()=>{const index=latestShownIndex();$('cityPeople').open=false;render({game:viewedGame},index,false);};}
     const list = element('ol', '', card); list.className = 'citizen-route';
     viewedHistory.slice(1, viewedIndex + 1).filter(frame => frame.day === h.day).forEach(frame => element('li', Epidemic.phases[frame.phase].slice(0, 5) + ' · ' + Epidemic.places.find(place => place.id === frame.loc[selectedCitizen]).name, list));
   }
